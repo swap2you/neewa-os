@@ -1,0 +1,30 @@
+# Environment
+.env
+.env.*
+!.env.example
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+certs/
+keys/
+docs/
+
+# Dependencies and virtual envs
+node_modules/
+venv/
+.venv/
+__pycache__/
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local archive (source of truth is the repo)
+NEEWA-OS-v1.0.zip
+*.zip

@@ -1,0 +1,21 @@
+system:
+  name: NEEWA
+  mode: RUN
+  max_autonomous_remediation_cycles: 2
+
+authority:
+  public_publish: owner_required
+  protected_merge: owner_required
+  production_deploy: owner_required
+  money_transfer: prohibited_without_owner
+  live_trade: prohibited_without_owner
+  routine_research: automatic
+  tests_and_validation: automatic
+
+research:
+  premium_research_requires_manifest: true
+  disclose_unavailable_sources: true
+
+done_gate:
+  evidence_required: true
+  independent_validation_for_high_risk: true

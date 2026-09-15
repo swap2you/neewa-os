@@ -1,0 +1,10 @@
+budget:
+  first_90_days_usd: 1000
+  monthly_openai_api_usd: 60
+  monthly_openrouter_usd: 20
+  monthly_runpod_usd: 25
+  owner_approval_required_above_budget: true
+
+job_defaults:
+  max_retries: 2
+  cost_estimate_required: true

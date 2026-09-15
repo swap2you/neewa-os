@@ -1,0 +1,25 @@
+routes:
+  owner_strategy:
+    alias: neewa-premium
+    reasoning: high
+
+  routine:
+    alias: neewa-routine
+
+  balanced:
+    alias: neewa-balanced
+
+  exceptional:
+    alias: neewa-extreme
+    requires_escalation_reason: true
+
+  coding:
+    preferred_workers:
+      - codex
+      - claude_code
+      - gemini_cli
+
+  local_sanitized:
+    preferred:
+      - qwen
+      - gemma

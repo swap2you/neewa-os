@@ -1,0 +1,9 @@
+watchdog:
+  mode: RUN
+  triggers:
+    credential_leak: LOCKDOWN
+    unauthorized_network_destination: LOCKDOWN
+    unauthorized_destructive_action: LOCKDOWN
+    runaway_retry_loop: PAUSE
+    monthly_budget_exceeded: PAUSE
+  preserve_evidence_on_lockdown: true

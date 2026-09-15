@@ -1,0 +1,23 @@
+model_list:
+  - model_name: neewa-premium
+    litellm_params:
+      model: openai/gpt-5.6-sol
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: neewa-balanced
+    litellm_params:
+      model: openai/gpt-5.6-terra
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: neewa-routine
+    litellm_params:
+      model: openai/gpt-5.6-luna
+      api_key: os.environ/OPENAI_API_KEY
+
+  - model_name: neewa-extreme
+    litellm_params:
+      model: openai/gpt-6-astra
+      api_key: os.environ/OPENAI_API_KEY
+
+# Add fallbacks only after provider keys/guardrails are configured.
+# Do not copy this directly to production without validating current LiteLLM schema.

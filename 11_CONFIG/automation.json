@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "jobs": [
+    {
+      "id": "668bebff0913",
+      "name": "neewa-daily-health",
+      "schedule": "06:00 daily",
+      "mode": "no-agent",
+      "status": "active",
+      "delivery": "local",
+      "last_manual_test": "PASS"
+    },
+    {
+      "id": "7f1340843c83",
+      "name": "neewa-morning-brief",
+      "schedule": "06:15 daily",
+      "mode": "no-agent",
+      "status": "active",
+      "delivery": "local"
+    }
+  ]
+}

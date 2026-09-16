@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "standing_authorization": "Owner Master Authorization \u2014 NEEWA OS Autonomous Overnight Build",
+  "authorized": [
+    "validated pushes",
+    "free packages",
+    "reversible runtime/services",
+    "Docker isolation",
+    "Tailscale-private access",
+    "sized local models",
+    "voice/client/UI preparation",
+    "automation"
+  ],
+  "deferred": [
+    "NemoClaw/OpenShell/K3s",
+    "global Docker network disable",
+    "firewall changes",
+    "public exposure/Funnel",
+    "paid services",
+    "financial actions",
+    "employer systems"
+  ]
+}

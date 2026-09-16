@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "risks": [
+    {
+      "id": "RISK-001",
+      "risk": "Public exposure",
+      "control": "loopback/Tailscale/SSH only; Funnel prohibited",
+      "status": "controlled"
+    },
+    {
+      "id": "RISK-002",
+      "risk": "CPU local model OOM/latency",
+      "control": "4B Q4, 64K, one model/request, 8 GiB swap, benchmark",
+      "status": "mitigated-slow"
+    },
+    {
+      "id": "RISK-003",
+      "risk": "Wake dependency incompatibility",
+      "control": "sherpa engine and pypinyin",
+      "status": "mitigated"
+    },
+    {
+      "id": "RISK-004",
+      "risk": "Employer boundary violation",
+      "control": "personal systems only",
+      "status": "controlled"
+    },
+    {
+      "id": "RISK-005",
+      "risk": "Docker bridge egress",
+      "control": "future per-worker allowlist design",
+      "status": "open-deferred"
+    }
+  ]
+}

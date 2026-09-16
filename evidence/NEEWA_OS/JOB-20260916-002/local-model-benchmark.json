@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "model": "qwen3:4b-instruct-2507-q4_K_M",
+  "context": 65536,
+  "exact": {
+    "wall_seconds": 1.761,
+    "content": "NEEWA LOCAL READY",
+    "tool_calls": [],
+    "prompt_tokens": 17,
+    "output_tokens": 6,
+    "prompt_tps": 77.29,
+    "output_tps": 5.52,
+    "load_seconds": 0.002
+  },
+  "tool_call": {
+    "wall_seconds": 11.192,
+    "content": "",
+    "tool_calls": [
+      {
+        "id": "zz2WGZEIOBnuLFOt3vCrAbkukz2NOhKM",
+        "function": {
+          "index": 0,
+          "name": "get_system_mode",
+          "arguments": {}
+        }
+      }
+    ],
+    "prompt_tokens": 143,
+    "output_tokens": 17,
+    "prompt_tps": 19.06,
+    "output_tps": 4.63,
+    "load_seconds": 0.002
+  },
+  "acceptance": {
+    "exact_output": true,
+    "tool_call_valid": true,
+    "functional": true
+  }
+}

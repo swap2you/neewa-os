@@ -1,0 +1,14 @@
+{
+  "verified_at": "2026-09-16T04:55:00Z",
+  "gateway": {
+    "active": "active",
+    "enabled": "enabled",
+    "restart_test": "PASS; PID changed and service recovered"
+  },
+  "linger": "yes",
+  "state_db_integrity": "ok",
+  "session_count": 11,
+  "docker": "active",
+  "ollama": "active",
+  "tailscale": "active"
+}

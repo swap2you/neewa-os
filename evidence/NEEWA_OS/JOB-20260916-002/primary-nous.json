@@ -1,0 +1,8 @@
+{
+  "provider": "nous",
+  "model": "openai/gpt-5.6-sol",
+  "status": "PASS",
+  "response": "NOUS PRIMARY VERIFIED",
+  "elapsed_seconds": 6.65,
+  "secret_values": "not collected"
+}

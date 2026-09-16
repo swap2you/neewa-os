@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workers": [
+    {
+      "id": "neewa-chief",
+      "class": "chief-agent",
+      "runtime": "Hermes",
+      "status": "active",
+      "location": "neewa-core-01"
+    },
+    {
+      "id": "hermes-delegated-worker",
+      "class": "temporary-agent",
+      "runtime": "Hermes delegation",
+      "status": "verified",
+      "isolation": "separate context and sandbox"
+    },
+    {
+      "id": "neewa-local-inference",
+      "class": "model-worker",
+      "runtime": "Ollama",
+      "status": "verified",
+      "location": "loopback"
+    },
+    {
+      "id": "neewa-edge-01",
+      "class": "windows-edge",
+      "runtime": "Hermes Desktop",
+      "status": "package-prepared-owner-install-pending"
+    },
+    {
+      "id": "codex",
+      "class": "coding-worker",
+      "status": "not-installed"
+    },
+    {
+      "id": "claude-code",
+      "class": "coding-worker",
+      "status": "not-installed"
+    },
+    {
+      "id": "gemini-cli",
+      "class": "coding-worker",
+      "status": "not-installed"
+    }
+  ]
+}

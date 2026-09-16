@@ -1,0 +1,11 @@
+{
+  "verified_at": "2026-09-16T04:55:00Z",
+  "archive": "16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip",
+  "archive_sha256": "913b2cb82e5810bdea89ac41b1ffe4f37e180ee71774ac17bdfdd2296e4f4121",
+  "zip_test": "PASS",
+  "powershell_parser": "PASS in network-disabled isolated PowerShell container",
+  "plugin_node_syntax": "PASS",
+  "skin_yaml": "PASS",
+  "physical_windows_install": "PENDING",
+  "installer_corrections": "PATH refresh and packed Hermes.exe startup target"
+}

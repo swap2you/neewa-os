@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "job_id": "JOB-20260916-002",
+  "project_id": "PRJ-NEEWA",
+  "owner": "NEEWA",
+  "objective": "Complete authorized overnight persistence, private client, voice, local fallback, UI, automation, registries, and morning report milestones",
+  "risk": "medium",
+  "approval_level": "A1",
+  "state": "DONE",
+  "budget": {
+    "ceiling": 0.0,
+    "actual": 0.0,
+    "currency": "USD"
+  },
+  "remediation_cycles": 0,
+  "automated_checks": [
+    {
+      "name": "repository-validation",
+      "status": "passed"
+    },
+    {
+      "name": "unit-tests",
+      "status": "passed"
+    },
+    {
+      "name": "semantic-registries",
+      "status": "passed"
+    },
+    {
+      "name": "primary-nous",
+      "status": "passed"
+    },
+    {
+      "name": "local-fallback",
+      "status": "passed"
+    },
+    {
+      "name": "voice-stack",
+      "status": "passed"
+    },
+    {
+      "name": "private-connectivity",
+      "status": "passed"
+    },
+    {
+      "name": "persistence",
+      "status": "passed"
+    },
+    {
+      "name": "windows-package",
+      "status": "passed"
+    },
+    {
+      "name": "automation",
+      "status": "passed"
+    },
+    {
+      "name": "git-integrity",
+      "status": "passed"
+    }
+  ],
+  "independent_review": {
+    "required": true,
+    "status": "passed",
+    "verdict": "PASS",
+    "evidence": "evidence/NEEWA_OS/JOB-20260916-002/independent-review-final.json"
+  },
+  "owner_gate": {
+    "required": false,
+    "status": "not_required"
+  },
+  "evidence": [
+    "evidence/NEEWA_OS/JOB-20260916-002/fallback-integration.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/local-model-benchmark.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/persistence.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/primary-nous.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/private-connectivity.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/voice-stack.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/windows-package.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/independent-review-final.json",
+    "evidence/NEEWA_OS/JOB-20260916-002/done-gate.json"
+  ],
+  "history": [
+    {
+      "state": "NEW",
+      "at": "2026-09-16T04:33:01Z"
+    },
+    {
+      "state": "TRIAGED",
+      "at": "2026-09-16T04:33:01Z"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-16T04:33:01Z"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-16T04:33:01Z"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-16T05:27:11Z"
+    },
+    {
+      "state": "DONE",
+      "at": "2026-09-16T05:33:20Z"
+    }
+  ],
+  "created_at": "2026-09-16T04:33:01Z",
+  "updated_at": "2026-09-16T05:32:00Z"
+}

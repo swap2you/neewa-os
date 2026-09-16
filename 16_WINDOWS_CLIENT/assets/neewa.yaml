@@ -1,0 +1,32 @@
+name: neewa
+description: Private executive assistant — midnight teal and precise cyan
+colors:
+  background: "#071318"
+  ui_accent: "#4FD1C5"
+  banner_accent: "#4FD1C5"
+  banner_title: "#E6FFFA"
+  banner_text: "#D6E6E9"
+  ui_text: "#D6E6E9"
+  banner_dim: "#78909A"
+  banner_border: "#18343D"
+  ui_border: "#18343D"
+  ui_ok: "#68D391"
+  ui_warn: "#F6C85F"
+  ui_error: "#FC8181"
+  prompt: "#E6FFFA"
+  input_rule: "#4FD1C5"
+  response_border: "#2C7A7B"
+  status_bar_bg: "#091E26"
+  status_bar_text: "#D6E6E9"
+  status_bar_good: "#68D391"
+  status_bar_warn: "#F6C85F"
+  status_bar_critical: "#FC8181"
+  session_label: "#81E6D9"
+  session_border: "#18343D"
+branding:
+  agent_name: NEEWA
+  prompt_symbol: "›"
+  welcome: "NEEWA online"
+  goodbye: "NEEWA standing by"
+  help_header: "NEEWA commands"
+tool_prefix: "│"

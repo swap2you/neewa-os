@@ -127,7 +127,7 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
     for rel in REQUIRED_GOVERNANCE:
         checks.append(check(f"governance:{rel}", (root / rel).is_file(), "required authority file"))
 
-    json_files = ["runtime.json", "budgets.json", "projects.json", "providers.json", "resources.json"]
+    json_files = ["runtime.json", "budgets.json", "projects.json", "providers.json", "resources.json", "models.json", "workers.json", "automation.json", "subscriptions.json", "skills.json", "risks.json", "approvals.json"]
     loaded: dict[str, dict[str, Any]] = {}
     for filename in json_files:
         try:
@@ -155,6 +155,26 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
     resources = loaded.get("resources.json", {}).get("resources", [])
     checks.append(check("providers:registry", bool(providers), f"{len(providers)} providers"))
     checks.append(check("resources:registry", bool(resources), f"{len(resources)} resources"))
+    models = loaded.get("models.json", {}).get("models", [])
+    checks.append(check("models:verified_primary", any(m.get("id") == "neewa-premium" and m.get("availability") == "verified" for m in models), f"{len(models)} models"))
+    checks.append(check("models:verified_local_fallback", any(m.get("id") == "neewa-local" and m.get("location") == "local" and m.get("availability") == "verified" for m in models), "local fallback required"))
+    workers = loaded.get("workers.json", {}).get("workers", [])
+    checks.append(check("workers:registry", bool(workers), f"{len(workers)} workers"))
+    checks.append(check("workers:unique_ids", len([w.get("id") for w in workers]) == len(set(w.get("id") for w in workers)), "worker IDs"))
+    checks.append(check("workers:required_fields", all(w.get("id") and w.get("class") and w.get("status") for w in workers), "id/class/status"))
+    automation = loaded.get("automation.json", {}).get("jobs", [])
+    checks.append(check("automation:registry", len(automation) >= 2, f"{len(automation)} jobs"))
+    checks.append(check("automation:unique_ids", len([j.get("id") for j in automation]) == len(set(j.get("id") for j in automation)), "automation IDs"))
+    checks.append(check("automation:valid_status", all(j.get("status") in {"active", "prepared", "paused", "blocked"} for j in automation), "job status values"))
+    for registry_name, required in {"subscriptions.json":["provider","status"],"skills.json":["id","status"],"risks.json":["id","risk","control","status"]}.items():
+        key = registry_name.replace(".json", "")
+        rows = loaded.get(registry_name, {}).get(key, [])
+        checks.append(check(f"{key}:registry", bool(rows), f"{len(rows)} entries"))
+        checks.append(check(f"{key}:required_fields", all(all(row.get(field) is not None and row.get(field) != "" for field in required) for row in rows), ",".join(required)))
+    approvals = loaded.get("approvals.json", {})
+    authorized = set(approvals.get("authorized", [])); deferred = set(approvals.get("deferred", []))
+    checks.append(check("approvals:standing_authorization", bool(authorized), "authorized actions"))
+    checks.append(check("approvals:no_overlap", not (authorized & deferred), "authorized/deferred disjoint"))
 
     findings = scan_secrets(root)
     checks.append(check("security:secret_scan", not findings, f"{len(findings)} finding(s)"))

@@ -1,0 +1,13 @@
+{
+  "verified_at": "2026-09-16T04:55:00Z",
+  "tailnet_peer_count": 1,
+  "peer_ping": true,
+  "tailscale_serve_active": false,
+  "tailscale_funnel_active": false,
+  "listeners": [
+    "LISTEN 0      4096                     127.0.0.1:11434      0.0.0.0:*          ",
+    "LISTEN 0      4096                       0.0.0.0:22         0.0.0.0:*          ",
+    "LISTEN 0      4096                          [::]:22            [::]:*          "
+  ],
+  "expected": "SSH existing listener; Ollama loopback only; no dashboard/API public listener"
+}

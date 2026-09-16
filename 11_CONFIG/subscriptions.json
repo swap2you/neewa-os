@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "policy": "No purchase or new paid service authorized overnight.",
+  "subscriptions": [
+    {
+      "provider": "Nous",
+      "status": "authenticated",
+      "plan": "existing",
+      "verified_cost": null,
+      "use": "primary Hermes inference/tools"
+    },
+    {
+      "provider": "OpenAI direct",
+      "status": "not-configured",
+      "verified_cost": null
+    },
+    {
+      "provider": "OpenRouter",
+      "status": "not-configured",
+      "verified_cost": null
+    },
+    {
+      "provider": "RunPod",
+      "status": "not-configured",
+      "verified_cost": null
+    },
+    {
+      "provider": "Langfuse",
+      "status": "not-configured",
+      "verified_cost": 0
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_from_live_audit": "2026-09-16T04:00:00Z",
+  "generated_from_live_audit": "2026-09-16T04:55:00Z",
   "providers": [
     {
       "id": "nous",
@@ -8,7 +8,13 @@
       "status": "configured",
       "authentication": "oauth",
       "secret_location": "Hermes protected auth store",
-      "approval_to_change": "A2"
+      "approval_to_change": "A2",
+      "availability": "verified",
+      "cost_class": "existing-subscription",
+      "privacy_class": "cloud",
+      "quality_class": "premium",
+      "latency_class": "fast",
+      "fallback_priority": 0
     },
     {
       "id": "openai-direct",
@@ -49,6 +55,51 @@
       "authentication": "scoped_secret",
       "secret_location": "approved secret store",
       "approval_to_change": "A2/A3"
+    },
+    {
+      "id": "ollama-local",
+      "purpose": "offline degraded inference fallback",
+      "status": "configured-and-tested",
+      "authentication": "none",
+      "secret_location": "none",
+      "availability": "verified",
+      "cost_class": "free-local",
+      "privacy_class": "local",
+      "quality_class": "basic",
+      "latency_class": "slow",
+      "fallback_priority": 1
+    },
+    {
+      "id": "openai-codex",
+      "purpose": "ChatGPT/Codex OAuth fallback",
+      "status": "not_authenticated",
+      "authentication": "oauth",
+      "secret_location": "Hermes auth store",
+      "availability": "pending_owner_oauth",
+      "cost_class": "existing-subscription",
+      "privacy_class": "cloud",
+      "quality_class": "premium",
+      "latency_class": "fast",
+      "fallback_priority": 1
+    },
+    {
+      "id": "openai-api",
+      "purpose": "funded OpenAI API fallback",
+      "status": "credential_pending",
+      "authentication": "environment_secret",
+      "secret_location": "OPENAI_API_KEY in protected Hermes environment",
+      "availability": "pending_secure_credential",
+      "cost_class": "paid",
+      "privacy_class": "cloud",
+      "quality_class": "tiered",
+      "latency_class": "fast",
+      "fallback_priority": 2,
+      "models": [
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna"
+      ],
+      "endpoint": "OpenAI-compatible API"
     }
   ]
 }

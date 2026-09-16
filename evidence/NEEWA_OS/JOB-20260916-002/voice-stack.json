@@ -1,0 +1,25 @@
+{
+  "verified_at": "2026-09-16T04:55:00Z",
+  "stt": {
+    "provider": "local faster-whisper",
+    "model": "base",
+    "test": "PASS",
+    "transcript": "Hello, Niwa. This is a private voice system test.",
+    "elapsed_seconds": 4.7
+  },
+  "tts": {
+    "provider": "Edge",
+    "voice": "en-US-AriaNeural",
+    "test": "PASS"
+  },
+  "wake": {
+    "provider": "sherpa",
+    "phrase": "hey neewa",
+    "capture": "client",
+    "surface": "gui",
+    "requirements_available": true,
+    "engine_initialization": "PASS",
+    "frame_length": 1280
+  },
+  "windows_physical_test": "PENDING OWNER PC"
+}

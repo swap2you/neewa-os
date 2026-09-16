@@ -28,3 +28,4 @@ Thumbs.db
 # Local archive (source of truth is the repo)
 NEEWA-OS-v1.0.zip
 *.zip
+!16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip

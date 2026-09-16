@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "job_id": "JOB-20260916-002",
+  "verdict": "PASS",
+  "reviewed_at": "2026-09-16T05:32:00Z",
+  "reviewer": "independent delegated worker",
+  "verification": {
+    "tests": 32,
+    "validator_checks": 49,
+    "manifest_expected": 148,
+    "manifest_actual": 148,
+    "secret_findings": 0,
+    "git_diff_check": "PASS",
+    "git_fsck": "PASS",
+    "windows_path_refresh": "PASS",
+    "windows_packed_shortcut": "PASS",
+    "archive_sha256": "913b2cb82e5810bdea89ac41b1ffe4f37e180ee71774ac17bdfdd2296e4f4121",
+    "deferred_boundary_violations": 0,
+    "morning_report": "reconciled"
+  },
+  "files_modified_by_reviewer": []
+}

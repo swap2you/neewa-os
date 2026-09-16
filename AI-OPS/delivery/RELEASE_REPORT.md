@@ -1,10 +1,10 @@
 # NEEWA Jarvis V1 — release report (wake-path repair)
 
-**Product status:** PARTIAL
-**Report date/time + timezone:** 2026-09-16 14:30 America/New_York
+**Product status:** PARTIAL (wake audio path repaired; physical spoken session still required)
+**Report date/time + timezone:** 2026-09-16 15:42 America/New_York
 **Repo:** `swap2you/neewa-os`
-**Commit SHA:** parent `337f943`; this alias/backup commit is the new `HEAD` after push.
-**Bootstrap ZIP SHA256:** `29B19F19229A7C9C6CF83E41FE22166F9DD280C6EF49543780FFFEC796058E6C`
+**Commit SHA:** parent `a1d8cf9`; this mic-probe fix is the new `HEAD` after push.
+**Bootstrap ZIP SHA256:** `0B7DA5F9E5F724C9634CD27E5A4A4D5A07C079F7E61DC4779D9F48480FD6905F`
 **Windows app + Hermes:** Desktop 0.21.3; server hermes CLI on `neewa-core-01`.
 
 ## Defects fixed
@@ -27,6 +27,12 @@
    profile. Home **Start listening** uses `wake.pause` + Desktop
    `hermes:composer-voice-toggle` (not server `voice.record`, which would open
    PortAudio on the headless host).
+
+5. **Home mic probe stole the wake stream.** The UI opened getUserMedia every 8s to
+   “verify” audio. On Windows that competed with Desktop’s continuous wake.feed, so the
+   server logged `mic delivers only silence` while Conversation PTT still worked. Probe
+   now only enumerates device labels. Stream health uses `wake.status.audio_silent`.
+   UI no longer sticks on “verifying” (that was caused by refreshing `wake.at` every poll).
 
 ## Tests
 

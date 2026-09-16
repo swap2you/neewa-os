@@ -29,7 +29,7 @@ class WakePhrasePolicyTests(unittest.TestCase):
         phrases = enrolled_phrases()
         self.assertEqual(
             phrases,
-            ["hey neewa", "hey niva", "hey neeva", "hey neva"],
+            ["hey neewa", "hey niva", "hey neeva", "hey neva", "he neva"],
         )
         self.assertEqual(len(phrases), len(set(phrases)))
         for alias in PRONUNCIATION_ALIASES:
@@ -56,7 +56,7 @@ class WakePhrasePolicyTests(unittest.TestCase):
 
     def test_sherpa_keyword_display_names(self):
         lines = sherpa_keyword_lines()
-        self.assertEqual(lines, ["@HEY_NEEWA", "@HEY_NIVA", "@HEY_NEEVA", "@HEY_NEVA"])
+        self.assertEqual(lines, ["@HEY_NEEWA", "@HEY_NIVA", "@HEY_NEEVA", "@HEY_NEVA", "@HE_NEVA"])
         self.assertTrue(all(" " not in line for line in lines))
 
     def test_no_duplicate_trigger_inside_cooldown(self):

@@ -76,17 +76,18 @@ function derivePersona(gateway, busy, waiting, phase, wake, probe) {
   if (phase === 'detected') return 'detected'
   if (phase === 'listening') return 'listening'
   if (probe && probe.permission === 'denied') return 'mic_denied'
-  if (probe && probe.device === 'unavailable') return 'device_unavailable'
+  if (probe && probe.wrongDevice) return 'device_unavailable'
   if (!wake || wake.status === 'loading') return 'starting'
   if (wake.status === 'unavailable') return 'wake_unavailable'
   if (wake.status === 'ok' && wake.available === false) return 'wake_unavailable'
   if (wake.status === 'ok' && (wake.enabled === false || wake.listening === false)) return 'muted'
   if (wake.status === 'ok' && wake.listening) {
+    // Server audio_silent is authoritative for client-capture health.
+    // Never open a second getUserMedia probe — it steals the Windows mic
+    // from Desktop's wake.feed and makes the detector go deaf.
     if (wake.audioSilent) return 'stream_inactive'
-    if (probe && probe.wrongDevice) return 'device_unavailable'
-    if (probe && probe.level === 'live') return 'stream_active'
-    if (!wake.at || (Date.now() - wake.at) < 12000) return 'starting'
-    return 'armed'
+    if (wake.armedAt && (Date.now() - wake.armedAt) < 2500) return 'starting'
+    return 'stream_active'
   }
   return 'unknown'
 }
@@ -122,20 +123,20 @@ const STATE_META = {
   offline: { label: 'Offline', hue: '#6b7785', ring: '#3a444d' },
   connecting: { label: 'Connecting', hue: '#A0AEC0', ring: '#4A5568' },
   unknown: { label: 'Unknown · waiting for wake telemetry', hue: '#A0AEC0', ring: '#4A5568' },
-  starting: { label: 'Listener starting · verifying audio', hue: '#76E4F7', ring: '#2C7A7B' },
-  armed: { label: 'Listener armed · stream not yet verified', hue: '#4FD1C5', ring: '#2C7A7B' },
-  stream_active: { label: 'Audio stream active · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
-  stream_inactive: { label: 'Listener on · audio stream inactive', hue: '#F6AD55', ring: '#C05621' },
-  detected: { label: 'Wake detected', hue: '#68D391', ring: '#276749' },
-  listening: { label: 'Listening', hue: '#63E6E2', ring: '#4FD1C5' },
-  transcribing: { label: 'Transcribing', hue: '#9AE6B4', ring: '#2F855A' },
-  thinking: { label: 'Thinking', hue: '#F6C85F', ring: '#B7902F' },
-  working: { label: 'Working', hue: '#81E6D9', ring: '#2C7A7B' },
-  speaking: { label: 'Speaking', hue: '#E6FFFA', ring: '#4FD1C5' },
-  muted: { label: 'Muted · listener off', hue: '#FC8181', ring: '#9B2C2C' },
+  starting: { label: 'Listener starting…', hue: '#76E4F7', ring: '#2C7A7B' },
+  armed: { label: 'Ready · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
+  stream_active: { label: 'Ready · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
+  stream_inactive: { label: 'Listener on · mic audio not reaching NEEWA', hue: '#F6AD55', ring: '#C05621' },
+  detected: { label: 'Wake detected · listening', hue: '#68D391', ring: '#276749' },
+  listening: { label: 'Listening to you…', hue: '#63E6E2', ring: '#4FD1C5' },
+  transcribing: { label: 'Transcribing…', hue: '#9AE6B4', ring: '#2F855A' },
+  thinking: { label: 'Thinking…', hue: '#F6C85F', ring: '#B7902F' },
+  working: { label: 'Working…', hue: '#81E6D9', ring: '#2C7A7B' },
+  speaking: { label: 'Speaking…', hue: '#E6FFFA', ring: '#4FD1C5' },
+  muted: { label: 'Muted · tap Rearm', hue: '#FC8181', ring: '#9B2C2C' },
   wake_unavailable: { label: 'Wake unavailable', hue: '#FC8181', ring: '#9B2C2C' },
   mic_denied: { label: 'Microphone permission denied', hue: '#FC8181', ring: '#9B2C2C' },
-  device_unavailable: { label: 'Capture device unavailable or wrong', hue: '#F6AD55', ring: '#C05621' },
+  device_unavailable: { label: 'Wrong capture device (not Realtek)', hue: '#F6AD55', ring: '#C05621' },
   approval: { label: 'Approval required', hue: '#F6AD55', ring: '#C05621' },
   error: { label: 'Error', hue: '#FC8181', ring: '#9B2C2C' },
 }
@@ -279,14 +280,21 @@ function useCron() {
 function useWake() {
   const [state, setState] = useState({
     status: 'loading', listening: false, enabled: false, available: false,
-    audioSilent: false, phrase: 'hey neewa', capture: '', hint: '', owner: '', at: 0,
+    audioSilent: false, phrase: 'hey neewa', capture: '', hint: '', owner: '',
+    at: 0, armedAt: 0,
   })
+  const armedAtRef = useRef(0)
+  const wasListeningRef = useRef(false)
   const load = useCallback(async () => {
     try {
       const data = await host.request('wake.status', { client_capture: true, surface: 'gui' })
+      const listening = !!(data && data.listening)
+      if (listening && !wasListeningRef.current) armedAtRef.current = Date.now()
+      if (!listening) armedAtRef.current = 0
+      wasListeningRef.current = listening
       setState({
         status: 'ok',
-        listening: !!(data && data.listening),
+        listening,
         enabled: !(data && data.enabled === false),
         available: !(data && data.available === false),
         audioSilent: !!(data && data.audio_silent),
@@ -295,6 +303,7 @@ function useWake() {
         hint: String((data && data.hint) || ''),
         owner: String((data && data.owner_surface) || ''),
         at: Date.now(),
+        armedAt: armedAtRef.current,
       })
     } catch {
       setState((s) => ({ ...s, status: 'unavailable' }))
@@ -302,15 +311,15 @@ function useWake() {
   }, [])
   useEffect(() => {
     load()
-    const t = setInterval(load, 4000)
+    const t = setInterval(load, 3000)
     return () => clearInterval(t)
   }, [load])
   return [state, load]
 }
 
-// Local non-retained RMS probe. Matches Desktop wake capture constraints
-// (echoCancellation on) so the track label is the device Chromium actually uses.
-// Never sends PCM to wake.feed — a second feeder would interleave frames.
+// Device label only — NEVER open getUserMedia here. A second mic stream on
+// Windows steals the device from Desktop's wake.feed and the server logs
+// "mic delivers only silence" while Conversation PTT still works.
 function useCaptureProbe() {
   const [state, setState] = useState({
     status: 'unknown', permission: 'unknown', device: 'unknown',
@@ -318,80 +327,37 @@ function useCaptureProbe() {
   })
   useEffect(() => {
     let stopped = false
-    let timer = 0
     const sample = async () => {
       if (stopped) return
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setState((s) => ({ ...s, status: 'unavailable', device: 'unavailable', permission: 'unknown' }))
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        setState((s) => ({ ...s, status: 'unavailable', device: 'unavailable' }))
         return
       }
-      let stream
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-          video: false,
-        })
-      } catch (err) {
-        const msg = err && err.name ? String(err.name) : 'error'
-        const denied = msg.indexOf('NotAllowed') !== -1 || msg.indexOf('Permission') !== -1
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const inputs = devices.filter((d) => d.kind === 'audioinput')
+        const labeled = inputs.find((d) => d.label) || inputs[0]
+        const label = labeled && labeled.label ? String(labeled.label) : ''
+        const wrongDevice = /iriun/i.test(label) && !/realtek/i.test(label)
         setState({
-          status: 'error',
-          permission: denied ? 'denied' : 'unknown',
-          device: denied ? 'unknown' : 'unavailable',
-          label: '',
+          status: 'ok',
+          permission: label ? 'granted' : 'unknown',
+          device: wrongDevice ? 'unavailable' : (label ? 'ok' : 'unknown'),
+          label: label || 'Windows default input',
           level: 'unknown',
           rms: 0,
-          wrongDevice: false,
+          wrongDevice,
           at: Date.now(),
         })
-        return
-      }
-      try {
-        const track = stream.getAudioTracks()[0]
-        const label = track && track.label ? String(track.label) : ''
-        const wrongDevice = /iriun/i.test(label)
-        const Ctx = window.AudioContext || window.webkitAudioContext
-        if (!Ctx) {
-          setState({
-            status: 'ok', permission: 'granted', device: label ? 'ok' : 'unknown',
-            label, level: 'unknown', rms: 0, wrongDevice, at: Date.now(),
-          })
-          return
-        }
-        const ctx = new Ctx()
-        if (ctx.state === 'suspended') {
-          try { await ctx.resume() } catch { /* autoplay may still resume in Electron */ }
-        }
-        const src = ctx.createMediaStreamSource(stream)
-        const analyser = ctx.createAnalyser()
-        analyser.fftSize = 2048
-        src.connect(analyser)
-        const buf = new Uint8Array(analyser.fftSize)
-        await new Promise((resolve) => window.setTimeout(resolve, 280))
-        analyser.getByteTimeDomainData(buf)
-        let acc = 0
-        for (let i = 0; i < buf.length; i++) {
-          const v = (buf[i] - 128) / 128
-          acc += v * v
-        }
-        const rms = Math.sqrt(acc / buf.length)
-        const level = rms > 0.012 ? 'live' : 'silent'
-        setState({
-          status: 'ok', permission: 'granted', device: label ? 'ok' : 'unknown',
-          label, level, rms, wrongDevice, at: Date.now(),
-        })
-        src.disconnect()
-        analyser.disconnect()
-        void ctx.close().catch(() => undefined)
-      } finally {
-        try { stream.getTracks().forEach((t) => t.stop()) } catch { /* noop */ }
+      } catch {
+        setState((s) => ({ ...s, status: 'unavailable' }))
       }
     }
     void sample()
-    timer = window.setInterval(() => { void sample() }, 8000)
+    const t = window.setInterval(() => { void sample() }, 15000)
     return () => {
       stopped = true
-      try { window.clearInterval(timer) } catch { /* noop */ }
+      try { window.clearInterval(t) } catch { /* noop */ }
     }
   }, [])
   return state
@@ -514,9 +480,9 @@ async function rearmListener(refresh) {
   if (refresh) refresh()
 }
 
-// Backup path when Sherpa misses an accented wake. This is the same client
-// conversation start the Desktop uses after wake.detected (composer voice
-// toggle). voice.record start is NOT used: that RPC opens server PortAudio.
+// Backup path when Sherpa misses an accented wake. Starts the SAME NEEWA
+// voice conversation Desktop uses after wake.detected — still remote NEEWA,
+// not a different chatbot. voice.record start is NOT used (server PortAudio).
 async function startListening(refresh) {
   try {
     await host.request('wake.pause', {})
@@ -529,7 +495,7 @@ async function startListening(refresh) {
       window.dispatchEvent(new CustomEvent('hermes:composer-voice-toggle', { detail: { target: 'main' } }))
     } catch { /* composer bus unavailable */ }
   }, 280)
-  host.notify({ kind: 'info', message: 'Start Listening — speak now (same voice path as Hey Neewa)' })
+  host.notify({ kind: 'info', message: 'NEEWA is listening — speak your request now (same agent as Hey Neewa)' })
   if (refresh) window.setTimeout(refresh, 800)
 }
 async function stopConversation(sessionId, refresh) {
@@ -564,16 +530,17 @@ async function cancelTask(sessionId) {
 
 function PrivacyBadge({ persona, wake }) {
   const muted = persona === 'muted' || (wake && wake.status === 'ok' && !wake.listening)
-  let label = 'MIC UNKNOWN'
+  let label = 'UNKNOWN'
   let color = '#A0AEC0'
   if (muted) { label = 'MIC OFF'; color = '#FC8181' }
   else if (persona === 'listening' || persona === 'transcribing' || persona === 'detected') { label = 'MIC LIVE'; color = '#68D391' }
-  else if (persona === 'stream_active') { label = 'STREAM ACTIVE'; color = '#68D391' }
-  else if (persona === 'stream_inactive') { label = 'STREAM INACTIVE'; color = '#F6AD55' }
-  else if (persona === 'starting' || persona === 'armed') { label = 'LISTENER ON'; color = '#4FD1C5' }
+  else if (persona === 'speaking' || persona === 'thinking' || persona === 'working') { label = 'BUSY'; color = '#F6C85F' }
+  else if (persona === 'stream_active') { label = 'READY'; color = '#68D391' }
+  else if (persona === 'stream_inactive') { label = 'NO AUDIO'; color = '#F6AD55' }
+  else if (persona === 'starting' || persona === 'armed') { label = 'STARTING'; color = '#4FD1C5' }
   else if (persona === 'mic_denied') { label = 'MIC DENIED'; color = '#FC8181' }
-  else if (persona === 'device_unavailable') { label = 'DEVICE'; color = '#F6AD55' }
-  else if (persona === 'wake_unavailable') { label = 'WAKE UNAVAILABLE'; color = '#FC8181' }
+  else if (persona === 'device_unavailable') { label = 'WRONG MIC'; color = '#F6AD55' }
+  else if (persona === 'wake_unavailable') { label = 'WAKE OFF'; color = '#FC8181' }
   else if (persona === 'offline' || persona === 'connecting') { label = persona === 'connecting' ? 'CONNECTING' : 'OFFLINE'; color = '#A0AEC0' }
   return jsx('span', {
     className: 'rounded-full border px-3 py-1 text-[0.6875rem] tracking-wide',
@@ -624,15 +591,15 @@ function CommandRail({ variant }) {
       Section('Voice', Grid([
         ['State', meta.label],
         ['Wake', wake.status === 'ok' ? (wake.listening ? `listener on · ${wake.phrase}` : 'off') : wake.status],
-        ['Aliases', 'hey neewa · hey niva · hey neeva · hey neva'],
+        ['Aliases', 'hey neewa · hey niva · hey neeva · hey neva · he neva'],
         ['Capture', wake.capture || '—'],
-        ['Stream', wake.status === 'ok' ? (wake.audioSilent ? 'inactive (no/silent PCM)' : (persona === 'stream_active' ? 'active · verified' : (persona === 'starting' ? 'verifying' : 'unknown'))) : 'unknown'],
-        ['Windows mic', probe.label ? `${probe.label} · ${probe.level}` : probe.permission === 'denied' ? 'permission denied' : probe.status],
+        ['Stream', wake.status === 'ok' ? (wake.audioSilent ? 'SILENT — Rearm (PCM not reaching detector)' : (persona === 'stream_active' ? 'READY · wake audio flowing' : (persona === 'starting' ? 'starting…' : 'unknown'))) : 'unknown'],
+        ['Windows mic', probe.label || (probe.permission === 'denied' ? 'permission denied' : probe.status)],
         ['Speech', voiceRt.speech],
         ['Mode', voiceRt.mode],
         ['STT', voiceRt.stt],
         ['TTS provider', 'telemetry unavailable (no tts.provider RPC)'],
-        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' ? 'MIC LIVE' : (persona === 'stream_active' ? 'STREAM ACTIVE' : (persona === 'stream_inactive' ? 'STREAM INACTIVE' : 'UNKNOWN')))],
+        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' || persona === 'detected' ? 'MIC LIVE' : (persona === 'stream_active' ? 'READY' : (persona === 'stream_inactive' ? 'NO AUDIO' : 'UNKNOWN')))],
       ])),
       Section('Assistant', Grid([
         ['Model', String(model || 'unknown')],
@@ -722,20 +689,26 @@ function NeewaHome() {
         children: persona === 'offline' || persona === 'connecting'
           ? 'Reconnecting to NEEWA on neewa-core-01…'
           : persona === 'muted'
-            ? 'Microphone listener is off. Click Rearm, then say “Hey Neewa”.'
+            ? 'Microphone listener is off. Tap Rearm, wait for READY, then say “Hey Neewa”.'
             : persona === 'stream_inactive'
-              ? (wake.hint || 'Listener is on but no wake audio is arriving. Check the Windows mic (not Iriun) and Rearm.')
+              ? (wake.hint || 'Mic audio is not reaching the detector. Tap Rearm. Close other apps using the mic (Wispr, Zoom).')
               : persona === 'device_unavailable'
                 ? (probe.wrongDevice
-                  ? 'Wake capture is using Iriun Webcam, not the Realtek array. Set Communications default to Realtek, then restart NEEWA.'
+                  ? 'Wake capture may use Iriun Webcam. Set Communications default to Realtek, then restart NEEWA.'
                   : 'Capture device unavailable.')
             : persona === 'mic_denied'
               ? 'Windows denied microphone permission for Hermes Desktop.'
             : persona === 'stream_active'
-              ? 'Say “Hey Neewa”, “Hey Niva”, or “Hey Neeva”. Or tap Start listening.'
+              ? 'READY. Say “Hey Neewa / Niva / Neeva”, then your request. You should hear a spoken reply. Start listening = same NEEWA if wake misses.'
+            : persona === 'listening' || persona === 'detected'
+              ? 'Listening — keep speaking your request.'
+            : persona === 'thinking' || persona === 'working'
+              ? 'NEEWA is working on your request…'
+            : persona === 'speaking'
+              ? 'NEEWA is speaking…'
             : persona === 'starting'
-              ? 'Listener starting. Confirming that microphone frames reach the detector…'
-            : 'Wake state unknown until telemetry is verified. Do not assume the mic is sending audio.',
+              ? 'Listener starting… wait for READY before speaking.'
+            : 'Wait for READY (green). Do not assume the mic is live until then.',
       }),
       jsxs('div', {
         className: 'mt-2 flex flex-wrap justify-center gap-2',

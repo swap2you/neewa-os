@@ -10,7 +10,27 @@
    path as a successful wake). **Mute** = wake.stop. **Stop** = voice.toggle off +
    session.interrupt + rearm. **Cancel task** = session.interrupt. **Rearm** = wake.start.
 
-## Microphone routing (load-bearing)
+## What “READY” means (read this)
+
+| Badge | Meaning | What you do |
+| --- | --- | --- |
+| **READY** | Listener armed and wake audio is flowing | Say **Hey Neewa / Niva / Neeva**, then your request |
+| **NO AUDIO** | Listener on but PCM is silent/missing | Tap **Rearm**; close Wispr/Zoom if they hold the mic |
+| **STARTING** | Just armed (≤2.5s) | Wait a moment for READY |
+| **MIC LIVE** | Wake fired / recording your request | Keep speaking |
+| **BUSY** | Thinking / working / speaking | Wait for the spoken reply |
+| **MIC OFF** | Muted | Tap **Rearm** |
+
+**Start listening** is still NEEWA (same remote agent). It opens the voice conversation
+the same way a successful wake does — not a different chatbot.
+
+**Spoken reply:** after wake + your request, NEEWA should speak through your selected
+speakers (Nous coral). Chained mode is STT → agent → TTS, so a few seconds of delay is
+normal. GPT-Live (full-duplex) is off until you approve a budget.
+
+**Accent:** aliases include hey niva / neeva / neva / he neva. Sensitivity is 0.5.
+Hindi/Marathi STT is a later upgrade (current STT is local faster-whisper base).
+
 Hermes Desktop wake capture uses Chromium Communications capture (echo cancellation on).
 That endpoint must be **Microphone Array (Realtek(R) Audio)**, not Iriun Webcam.
 `16_WINDOWS_CLIENT/Set-NeewaCaptureDevice.ps1` sets Console/Multimedia/Communications

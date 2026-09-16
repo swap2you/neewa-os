@@ -13,6 +13,7 @@ PRONUNCIATION_ALIASES = (
     "hey niva",
     "hey neeva",
     "hey neva",
+    "he neva",
 )
 NEGATIVE_EXAMPLES = (
     "hey nina",

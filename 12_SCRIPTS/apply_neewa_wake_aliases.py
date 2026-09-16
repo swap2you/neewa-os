@@ -29,6 +29,7 @@ ALIAS_BLOCK = """  aliases:
     - hey niva
     - hey neeva
     - hey neva
+    - he neva
 """
 
 

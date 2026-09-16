@@ -21,7 +21,7 @@ The validated NEEWA baseline was pushed to origin/main. The persistent gateway w
 ## 3. Git commits pushed
 
 - `72fc21a feat(bootstrap): establish validated NEEWA operational baseline` — pushed and verified.
-- Current overnight milestone: validated locally; checkpoint push follows independent review.
+- `768a844 feat(overnight): add resilience voice client and operating controls` — validated, pushed, and synchronized with origin/main.
 
 ## 4. Current repository state
 
@@ -204,4 +204,4 @@ Complete Windows physical validation first. Then securely add Codex OAuth and/or
 
 ## 27. Final stopping point
 
-The authorized server-side overnight work is complete for this milestone. The only remaining blockers are owner-device physical tests and secure owner authentication steps.
+The authorized server-side overnight work is complete for this milestone. Commit `768a844` is pushed and synchronized. The only remaining blockers are owner-device physical tests and secure owner authentication steps.

@@ -77,12 +77,13 @@ The original validated commit was clean and synchronized before this milestone. 
 
 Package: `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 
-- Package SHA-256: `4ddb7d654d906510b352ade772d44501c4845549af2cf06810da2880d247ed61`.
-- PowerShell parser: PASS in isolated network-disabled PowerShell container.
+- Package SHA-256: `ef73006f440671ae16e614c2bbac9d797ffa652982797d8512efafa9f0fe84e3`.
+- PowerShell parser: PASS in isolated network-disabled PowerShell container; Windows PowerShell 5.1 `$IsWindows` StrictMode guard fixed for owner PC bootstrap.
 - Official installer Authenticode validation logic: present.
 - First-install PATH refresh: implemented.
 - Startup target: packed `Hermes.exe`, not rebuild-triggering `hermes desktop`.
 - Owner action: run the package on the personal Windows PC, complete Tailscale/SSH trust, Hermes Desktop connection Test, voice permissions, and wake test.
+- Windows physical install progress (2026-09-16): Tailscale private SSH primary connection PASS; NEEWA skin/plugin/startup PASS; text E2E over private path PASS; microphone devices + default capture path detected; acoustic wake/voice round-trip still requires owner utterance.
 
 ## 12. Cloud model/provider status
 

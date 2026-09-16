@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param([string]$ServerHost='neewa-core-01',[string]$ServerUser='ubuntu',[switch]$ConfirmPersonalDevice,[switch]$SkipHermesInstall)
 $ErrorActionPreference='Stop';Set-StrictMode -Version Latest
-if(-not $IsWindows){throw 'Run this package on Windows.'}
+$onWindows = if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) { [bool]$IsWindows } else { $env:OS -eq 'Windows_NT' }
+if(-not $onWindows){throw 'Run this package on Windows.'}
 if(-not $ConfirmPersonalDevice){$answer=Read-Host 'Confirm this is Swapnil personal PC, not an employer device. Type PERSONAL';if($answer-ne'PERSONAL'){throw 'Personal-device confirmation not received.'}}
 Write-Host 'NEEWA bootstrap never requests secrets.'
 $tailscale=Get-Command tailscale.exe -ErrorAction SilentlyContinue

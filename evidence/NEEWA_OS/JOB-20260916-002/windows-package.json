@@ -1,11 +1,25 @@
 {
-  "verified_at": "2026-09-16T04:55:00Z",
+  "verified_at": "2026-09-16T06:22:00Z",
   "archive": "16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip",
-  "archive_sha256": "4ddb7d654d906510b352ade772d44501c4845549af2cf06810da2880d247ed61",
+  "archive_sha256": "ef73006f440671ae16e614c2bbac9d797ffa652982797d8512efafa9f0fe84e3",
+  "previous_archive_sha256": "4ddb7d654d906510b352ade772d44501c4845549af2cf06810da2880d247ed61",
   "zip_test": "PASS",
-  "powershell_parser": "PASS in network-disabled isolated PowerShell container",
+  "powershell_parser": "PASS; Windows PowerShell 5.1 StrictMode $IsWindows guard fixed",
   "plugin_node_syntax": "PASS",
   "skin_yaml": "PASS",
-  "physical_windows_install": "PENDING",
-  "installer_corrections": "PATH refresh, packed Hermes.exe shortcut, automatic Desktop launch"
+  "physical_windows_install": "IN_PROGRESS",
+  "physical_results": {
+    "package_integrity": "PASS",
+    "tailscale_private_connection": "PASS",
+    "hermes_desktop_ssh_primary": "PASS",
+    "neewa_ui_skin_plugin": "PASS",
+    "startup_shortcut_packed_exe": "PASS",
+    "text_e2e_remote_neewa": "PASS",
+    "microphone_devices_default_input": "PASS",
+    "wake_word_acoustic": "PENDING_OWNER_UTTERANCE",
+    "voice_round_trip": "PENDING_OWNER_UTTERANCE",
+    "public_exposure": "PASS_NONE",
+    "funnel": "PASS_INACTIVE"
+  },
+  "installer_corrections": "PATH refresh, packed Hermes.exe shortcut, automatic Desktop launch, Windows PowerShell 5.1 IsWindows StrictMode compatibility"
 }

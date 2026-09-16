@@ -1,0 +1,59 @@
+{
+  "verified_at": "2026-09-16T15:30:00Z",
+  "objective": "Final acceptance — close remaining gaps after commit ebc58b0",
+  "runtime_ui_evidence": {
+    "method": "screenshots of the running Hermes Desktop window on the owner PC",
+    "skin_applied": "NEEWA midnight-teal skin active (chrome recolored; pre-chat 'HERMES AGENT' wordmark is the empty-state, expected)",
+    "status_bar_chip": "NEEWA · READY renders in statusBar.right",
+    "command_center_pane": {
+      "renders": true,
+      "connection": "Gateway ONLINE, Socket open, Source neewa (remote), Profile default",
+      "assistant": "State READY, Model openai/gpt-5.6-luna",
+      "scheduled_jobs": "4 active / 4 total, Updated 0s ago (freshness): neewa-daily-health (6am), neewa-morning-brief (6:15am), neewa-host-status (10m), neewa-voice-readiness (15m)",
+      "controls": "Open scheduled jobs, Refresh data (working)",
+      "unavailable_disclosure": "Footer states server health/morning brief/project status are host-snapshot backed via NEEWA chat (no fabricated values)"
+    },
+    "runtime_errors": "none observed (no error toast / boundary; plugin functional)"
+  },
+  "connection_finding": {
+    "issue": "Before restart the focused Bot Chat was on 'local' (This device); its sandbox has no /opt/neewa mount so status showed 'repository BLOCKED' and 0 cron jobs — correct for the local backend, not the remote.",
+    "resolution": "Restarted Desktop (launchMode=primary -> neewa). Reconnected to remote NEEWA (gui.log ws accepted 11:26:33) and wake listener re-armed (wake.start 'hey neewa' capture=client 11:26:35). Pane then showed Source neewa + 4 real jobs.",
+    "config_unchanged": "connections.json primary=neewa preserved; no reconfiguration of the local backend"
+  },
+  "plugin_skin_currency": {
+    "live_plugin_sha256": "matches source (37246BD5...)",
+    "live_skin_sha256": "matches source (84E5EA50...)",
+    "client_version": "0.21.3",
+    "backend_version": "0.21.3"
+  },
+  "bootstrap_zip": {
+    "path": "16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip",
+    "previous_sha256": "ef73006f440671ae16e614c2bbac9d797ffa652982797d8512efafa9f0fe84e3",
+    "previous_plugin_bytes": 2393,
+    "rebuilt_sha256": "dc02b1eb69ffe3c8dcdbbfc441aa70327fb3f9e6840933560e813f0dfba74348",
+    "plugin_bytes_now": 8107,
+    "plugin_matches_source": true,
+    "entries": ["Install-NEEWA.ps1", "README.md", "Uninstall-NEEWA-Client.ps1", "assets/neewa.yaml", "assets/neewa-command-center/plugin.js"]
+  },
+  "tests": {
+    "windows": "39 passed, 1 skipped (symlink-escape skipped: POSIX symlink needs elevated privilege on Windows)",
+    "linux_server": "40 passed (unittest)",
+    "portability_fixes": [
+      "absolute-evidence-path test now uses an OS-appropriate absolute path",
+      "symlink-escape test skipped on Windows with documented reason",
+      "repo_files() is gitignore-aware (git ls-files -co --exclude-standard) with a non-git fallback, so .pytest_cache and local archives never break manifest/scan"
+    ],
+    "manifest_reproducible": "manifest == git-visible set; excludes NEEWA-OS-v1.0.zip; includes bootstrap zip"
+  },
+  "preserved": {
+    "microphone": "Realtek array, capture path READY",
+    "wake_word": "re-armed on reconnect (sherpa 'hey neewa', capture=client)",
+    "stt": "faster-whisper base (voice.json observed working)",
+    "remote_connection": "SSH neewa over Tailscale; no public exposure (serve/funnel off)",
+    "sandbox_isolation": "repo + status mounts read-only (live touch failed)"
+  },
+  "tts": {
+    "generation": "Edge TTS verified server-side",
+    "in_app_playback": "PENDING_PHYSICAL — requires enabling voice output in chat and owner listening"
+  }
+}

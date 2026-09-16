@@ -70,6 +70,29 @@ def utc_now() -> str:
 
 
 def repo_files(root: Path = ROOT) -> list[Path]:
+    """Files that constitute the repository.
+
+    Prefer git's view (tracked + untracked-but-not-ignored) so gitignored local
+    artifacts — personal archives, .pytest_cache, venvs — never leak into the
+    manifest or the secret scan, and the manifest stays reproducible across
+    machines. Falls back to a filesystem walk in non-git contexts (e.g. the
+    unit tests' temporary directories)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-co", "--exclude-standard"],
+            text=True, capture_output=True, check=True,
+        )
+        rels = [line for line in result.stdout.splitlines() if line]
+        if rels:
+            files = [
+                root / rel
+                for rel in rels
+                if (root / rel).is_file()
+                and not any(part in SKIP_DIRS for part in Path(rel).parts)
+            ]
+            return sorted(files)
+    except (OSError, subprocess.CalledProcessError):
+        pass
     return sorted(
         p for p in root.rglob("*")
         if p.is_file() and not any(part in SKIP_DIRS for part in p.relative_to(root).parts)

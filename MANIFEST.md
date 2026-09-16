@@ -161,3 +161,4 @@
 - `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`
 - `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`
 - `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`
+- `evidence/NEEWA_OS/JOB-20260916-006/final-acceptance.json`

@@ -127,7 +127,7 @@ The original validated commit was clean and synchronized before this milestone. 
 
 Package: `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 
-- Package SHA-256: `ef73006f440671ae16e614c2bbac9d797ffa652982797d8512efafa9f0fe84e3`.
+- Package SHA-256: `dc02b1eb69ffe3c8dcdbbfc441aa70327fb3f9e6840933560e813f0dfba74348` (rebuilt 2026-09-16 to include the enhanced Command Center plugin).
 - PowerShell parser: PASS in isolated network-disabled PowerShell container; Windows PowerShell 5.1 `$IsWindows` StrictMode guard fixed for owner PC bootstrap.
 - Official installer Authenticode validation logic: present.
 - First-install PATH refresh: implemented.

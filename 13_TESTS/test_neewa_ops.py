@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -158,12 +159,24 @@ class JobLifecycleTests(unittest.TestCase):
             ops.transition_job(path, state)
         job = ops.load_json(path)
         job["automated_checks"] = [{"name": "unit", "status": "passed"}]
-        job["evidence"] = ["/etc/hosts"]
+        # Use an absolute path valid on the current OS so the "is_absolute()"
+        # rejection is exercised portably (a leading-slash POSIX path is NOT
+        # absolute under pathlib on Windows, which would mask this check).
+        abs_evidence = r"C:\Windows\System32\drivers\etc\hosts" if os.name == "nt" else "/etc/hosts"
+        job["evidence"] = [abs_evidence]
         ops.save_json(path, job)
         passed, failures = ops.gate_job(path, self.root)
         self.assertFalse(passed)
-        self.assertIn("invalid evidence path: /etc/hosts", failures)
+        self.assertTrue(
+            any(f.startswith("invalid evidence path:") for f in failures),
+            failures,
+        )
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "POSIX symlink creation needs elevated privilege on Windows (WinError 1314); "
+        "the symlink-escape rejection is exercised on Linux/CI where the server runs.",
+    )
     def test_done_gate_rejects_symlink_escape(self):
         path = self.create()
         for state in ["TRIAGED", "PLANNED", "EXECUTING", "VALIDATING"]:

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-09-16T04:00:00Z",
+  "resources": [
+    {
+      "id": "neewa-core-01",
+      "class": "control_plane",
+      "status": "active",
+      "os": "Ubuntu 24.04.4 LTS",
+      "cpu": 4,
+      "memory_gib": 15,
+      "disk_gib": 309,
+      "gpu": false
+    },
+    {
+      "id": "hermes-default",
+      "class": "agent_runtime",
+      "status": "active",
+      "version": "0.21.3",
+      "provider": "nous",
+      "sandbox": "docker"
+    },
+    {
+      "id": "docker-host",
+      "class": "sandbox_runtime",
+      "status": "active",
+      "version": "29.8.1"
+    },
+    {
+      "id": "tailscale",
+      "class": "private_network",
+      "status": "active",
+      "version": "1.102.4",
+      "peer_count": 1
+    },
+    {
+      "id": "neewa-edge-01",
+      "class": "edge_worker",
+      "status": "pending_owner_onboarding"
+    },
+    {
+      "id": "runpod-serverless",
+      "class": "gpu_worker",
+      "status": "not_configured"
+    }
+  ]
+}

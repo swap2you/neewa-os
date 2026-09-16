@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "verified_at": "2026-09-16T04:11:36Z",
+  "cron_engine": "Hermes",
+  "job_id": "668bebff0913",
+  "name": "neewa-daily-health",
+  "schedule": "every day at 6am",
+  "mode": "no_agent",
+  "delivery": "local",
+  "enabled": true,
+  "manual_run_status": "ok",
+  "next_run_at": "2026-09-16T06:00:00-04:00",
+  "script_source": "12_SCRIPTS/cron_health.sh",
+  "installed_script": "~/.hermes/scripts/neewa_health.sh"
+}

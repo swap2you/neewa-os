@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "currency": "USD",
+  "first_90_days_ceiling": 1000.0,
+  "monthly_caps": {
+    "openai_api": 60.0,
+    "openrouter": 20.0,
+    "runpod": 25.0
+  },
+  "job_defaults": {
+    "max_cost": 5.0,
+    "max_retries": 2,
+    "cost_estimate_required": true
+  },
+  "owner_approval_required_above_budget": true
+}

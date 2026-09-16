@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "job_id": "JOB-20260916-001",
+  "project_id": "PRJ-NEEWA",
+  "owner": "NEEWA",
+  "objective": "Bootstrap NEEWA OS to an A0/A1 validated baseline",
+  "risk": "medium",
+  "state": "DONE",
+  "budget": {
+    "ceiling": 0.0,
+    "actual": 0.0,
+    "currency": "USD"
+  },
+  "remediation_cycles": 0,
+  "automated_checks": [
+    {
+      "name": "repository-validation",
+      "status": "passed"
+    },
+    {
+      "name": "unit-tests",
+      "status": "passed"
+    },
+    {
+      "name": "shell-syntax",
+      "status": "passed"
+    },
+    {
+      "name": "docker-sandbox",
+      "status": "passed"
+    }
+  ],
+  "independent_review": {
+    "required": true,
+    "status": "passed",
+    "verdict": "PASS",
+    "evidence": "evidence/NEEWA_OS/JOB-20260916-001/independent-review.json"
+  },
+  "owner_gate": {
+    "required": false,
+    "status": "not_required"
+  },
+  "evidence": [
+    "evidence/NEEWA_OS/JOB-20260916-001/repository-validation.json",
+    "evidence/NEEWA_OS/JOB-20260916-001/unit-tests.txt",
+    "evidence/NEEWA_OS/JOB-20260916-001/docker-sandbox.txt",
+    "evidence/NEEWA_OS/JOB-20260916-001/system-audit.json",
+    "evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json",
+    "evidence/NEEWA_OS/JOB-20260916-001/independent-review.json",
+    "evidence/NEEWA_OS/JOB-20260916-001/done-gate.json"
+  ],
+  "history": [
+    {
+      "state": "NEW",
+      "at": "2026-09-16T04:00:00Z"
+    },
+    {
+      "state": "TRIAGED",
+      "at": "2026-09-16T04:00:00Z"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-16T04:00:00Z"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-16T04:00:00Z"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-16T04:00:00Z"
+    },
+    {
+      "state": "DONE",
+      "at": "2026-09-16T04:17:33Z"
+    }
+  ],
+  "created_at": "2026-09-16T04:00:00Z",
+  "updated_at": "2026-09-16T04:17:33Z"
+}

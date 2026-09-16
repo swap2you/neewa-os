@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "projects": [
+    {
+      "id": "PRJ-NEEWA",
+      "name": "NEEWA OS",
+      "priority": "P0",
+      "path": "08_PROJECTS/NEEWA_OS",
+      "status": "active"
+    },
+    {
+      "id": "PRJ-WANI",
+      "name": "DAU Digital Media / Wani",
+      "priority": "P1",
+      "path": "08_PROJECTS/WANI",
+      "status": "defined"
+    },
+    {
+      "id": "PRJ-AAROHAN",
+      "name": "Aarohan CareerOS",
+      "priority": "P1",
+      "path": "08_PROJECTS/AAROHAN",
+      "status": "defined"
+    },
+    {
+      "id": "PRJ-REVENUE",
+      "name": "Revenue Research",
+      "priority": "P1",
+      "path": "08_PROJECTS/REVENUE_RESEARCH",
+      "status": "defined"
+    },
+    {
+      "id": "PRJ-BHAVA",
+      "name": "Bhava",
+      "priority": "P2",
+      "path": "08_PROJECTS/BHAVA",
+      "status": "defined"
+    },
+    {
+      "id": "PRJ-CHAKRAOPS",
+      "name": "ChakraOps",
+      "priority": "P2",
+      "path": "08_PROJECTS/CHAKRAOPS",
+      "status": "defined"
+    }
+  ]
+}

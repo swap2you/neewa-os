@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-09-16T04:05:50Z",
+  "host": {
+    "cpu_count": 4,
+    "os": "Ubuntu 24.04",
+    "disk_summary": "Filesystem      Size  Used Avail Use% Mounted on",
+    "memory_summary": "total        used        free      shared  buff/cache   available"
+  },
+  "components": {
+    "hermes": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 3c3ab69a",
+    "docker": "Docker version 29.8.1, build 4a63305",
+    "tailscale": "1.102.4",
+    "git": "git version 2.43.0",
+    "python": "Python 3.12.3",
+    "node": "v26.8.2",
+    "litellm_installed": false,
+    "langfuse_cli_installed": false,
+    "openhands_installed": false,
+    "codex_installed": false,
+    "claude_installed": false,
+    "gemini_installed": false,
+    "nemoclaw_installed": false
+  },
+  "services": {
+    "system": "running",
+    "gateway": "active",
+    "docker": "active",
+    "tailscale": "active"
+  },
+  "network": {
+    "tailscale": {
+      "backend": "Running",
+      "self_online": true,
+      "peer_count": 1,
+      "online_peers": 1
+    },
+    "hermes_egress_proxy_enabled": false,
+    "hermes_sandbox_network": "bridge (not deny-by-default)"
+  },
+  "runtime": {
+    "provider": "nous",
+    "model": "openai/gpt-5.6-sol",
+    "sandbox": "docker",
+    "security_redaction": true,
+    "approvals": "smart",
+    "memory_enabled": true,
+    "cron_jobs": 1
+  },
+  "notes": [
+    "No secret values collected or written.",
+    "External provider credentials and account state were not inspected."
+  ],
+  "memory": {
+    "provider": "built-in",
+    "user_profile_created": true,
+    "project_memory": "04_MEMORY and job records"
+  }
+}

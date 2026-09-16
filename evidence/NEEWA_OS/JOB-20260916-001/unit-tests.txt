@@ -1,0 +1,25 @@
+test_budget_above_autonomous_default_is_rejected (test_neewa_ops.JobLifecycleTests.test_budget_above_autonomous_default_is_rejected) ... ok
+test_critical_job_requires_a3_owner_gate (test_neewa_ops.JobLifecycleTests.test_critical_job_requires_a3_owner_gate) ... ok
+test_done_gate_accepts_complete_low_risk_job (test_neewa_ops.JobLifecycleTests.test_done_gate_accepts_complete_low_risk_job) ... ok
+test_done_gate_rejects_absolute_evidence_path (test_neewa_ops.JobLifecycleTests.test_done_gate_rejects_absolute_evidence_path) ... ok
+test_done_gate_rejects_missing_evidence (test_neewa_ops.JobLifecycleTests.test_done_gate_rejects_missing_evidence) ... ok
+test_done_gate_rejects_symlink_escape (test_neewa_ops.JobLifecycleTests.test_done_gate_rejects_symlink_escape) ... ok
+test_high_risk_cannot_downgrade_approval (test_neewa_ops.JobLifecycleTests.test_high_risk_cannot_downgrade_approval) ... ok
+test_invalid_transition_is_rejected (test_neewa_ops.JobLifecycleTests.test_invalid_transition_is_rejected) ... ok
+test_medium_risk_requires_independent_review (test_neewa_ops.JobLifecycleTests.test_medium_risk_requires_independent_review) ... ok
+test_pause_blocks_new_jobs (test_neewa_ops.JobLifecycleTests.test_pause_blocks_new_jobs) ... ok
+test_third_rework_is_rejected (test_neewa_ops.JobLifecycleTests.test_third_rework_is_rejected) ... ok
+test_valid_lifecycle_reaches_validation (test_neewa_ops.JobLifecycleTests.test_valid_lifecycle_reaches_validation) ... ok
+test_governance_hierarchy_exists (test_neewa_ops.RepositoryValidationTests.test_governance_hierarchy_exists) ... ok
+test_manifest_matches_complete_working_tree (test_neewa_ops.RepositoryValidationTests.test_manifest_matches_complete_working_tree) ... ok
+test_no_secret_signatures_in_repository (test_neewa_ops.RepositoryValidationTests.test_no_secret_signatures_in_repository) ... ok
+test_repository_contracts_pass_without_manifest_precondition (test_neewa_ops.RepositoryValidationTests.test_repository_contracts_pass_without_manifest_precondition) ... ok
+test_secret_scanner_allows_environment_references (test_neewa_ops.RepositoryValidationTests.test_secret_scanner_allows_environment_references) ... ok
+test_secret_scanner_detects_array_wrapped_json_object (test_neewa_ops.RepositoryValidationTests.test_secret_scanner_detects_array_wrapped_json_object) ... ok
+test_secret_scanner_detects_compact_later_json_property (test_neewa_ops.RepositoryValidationTests.test_secret_scanner_detects_compact_later_json_property) ... ok
+test_secret_scanner_detects_quoted_json_password (test_neewa_ops.RepositoryValidationTests.test_secret_scanner_detects_quoted_json_password) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 0.118s
+
+OK

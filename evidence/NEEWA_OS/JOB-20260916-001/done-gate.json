@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "job_id": "JOB-20260916-001",
+  "evaluated_at": "2026-09-16T04:17:33Z",
+  "passed": true,
+  "failures": [],
+  "state": "DONE",
+  "automated_checks": "passed",
+  "independent_review": "PASS",
+  "budget_actual_usd": 0.0,
+  "owner_gate": "not_required for A1 bootstrap scope"
+}

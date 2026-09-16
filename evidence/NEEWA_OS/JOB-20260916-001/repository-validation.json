@@ -1,0 +1,138 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-16T04:15:09Z",
+  "passed": true,
+  "checks": [
+    {
+      "name": "governance:AI-OPS/company/OWNER.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "governance:AI-OPS/company/APPROVAL_MATRIX.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "governance:AI-OPS/company/POLICIES.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "governance:02_CONSTITUTION/NEEWA_CONSTITUTION.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "governance:03_GOVERNANCE/RISK_CLASSIFICATION.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "governance:03_GOVERNANCE/DONE_GATE.md",
+      "passed": true,
+      "detail": "required authority file"
+    },
+    {
+      "name": "json:runtime.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:budgets.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:projects.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:providers.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "json:resources.json",
+      "passed": true,
+      "detail": "valid JSON"
+    },
+    {
+      "name": "runtime:mode",
+      "passed": true,
+      "detail": "RUN"
+    },
+    {
+      "name": "runtime:retry_limit",
+      "passed": true,
+      "detail": "2"
+    },
+    {
+      "name": "budget:90_day_ceiling",
+      "passed": true,
+      "detail": "1000.0"
+    },
+    {
+      "name": "budget:owner_gate",
+      "passed": true,
+      "detail": "must be true"
+    },
+    {
+      "name": "projects:unique_ids",
+      "passed": true,
+      "detail": "6 projects"
+    },
+    {
+      "name": "project:PRJ-NEEWA",
+      "passed": true,
+      "detail": "08_PROJECTS/NEEWA_OS/PROJECT.md"
+    },
+    {
+      "name": "project:PRJ-WANI",
+      "passed": true,
+      "detail": "08_PROJECTS/WANI/PROJECT.md"
+    },
+    {
+      "name": "project:PRJ-AAROHAN",
+      "passed": true,
+      "detail": "08_PROJECTS/AAROHAN/PROJECT.md"
+    },
+    {
+      "name": "project:PRJ-REVENUE",
+      "passed": true,
+      "detail": "08_PROJECTS/REVENUE_RESEARCH/PROJECT.md"
+    },
+    {
+      "name": "project:PRJ-BHAVA",
+      "passed": true,
+      "detail": "08_PROJECTS/BHAVA/PROJECT.md"
+    },
+    {
+      "name": "project:PRJ-CHAKRAOPS",
+      "passed": true,
+      "detail": "08_PROJECTS/CHAKRAOPS/PROJECT.md"
+    },
+    {
+      "name": "providers:registry",
+      "passed": true,
+      "detail": "6 providers"
+    },
+    {
+      "name": "resources:registry",
+      "passed": true,
+      "detail": "6 resources"
+    },
+    {
+      "name": "security:secret_scan",
+      "passed": true,
+      "detail": "0 finding(s)"
+    },
+    {
+      "name": "repository:manifest",
+      "passed": true,
+      "detail": "expected=111 actual=111"
+    }
+  ],
+  "secret_findings": []
+}

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "generated_from_live_audit": "2026-09-16T04:00:00Z",
+  "providers": [
+    {
+      "id": "nous",
+      "purpose": "Hermes primary inference and hosted tools",
+      "status": "configured",
+      "authentication": "oauth",
+      "secret_location": "Hermes protected auth store",
+      "approval_to_change": "A2"
+    },
+    {
+      "id": "openai-direct",
+      "purpose": "premium reasoning and voice",
+      "status": "not_configured",
+      "authentication": "project_scoped_secret",
+      "secret_location": "approved secret store",
+      "approval_to_change": "A2/A3"
+    },
+    {
+      "id": "openrouter",
+      "purpose": "governed fallback and model diversity",
+      "status": "not_configured",
+      "authentication": "scoped_secret",
+      "secret_location": "approved secret store",
+      "approval_to_change": "A2/A3"
+    },
+    {
+      "id": "litellm",
+      "purpose": "model gateway, virtual keys, budgets, fallbacks",
+      "status": "not_installed",
+      "authentication": "local_service",
+      "secret_location": "approved secret store",
+      "approval_to_change": "A2 before credential wiring"
+    },
+    {
+      "id": "langfuse",
+      "purpose": "trace, cost, latency, and quality telemetry",
+      "status": "not_configured",
+      "authentication": "project_scoped_secret",
+      "secret_location": "approved secret store",
+      "approval_to_change": "A2/A3"
+    },
+    {
+      "id": "runpod",
+      "purpose": "ephemeral GPU workers",
+      "status": "not_configured",
+      "authentication": "scoped_secret",
+      "secret_location": "approved secret store",
+      "approval_to_change": "A2/A3"
+    }
+  ]
+}

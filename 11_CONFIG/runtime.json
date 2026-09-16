@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "system": "NEEWA",
+  "mode": "RUN",
+  "owner": "Swapnil Patil",
+  "max_autonomous_remediation_cycles": 2,
+  "governance": {
+    "authority": "AI-OPS/company/OWNER.md",
+    "approvals": "AI-OPS/company/APPROVAL_MATRIX.md",
+    "policies": "AI-OPS/company/POLICIES.md"
+  },
+  "state_directory": "04_MEMORY/jobs",
+  "evidence_directory": "evidence"
+}

@@ -28,6 +28,15 @@ system-status defect; staged and verified every voice precondition.
 - See `07_SETUP/20_SYSTEM_STATUS_REPORTING.md` and
   `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`.
 
+VOICE PIPELINE — OBSERVED WORKING (2026-09-16 08:02, from gateway logs):
+wake `hey neewa` detected → 6.06s real mic audio (VAD-confirmed) → faster-whisper
+transcription (base, en) → prompt delivered to remote NEEWA → turn completed. Edge
+TTS generation also confirmed server-side. Collaboration model: Cursor owns the
+Windows client + read-only host probes; NEEWA consumes the snapshots. New read-only
+probe `12_SCRIPTS/neewa_voice_readiness.sh` publishes `/opt/neewa/status/voice.json`
+(refreshed every 15 min). Remaining: in-app TTS spoken playback and Command Center
+UI visual confirmation. Evidence: `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`.
+
 ## 1. Executive summary
 
 The validated NEEWA baseline was pushed to origin/main. The persistent gateway was restarted and recovered, voice/wake server capability was installed and tested, a loopback-only local model fallback was integrated into Hermes and tested through a forced primary failure, and a secret-free Windows Desktop bootstrap package was built and statically validated. No NemoClaw/OpenShell/K3s, firewall, public exposure, paid service, or employer integration was performed.

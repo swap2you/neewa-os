@@ -1,0 +1,57 @@
+{
+  "verified_at": "2026-09-16T12:34:00Z",
+  "objective": "Cursor (Windows lead) + NEEWA (server agent) collaboration: verify voice-input-to-task",
+  "collaboration_mechanism": {
+    "chosen": "authenticated SSH one-shot NEEWA agent tasking (hermes -z) + read-only host snapshots consumed by NEEWA",
+    "rejected": "hermes peer bot-to-bot DM (requires api_server listener + stored key; no peer configured; avoids new listener/credential)",
+    "file_ownership_separation": "Windows/Cursor edits the repo and Windows client; NEEWA reads repo + snapshots read-only (enforced by RO mounts)"
+  },
+  "windows_side": {
+    "mic_default_device": "Microphone Array (Realtek) index 1, 44100 Hz",
+    "mic_capture_path": "READY (input stream opened 0.4s, not exclusively locked; no recording retained)",
+    "desktop_app_mic_consent": "Allow",
+    "desktop_running": true,
+    "primary_connection": "SSH neewa -> ubuntu@neewa-core-01 over Tailscale"
+  },
+  "observed_voice_events_from_gateway_logs": {
+    "wake_listener_armed": "2026-09-16 08:01:48 wake.start(gui): listening for 'hey neewa' (sherpa) capture=client frame=1280",
+    "wake_phrase_detected": "2026-09-16 08:02:14 tools.wake_word: wake word: phrase detected — firing callback; wake.detected emitted",
+    "real_microphone_capture": "hermes-desktop-voice-hig4d9g6.webm, 6.06s audio; VAD removed 1.356s (real speech, not silence/MP3)",
+    "real_speech_transcription": "2026-09-16 08:02:25 Transcribed via local faster-whisper (base, lang=en, 6.1s audio)",
+    "voice_to_remote_agent": "transcript injected as tui prompt; 2026-09-16 08:03:08 tui turn finished status=complete on neewa-core-01",
+    "tts_generation": "2026-09-16 00:39:08 text_to_speech completed via Edge TTS (0.69s, 456 chars)"
+  },
+  "readiness_probe": {
+    "script": "12_SCRIPTS/neewa_voice_readiness.sh (read-only host probe)",
+    "snapshot": "/opt/neewa/status/voice.json (mounted read-only into sandbox)",
+    "overall": "voice_pipeline_observed_working",
+    "venv_imports_ok": true,
+    "sherpa_kws_model_present": true,
+    "faster_whisper_cached": true,
+    "voice_rpc_handlers_present": true,
+    "gateway_running": true,
+    "config": "wake=sherpa 'hey neewa' capture=client surface=gui sens=0.65; stt=local; tts=edge"
+  },
+  "acceptance": {
+    "MICROPHONE_CAPTURE_PASS": "observed (desktop captured 6.06s webm)",
+    "REAL_SPEECH_TRANSCRIPTION_PASS": "observed (faster-whisper base, en, VAD-confirmed real speech)",
+    "VOICE_TO_REMOTE_AGENT_PASS": "observed (prompt accepted -> turn complete on neewa-core-01)",
+    "WAKE_LISTENER_ARMED_PASS": "observed (wake.start client-capture)",
+    "WAKE_PHRASE_DETECTED_PASS": "observed (wake word phrase detected + wake.detected)",
+    "HOST_STATUS_PASS": "agent reports host snapshot with timestamp; sandbox not treated as host",
+    "SANDBOX_ISOLATION_PASS": "repo + status mounts read-only",
+    "TTS_GENERATION": "observed server-side (Edge TTS). In-app spoken playback to speakers is a client observation, not yet confirmed.",
+    "remaining": [
+      "In-app TTS spoken playback through Windows speakers (client observation / voice-output mode)",
+      "Command Center UI visual confirmation (chip + right pane + teal skin)",
+      "A fresh clean spoken round-trip if the owner wants a live re-confirmation"
+    ]
+  },
+  "safety": {
+    "public_exposure": "none",
+    "new_listeners": "none",
+    "credentials_touched": "none",
+    "host_mutation_by_agent": "prevented (read-only mounts)",
+    "raw_recordings_retained": "none"
+  }
+}

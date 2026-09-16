@@ -31,11 +31,21 @@ When asked for "system status" / "server health" / "are you up":
    **normal sandbox isolation**, not a server outage. Do not report it as a blocker.
 4. Always label each fact with its layer: sandbox vs server vs repo vs Windows client.
 
+## Voice pipeline status
+
+Voice readiness and the most recent OBSERVED voice events (wake armed, wake detected,
+real speech transcription, voice→agent turn, TTS generation) are published to
+`/opt/neewa/status/voice.json` by the read-only host probe `12_SCRIPTS/neewa_voice_readiness.sh`.
+The live gateway logs, venv, and model caches are intentionally not mounted into the
+sandbox, so voice facts must come from this host-side snapshot, not from the sandbox.
+For any voice question, read `/opt/neewa/status/voice.json` and cite `generated_at`.
+
 ## Refresh mechanism
 
-- Host script: `12_SCRIPTS/neewa_host_status.sh` → `~/.hermes/scripts/neewa_host_status.sh`.
-- Scheduled no-agent Hermes cron job `neewa-host-status` refreshes the snapshot on the
-  host (read-only probe) every 10 minutes.
+- Host scripts: `12_SCRIPTS/neewa_host_status.sh` and `12_SCRIPTS/neewa_voice_readiness.sh`
+  → `~/.hermes/scripts/`.
+- Scheduled no-agent Hermes cron jobs: `neewa-host-status` (every 10 min) and
+  `neewa-voice-readiness` (every 15 min) refresh the read-only snapshots on the host.
 - Sandbox mounts (read-only): `/opt/neewa/neewa-os` and `/opt/neewa/status`.
 
 No public exposure, no secrets, no host mutation — the probe is read-only.

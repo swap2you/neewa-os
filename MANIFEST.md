@@ -109,6 +109,7 @@
 - `12_SCRIPTS/morning_brief.py`
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
+- `12_SCRIPTS/neewa_voice_readiness.sh`
 - `12_SCRIPTS/resource_governor.py`
 - `12_SCRIPTS/server_readiness.sh`
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
@@ -156,3 +157,4 @@
 - `evidence/NEEWA_OS/JOB-20260916-002/voice-stack.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/windows-package.json`
 - `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`
+- `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`

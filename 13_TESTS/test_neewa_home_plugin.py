@@ -20,10 +20,9 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("wake.stop", self.src)
         self.assertIn("wake.start", self.src)
         self.assertIn("cron.manage", self.src)
-        self.assertIn("voice.toggle", self.src)
         self.assertIn("session.interrupt", self.src)
         self.assertIn("wake.pause", self.src)
-        self.assertIn("hermes:composer-voice-toggle", self.src)
+        self.assertIn("__NEEWA_VOICE__", self.src)
         self.assertIn("startListening", self.src)
         self.assertIn("Start listening", self.src)
         self.assertIn("approval.pending", self.src)
@@ -35,8 +34,12 @@ class NeewaHomePluginTests(unittest.TestCase):
         end = self.src.index("async function stopConversation")
         body = self.src[start:end]
         self.assertIn("wake.pause", body)
-        self.assertIn("hermes:composer-voice-toggle", body)
+        self.assertIn("voiceApi()", body)
+        self.assertIn("api.start", body)
+        self.assertIn("result.recording", body)
+        self.assertNotIn("hermes:composer-voice-toggle", body)
         self.assertNotIn("voice.record", body)
+        self.assertNotIn("NEEWA is listening on Home", body)
         self.assertIn("Start listening", self.src)
 
     def test_wake_aliases_and_negatives(self):
@@ -71,11 +74,15 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("neewa.personalSessionId", self.src)
         self.assertIn("audioSilentKnown", self.src)
         self.assertIn("__NEEWA_WAKE_HEALTH__", self.src)
+        self.assertIn("__NEEWA_VOICE__", self.src)
+        self.assertIn("hermes:neewa-voice", self.src)
         self.assertIn("hermes:neewa-clap", self.src)
         self.assertNotIn("ensureConversationAfterWake", self.src)
         self.assertIn("conversational", self.src)
         self.assertIn("hermesDesktop", self.src)
         self.assertIn("prefers-reduced-motion", self.src)
+        self.assertIn("Recording did not start", self.src)
+        self.assertNotIn("Wake detected · listening", self.src)
 
     def test_home_does_not_navigate_to_new_chat_on_wake_or_listen(self):
         start = self.src.index("async function startListening")
@@ -106,6 +113,19 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("return 'unknown'", self.src)
         self.assertNotIn("useState('armed')", self.src)
         self.assertNotIn("getUserMedia({", self.src)
+
+    def test_mic_live_requires_recording_not_wake_detect(self):
+        badge_start = self.src.index("function PrivacyBadge")
+        badge_end = self.src.index("function CommandRail")
+        badge = self.src[badge_start:badge_end]
+        self.assertIn("persona === 'listening' || persona === 'transcribing'", badge)
+        self.assertNotIn("persona === 'detected') { label = 'MIC LIVE'", badge)
+        self.assertIn("label = 'WAKE'", badge)
+        start = self.src.index("async function startListening")
+        end = self.src.index("async function stopConversation")
+        body = self.src[start:end]
+        self.assertIn("result.recording", body)
+        self.assertNotIn("host.notify({ kind: 'info', message: 'NEEWA is listening on Home", body)
 
     def test_no_public_bind(self):
         self.assertNotIn("0.0.0.0", self.src)

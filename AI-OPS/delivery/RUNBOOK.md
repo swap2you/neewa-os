@@ -17,7 +17,8 @@
 | **READY** | Positive evidence of wake audio | Say **Hey Neewa / Niva / Neeva**, then your request |
 | **NO AUDIO** | Listener on but PCM is silent/missing | Tap **Rearm**; close Wispr/Zoom if they hold the mic |
 | **STARTING** | Just armed (≤2.5s) | Wait a moment for READY |
-| **MIC LIVE** | Wake fired / recording your request | Keep speaking |
+| **MIC LIVE** | Capture actually started (`__NEEWA_VOICE__.recording`) | Keep speaking your request |
+| **WAKE** | Wake phrase heard; capture is starting | Wait a moment — do not treat this as recording |
 | **BUSY** | Thinking / working / speaking | Wait for the spoken reply |
 | **MIC OFF** | Muted | Tap **Rearm** |
 

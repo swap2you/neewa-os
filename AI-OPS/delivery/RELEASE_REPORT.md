@@ -1,5 +1,48 @@
 # NEEWA Jarvis V1 — release report
 
+**Product status:** PARTIAL (Home voice handoff patched; physical spoken session still required)
+**Report date/time + timezone:** 2026-09-16 17:20 America/New_York
+**Repo:** `swap2you/neewa-os`
+**Commit SHA:** see git after this push
+**Hermes Desktop branch (local only, not Nous origin):** `neewa/keep-chat-mounted`
+**Windows packed asar:** `release/win-unpacked/resources/app.asar` SHA256 `C3AF7E22A9B52D763FA09D1CC9430A70B2206BD61568026BBE36E8201471B1EE` (backup `app.asar.bak-neewa-20260916T171702`)
+**Running process:** packed `Hermes.exe` renderer `--app-path` is that asar (started 17:19:10, asar 17:18:18). Gateway ONLINE at 21:19:22Z.
+**Plugin SHA256:** `5175E80FF474E1C280D1ED087AE92F2FD91784A66B05DE9AA9AD95AF76CD3AD7`
+
+## Blocking defect
+
+Home screenshot (Wake detected · listening + MIC LIVE, no focused session, no transcript) was **not** proof of recording. The plugin mapped `wake.detected`/`wake.pause` to listening. Conversation worked because ChatView was visible. Home used `visibility:hidden` on the keep-mounted composer and an unacked voice-toggle CustomEvent.
+
+## What changed
+
+| Area | Change |
+| --- | --- |
+| Hermes ChatView | Overlay cover (`data-neewa-chat-layer=mounted-overlay`, opacity 0.02). No `visibility:hidden`. |
+| Voice controller | `window.__NEEWA_VOICE__` with real phases. Start is idempotent and waits for `recording`. |
+| Plugin | MIC LIVE only if recording. No success notify until ack. Stop/Mute/Rearm/Cancel only claim accepted results. |
+| Session | Reuse/pin `neewa.personalSessionId` without navigating to `/`. First-use draft allowed. |
+| Worker | Unchanged this turn; CUA doctor still ok; JOB-20260916-004 artifact still present. |
+
+## Latency
+
+No p50/p95: physical sample size is 0 this turn. Pipeline remains chained. Avoidable delay removed: fake listening state and CSS-hidden composer.
+
+## Tests
+
+- `python -m unittest discover -s 13_TESTS -p test_*.py`: 67 OK, 1 skipped.
+- Hermes vitest `neewa-voice-bridge` + `surfaces`: 8 passed.
+- `python 12_SCRIPTS/neewa_ops.py validate`: secret_scan 0.
+
+## Owner-only action (one session)
+
+Packed Hermes is already running this asar. Stay on **NEEWA Home**. Unmute speakers. Wait for READY. Say **Hey Neewa, are you there?** then two follow-ups. Confirm spoken reply on Home. Stop; confirm rearm.
+
+Rollback: restore `app.asar.bak-neewa-20260916T171702`.
+
+---
+
+# NEEWA Jarvis V1 — release report
+
 **Product status:** PARTIAL (Windows computer-use worker proven; physical spoken session still required)
 **Report date/time + timezone:** 2026-09-16 17:10 America/New_York
 **Repo:** `swap2you/neewa-os`

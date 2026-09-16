@@ -105,17 +105,73 @@ function markVoiceTrace(stage) {
   } catch { /* noop */ }
 }
 
-function derivePersona(gateway, busy, waiting, phase, wake, probe) {
+function voiceApi() {
+  try {
+    return typeof window !== 'undefined' ? window.__NEEWA_VOICE__ : null
+  } catch {
+    return null
+  }
+}
+
+function voiceSnapshot() {
+  const api = voiceApi()
+  if (!api) return null
+  try {
+    return typeof api.snapshot === 'function' ? api.snapshot() : api
+  } catch {
+    return api
+  }
+}
+
+function useVoiceController() {
+  const [snap, setSnap] = useState(() => voiceSnapshot())
+  useEffect(() => {
+    const on = () => setSnap(voiceSnapshot())
+    try { window.addEventListener('hermes:neewa-voice', on) } catch { /* noop */ }
+    const t = window.setInterval(on, 400)
+    on()
+    return () => {
+      try { window.removeEventListener('hermes:neewa-voice', on) } catch { /* noop */ }
+      window.clearInterval(t)
+    }
+  }, [])
+  return snap
+}
+
+function resolveSessionId(focused, stored) {
+  try {
+    const voice = voiceSnapshot()
+    const fromVoice = voice && (voice.storedSessionId || voice.sessionId)
+    if (fromVoice) return String(fromVoice)
+  } catch { /* noop */ }
+  if (stored) return String(stored)
+  if (focused) return String(focused)
+  try {
+    const pinned = typeof localStorage !== 'undefined' ? localStorage.getItem('neewa.personalSessionId') : null
+    if (pinned) return String(pinned)
+  } catch { /* noop */ }
+  return null
+}
+
+function derivePersona(gateway, busy, waiting, phase, wake, probe, voice) {
   if (gateway === 'connecting') return 'connecting'
   if (!ONLINE.has(gateway)) return 'offline'
+  const vp = voice && voice.phase
+  if (vp === 'ERROR') return 'error'
+  if (vp === 'PLAYING_AUDIO') return 'speaking'
+  if (vp === 'AGENT_WORKING') return waiting ? 'thinking' : 'working'
+  if (vp === 'TRANSCRIBING') return 'transcribing'
+  if (vp === 'RECORDING' || (voice && voice.recording === true)) return 'listening'
+  if (vp === 'WAKE_DETECTED') return 'detected'
+  if (vp === 'STOPPING') return 'starting'
   if (phase === 'error') return 'error'
   if (waiting) return 'thinking'
   if (busy) return 'working'
   if (phase === 'approval') return 'approval'
   if (phase === 'speaking') return 'speaking'
   if (phase === 'transcribing') return 'transcribing'
-  if (phase === 'detected') return 'detected'
-  if (phase === 'listening') return 'listening'
+  if (phase === 'detected') return voice && voice.recording === true ? 'listening' : 'detected'
+  if (phase === 'listening' && voice && voice.recording === true) return 'listening'
   if (probe && probe.permission === 'denied') return 'mic_denied'
   if (probe && probe.wrongDevice) return 'device_unavailable'
   if (!wake || wake.status === 'loading') return 'starting'
@@ -141,6 +197,7 @@ function usePersonaState(wake, probe) {
   const gateway = useValue(host.state.gateway)
   const busy = useValue(host.state.busy)
   const waiting = useValue(host.state.awaitingResponse)
+  const voice = useVoiceController()
   const [phase, setPhase] = useState('unknown')
 
   useEffect(() => {
@@ -153,6 +210,7 @@ function usePersonaState(wake, probe) {
           markVoiceTrace('wake.detected')
           // ChatView stays mounted under Home (Desktop keep-mounted patch).
           // Do NOT navigate to '/' — that is NEW_CHAT_ROUTE and mints sessions.
+          // Listening is owned by window.__NEEWA_VOICE__, not this event.
         } else if (t.indexOf('stt') !== -1 || t.indexOf('transcript') !== -1 || t.indexOf('asr') !== -1) {
           setPhase('transcribing')
           markVoiceTrace('stt')
@@ -161,7 +219,6 @@ function usePersonaState(wake, probe) {
           markVoiceTrace('tts')
         } else if (t.indexOf('approval') !== -1) setPhase('approval')
         else if (t.indexOf('wake.pause') !== -1) {
-          setPhase('listening')
           markVoiceTrace('wake.pause')
         } else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('unknown')
         else if (t.indexOf('wake.stop') !== -1) setPhase('muted')
@@ -171,7 +228,7 @@ function usePersonaState(wake, probe) {
     return () => { try { off() } catch { /* noop */ } }
   }, [])
 
-  return derivePersona(gateway, busy, waiting, phase, wake, probe)
+  return derivePersona(gateway, busy, waiting, phase, wake, probe, voice)
 }
 
 function usePinPersonalSession() {
@@ -190,7 +247,7 @@ const STATE_META = {
   armed: { label: 'Ready · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
   stream_active: { label: 'Ready · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
   stream_inactive: { label: 'Listener on · mic audio not reaching NEEWA', hue: '#F6AD55', ring: '#C05621' },
-  detected: { label: 'Wake detected · listening', hue: '#68D391', ring: '#276749' },
+  detected: { label: 'Wake detected · starting capture', hue: '#68D391', ring: '#276749' },
   listening: { label: 'Listening to you…', hue: '#63E6E2', ring: '#4FD1C5' },
   transcribing: { label: 'Transcribing…', hue: '#9AE6B4', ring: '#2F855A' },
   thinking: { label: 'Thinking…', hue: '#F6C85F', ring: '#B7902F' },
@@ -532,56 +589,118 @@ function Btn({ children, onClick, danger }) {
   })
 }
 
+let controlLock = false
+
 async function muteListener(refresh) {
-  try {
-    await host.request('wake.stop', {})
-    host.notify({ kind: 'info', message: 'Microphone muted (wake listener off)' })
-  } catch {
-    host.notify({ kind: 'error', message: 'Mute failed — wake.stop not accepted' })
+  if (controlLock) {
+    host.notify({ kind: 'error', message: 'Voice control is busy' })
+    return
   }
-  if (refresh) refresh()
+  controlLock = true
+  try {
+    const api = voiceApi()
+    if (api && typeof api.muteMic === 'function') {
+      const result = await api.muteMic()
+      if (!result || !result.ok) {
+        host.notify({ kind: 'error', message: (result && result.error) || 'Mute was not accepted' })
+        return
+      }
+    }
+    await host.request('wake.stop', {})
+    host.notify({ kind: 'info', message: 'Microphone muted' })
+  } catch {
+    host.notify({ kind: 'error', message: 'Mute failed — capture or wake.stop not accepted' })
+  } finally {
+    controlLock = false
+    if (refresh) refresh()
+  }
 }
 async function rearmListener(refresh) {
+  if (controlLock) {
+    host.notify({ kind: 'error', message: 'Voice control is busy' })
+    return
+  }
+  controlLock = true
   try {
     await host.request('wake.start', { surface: 'gui', client_capture: true })
     host.notify({ kind: 'info', message: 'Wake listener re-armed' })
   } catch {
     host.notify({ kind: 'error', message: 'Rearm failed — wake.start not accepted' })
+  } finally {
+    controlLock = false
+    if (refresh) refresh()
   }
-  if (refresh) refresh()
 }
 
 // Backup path when Sherpa misses an accented wake. Starts the SAME NEEWA
 // voice conversation Desktop uses after wake.detected — still remote NEEWA,
 // not a different chatbot. voice.record start is NOT used (server PortAudio).
+// Do NOT dispatch hermes:composer-voice-toggle: that toggles and can stop
+// an already-started conversation. Do NOT navigate to '/'.
 async function startListening(refresh) {
+  if (controlLock) {
+    host.notify({ kind: 'error', message: 'Voice control is busy' })
+    return
+  }
+  controlLock = true
+  markVoiceTrace('startListening')
   try {
     await host.request('wake.pause', {})
   } catch { /* listener may already be idle */ }
-  markVoiceTrace('startListening')
-  window.setTimeout(() => {
-    try {
-      window.dispatchEvent(new CustomEvent('hermes:composer-voice-toggle', { detail: { target: 'main' } }))
-    } catch { /* composer bus unavailable */ }
-  }, 80)
-  host.notify({ kind: 'info', message: 'NEEWA is listening on Home — speak now (same agent as Hey Neewa)' })
-  if (refresh) window.setTimeout(refresh, 800)
+  try {
+    const api = voiceApi()
+    if (!api || typeof api.start !== 'function') {
+      host.notify({ kind: 'error', message: 'Voice controller is not mounted. Relaunch packed Hermes on Home.' })
+      try { await host.request('wake.start', { surface: 'gui', client_capture: true }) } catch { /* rearm best-effort */ }
+      return
+    }
+    const result = await api.start()
+    if (result && result.ok && result.recording) {
+      host.notify({ kind: 'info', message: 'NEEWA is listening — speak now' })
+    } else {
+      host.notify({ kind: 'error', message: (result && result.error) || 'Recording did not start' })
+      try { await host.request('wake.start', { surface: 'gui', client_capture: true }) } catch { /* rearm best-effort */ }
+    }
+  } catch {
+    host.notify({ kind: 'error', message: 'Start listening failed' })
+    try { await host.request('wake.start', { surface: 'gui', client_capture: true }) } catch { /* rearm best-effort */ }
+  } finally {
+    controlLock = false
+    if (refresh) refresh()
+  }
 }
 async function stopConversation(sessionId, refresh) {
-  // Distinct from mute: end voice mode + audio, interrupt the turn, then rearm.
-  try {
-    await host.request('voice.toggle', { action: 'off' })
-  } catch { /* voice mode may already be off */ }
-  if (sessionId) {
-    try {
-      await host.request('session.interrupt', { session_id: sessionId })
-    } catch { /* no running turn is fine */ }
-    try {
-      await host.request('voice.record', { action: 'stop', session_id: sessionId })
-    } catch { /* no capture is fine */ }
+  if (controlLock) {
+    host.notify({ kind: 'error', message: 'Voice control is busy' })
+    return
   }
-  host.notify({ kind: 'info', message: 'Conversation and audio stop requested. Re-arming wake…' })
-  window.setTimeout(() => { void rearmListener(refresh) }, 400)
+  controlLock = true
+  let rearm = false
+  try {
+    const api = voiceApi()
+    if (!api || typeof api.stop !== 'function') {
+      host.notify({ kind: 'error', message: 'Voice controller is not mounted; cannot stop capture' })
+      return
+    }
+    const result = await api.stop()
+    if (!result || !result.ok) {
+      host.notify({ kind: 'error', message: (result && result.error) || 'Stop was not accepted' })
+      return
+    }
+    const sid = sessionId || (api && (api.storedSessionId || api.sessionId))
+    if (sid) {
+      try {
+        await host.request('session.interrupt', { session_id: sid })
+      } catch { /* no running turn is fine */ }
+    }
+    host.notify({ kind: 'info', message: 'Voice conversation stopped' })
+    rearm = true
+  } catch {
+    host.notify({ kind: 'error', message: 'Stop failed' })
+  } finally {
+    controlLock = false
+  }
+  if (rearm) window.setTimeout(() => { void rearmListener(refresh) }, 400)
 }
 async function cancelTask(sessionId) {
   if (!sessionId) {
@@ -600,12 +719,14 @@ async function cancelTask(sessionId) {
 function PrivacyBadge({ persona, wake }) {
   // After wake.detected the detector pauses (!wake.listening). That is NOT mute —
   // conversation capture owns the mic. Never treat pause as MIC OFF mid-turn.
+  // MIC LIVE requires actual recording (persona listening/transcribing), not wake.detected.
   const conversational = persona === 'listening' || persona === 'transcribing' || persona === 'detected'
     || persona === 'speaking' || persona === 'thinking' || persona === 'working'
   const muted = persona === 'muted' || (!conversational && wake && wake.status === 'ok' && !wake.listening)
   let label = 'UNKNOWN'
   let color = '#A0AEC0'
-  if (persona === 'listening' || persona === 'transcribing' || persona === 'detected') { label = 'MIC LIVE'; color = '#68D391' }
+  if (persona === 'listening' || persona === 'transcribing') { label = 'MIC LIVE'; color = '#68D391' }
+  else if (persona === 'detected') { label = 'WAKE'; color = '#68D391' }
   else if (persona === 'speaking' || persona === 'thinking' || persona === 'working') { label = 'BUSY'; color = '#F6C85F' }
   else if (muted) { label = 'MIC OFF'; color = '#FC8181' }
   else if (persona === 'stream_active') { label = 'READY'; color = '#68D391' }
@@ -632,7 +753,9 @@ function CommandRail({ variant }) {
   const model = useValue(host.state.model)
   const profile = useValue(host.state.focusedSessionProfile)
   const connectionId = useValue(host.state.connectionId)
-  const sessionId = useValue(host.state.focusedSessionId)
+  const focused = useValue(host.state.focusedSessionId)
+  const stored = useValue(host.state.focusedStoredSessionId)
+  const sessionId = resolveSessionId(focused, stored)
   const usage = useValue(host.state.focusedUsage)
   const [cron, refreshCron] = useCron()
   const [wake, refreshWake] = useWake()
@@ -673,7 +796,7 @@ function CommandRail({ variant }) {
         ['Mode', voiceRt.mode],
         ['STT', voiceRt.stt],
         ['TTS provider', 'telemetry unavailable (no tts.provider RPC) · live=nous coral + auto_tts'],
-        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' || persona === 'detected' || persona === 'transcribing' ? 'MIC LIVE (conversation)' : (persona === 'speaking' || persona === 'thinking' || persona === 'working' ? 'BUSY' : (persona === 'stream_active' ? 'READY' : (persona === 'stream_inactive' ? 'NO AUDIO' : 'UNKNOWN'))))],
+        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' || persona === 'transcribing' ? 'MIC LIVE (conversation)' : (persona === 'detected' ? 'WAKE' : (persona === 'speaking' || persona === 'thinking' || persona === 'working' ? 'BUSY' : (persona === 'stream_active' ? 'READY' : (persona === 'stream_inactive' ? 'NO AUDIO' : 'UNKNOWN')))))],
       ])),
       Section('Assistant', Grid([
         ['Model', String(model || 'unknown')],
@@ -733,7 +856,9 @@ function CommandRail({ variant }) {
 
 function NeewaHome() {
   const gateway = useValue(host.state.gateway)
-  const sessionId = useValue(host.state.focusedSessionId)
+  const focused = useValue(host.state.focusedSessionId)
+  const stored = useValue(host.state.focusedStoredSessionId)
+  const sessionId = resolveSessionId(focused, stored)
   usePinPersonalSession()
   const [wake, refreshWake] = useWake()
   const probe = useCaptureProbe()
@@ -780,8 +905,10 @@ function NeewaHome() {
               ? 'Stay on Home. Say “Hey Neewa”, then your request. Do not switch to Conversation — the orb is the assistant.'
             : persona === 'unknown'
               ? 'Listener is on but audio health is unproven. Wait for READY or tap Rearm.'
-            : persona === 'listening' || persona === 'detected'
+            : persona === 'listening'
               ? 'Listening — keep speaking your request.'
+            : persona === 'detected'
+              ? 'Wake heard — waiting for microphone capture to start.'
             : persona === 'thinking' || persona === 'working'
               ? 'NEEWA is working on your request…'
             : persona === 'speaking'
@@ -812,7 +939,10 @@ function NeewaHud() {
   const persona = usePersonaState(wake, probe)
   const meta = STATE_META[persona] || STATE_META.unknown
   const gateway = useValue(host.state.gateway)
-  const sessionId = useValue(host.state.focusedSessionId)
+  const focused = useValue(host.state.focusedSessionId)
+  const stored = useValue(host.state.focusedStoredSessionId)
+  const sessionId = resolveSessionId(focused, stored)
+  usePinPersonalSession()
   return jsxs('div', {
     className: 'relative flex h-full w-full flex-col overflow-hidden text-sm text-foreground',
     style: {

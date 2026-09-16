@@ -1,7 +1,7 @@
 # NEEWA OS Status
 
 State: A0/A1 OPERATIONAL — A2/A3 INTEGRATIONS PENDING
-Last verified: 2026-09-16 (Windows worker + cua-driver 0.28.2)
+Last verified: 2026-09-16 (Home voice controller + packed asar loaded by running Hermes.exe; Windows worker unchanged PASS)
 
 Verified baseline:
 - repository integrity, governance, canonical registries, job lifecycle, budget and Done Gate controls;

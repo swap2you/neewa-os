@@ -1,0 +1,44 @@
+{
+  "job_id": "JOB-20260916-006",
+  "created": "2026-09-16T21:19:30Z",
+  "host": "LAPTOP-HKGLJEE8",
+  "blocking_defect": "Home showed MIC LIVE after wake.detected without STT/agent/TTS. Conversation worked.",
+  "first_failed_stage": "Home invented MIC LIVE from wake.detected/wake.pause and hid ChatView with CSS visibility:hidden, so capture/TTS did not follow the working Conversation path. CustomEvent hermes:composer-voice-toggle was unacked and could toggle an already-started conversation off.",
+  "fix": {
+    "chat_layer": "mounted-overlay with opacity 0.02 + opaque Home cover; no visibility:hidden",
+    "controller": "window.__NEEWA_VOICE__ start/stop/muteMic; MIC LIVE only when recording===true",
+    "session": "reuse/pin neewa.personalSessionId; no navigate to /"
+  },
+  "running_process": {
+    "exe": "C:\\Users\\swap2\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\Hermes.exe",
+    "renderer_app_path": "C:\\Users\\swap2\\AppData\\Local\\hermes\\hermes-agent\\apps\\desktop\\release\\win-unpacked\\resources\\app.asar",
+    "asar_sha256": "C3AF7E22A9B52D763FA09D1CC9430A70B2206BD61568026BBE36E8201471B1EE",
+    "asar_bytes": 62967237,
+    "asar_mtime": "2026-09-16T21:18:18-04:00",
+    "process_start": "2026-09-16T21:19:10-04:00",
+    "backup": "app.asar.bak-neewa-20260916T171702",
+    "plugin_sha256": "5175E80FF474E1C280D1ED087AE92F2FD91784A66B05DE9AA9AD95AF76CD3AD7",
+    "gateway": "remote Hermes backend ready 2026-09-16T21:19:22.867Z"
+  },
+  "packed_asar_contains": {
+    "mounted-overlay": true,
+    "__NEEWA_VOICE__": true,
+    "recording-started": true,
+    "WAKE_DETECTED": true,
+    "visibility_hidden": false
+  },
+  "windows_worker": {
+    "cua_driver": "0.28.2",
+    "doctor": "ok",
+    "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260916-004-personal-artifact.txt",
+    "LOCAL_COMPUTER_USE": "PASS (prior Calculator 6x7=42)",
+    "REMOTE_DELEGATION": "PASS (JOB-20260916-004)",
+    "PROJECT_ACCESS_AUTHORIZED": "PASS bounded personal workspace; employer/shell/A3 FAILED as required"
+  },
+  "tests": {
+    "neewa_unittest_discover": "67 OK, 1 skipped",
+    "hermes_vitest": "neewa-voice-bridge + surfaces 8 passed",
+    "secret_scan": "0 findings"
+  },
+  "physical_spoken_home": "PENDING_PHYSICAL"
+}

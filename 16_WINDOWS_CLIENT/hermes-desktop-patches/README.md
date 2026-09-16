@@ -17,9 +17,11 @@ Workspace: `%LOCALAPPDATA%\hermes\hermes-agent` (Hermes 0.21.3 source that build
 
 | File | Change |
 | --- | --- |
-| `apps/desktop/src/app/contrib/surfaces.tsx` | Keep `ChatView` mounted for the workspace pane lifetime; overlay plugin pages on top (`visibility: hidden`, not unmount). |
+| `apps/desktop/src/app/contrib/surfaces.tsx` | Keep `ChatView` mounted for the workspace pane lifetime; overlay plugin pages with an opaque cover. **Do not use `visibility:hidden`** — Chromium can suspend AudioContext / MediaRecorder / HTMLAudio playback in a CSS-hidden subtree (Home stalled, Conversation worked). |
+| `apps/desktop/src/lib/neewa-voice-bridge.ts` | Authoritative `window.__NEEWA_VOICE__` controller (IDLE → PLAYING_AUDIO). Home/HUD subscribe; MIC LIVE only when `recording === true`. |
+| `apps/desktop/src/app/chat/composer/hooks/use-composer-voice.ts` | Main composer registers start/stop/mute and publishes real `conversation.status`. Start is idempotent (does not toggle). |
 | `apps/desktop/src/app/routes.ts` | Document `RouteContribution.keepChatMounted`. |
-| `apps/desktop/src/app/contrib/wiring.tsx` | Mint a new session on wake only when `start_new_session === true`; `preserveRoute` so Home stays. |
+| `apps/desktop/src/app/contrib/wiring.tsx` | Mint a new session on wake only when `start_new_session === true`; otherwise reuse/pin `neewa.personalSessionId`. `preserveRoute` so Home stays. |
 | `apps/desktop/src/lib/wake-client-capture.ts` | Non-sensitive PCM counters on `window.__NEEWA_WAKE_HEALTH__`; optional double-clap on the **same** ScriptProcessor (no second getUserMedia). |
 | `apps/desktop/src/store/wake-word.ts` | Dispatch `hermes:neewa-clap` from that stream. |
 

@@ -137,7 +137,6 @@
 - `AI-OPS/company/POLICIES.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
-- `NEEWA-OS-v1.0.zip`
 - `README.md`
 - `START_HERE.md`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`

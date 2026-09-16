@@ -1,0 +1,10 @@
+{
+  "job_id": "JOB-20260916-005",
+  "title": "Read-only personal project portfolio inventory",
+  "status": "complete",
+  "scope": "08_PROJECTS registry folders plus USERPROFILE/NEEWA-Personal",
+  "excluded": ["employer trees", "financial accounts", "credential stores"],
+  "submitted_to_neewa": "windows-jobs/done/JOB-20260916-005.json",
+  "git_writer": "Cursor",
+  "note": "Raw inventory JSON is kept local and is not committed."
+}

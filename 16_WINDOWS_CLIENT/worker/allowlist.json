@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "execution_owner": "neewa-windows-worker",
+  "git_writer": "Cursor",
+  "coordinator": "NEEWA on neewa-core-01",
+  "desktop_driver": "local cua-driver on neewa-edge-01",
+  "transport": "outbound SSH poll to ubuntu@neewa-core-01",
+  "public_listener": false,
+  "tailscale_funnel": false,
+  "unrestricted_shell": false,
+  "approved_roots": [
+    "%USERPROFILE%\\NEEWA-Personal"
+  ],
+  "denied_roots": [
+    "%USERPROFILE%\\.ssh",
+    "%USERPROFILE%\\.aws",
+    "%USERPROFILE%\\.gnupg",
+    "C:\\Users",
+    "employer repositories and documents",
+    "banking and brokerage applications",
+    "password managers",
+    "private browser sessions"
+  ],
+  "actions": {
+    "ping": "A0",
+    "capability_inventory": "A0",
+    "personal_artifact": "A1",
+    "portfolio_inventory": "A1"
+  },
+  "notes": [
+    "A2/A3 remain owner-gated and are not executable by this worker.",
+    "cua-driver MCP is not registered into Cursor, Claude, or Codex concurrently.",
+    "UWP apps share ApplicationFrameHost; the worker does not grant that executable."
+  ]
+}

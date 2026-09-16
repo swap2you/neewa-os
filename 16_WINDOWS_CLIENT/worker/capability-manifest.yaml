@@ -1,0 +1,27 @@
+# Reviewed NEEWA capability ceiling for an optional bounded cua-driver runtime.
+# Version 3. This file is deny-by-default. It does not widen standard mode.
+#
+# Do not grant the shared UWP frame-host executable: it also hosts Settings.
+version: 3
+expires_after: 8h
+idle_timeout: 30m
+
+allow:
+  tools:
+    - start_session
+    - end_session
+    - list_apps
+    - list_windows
+    - health_report
+    - check_permissions
+
+resources:
+  files:
+    read:
+      - dir: C:\Users\swap2\NEEWA-Personal
+        recursive: true
+    write:
+      - dir: C:\Users\swap2\NEEWA-Personal\jobs
+        recursive: true
+  desktop:
+    display: false

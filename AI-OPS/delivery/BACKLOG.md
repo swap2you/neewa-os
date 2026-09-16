@@ -10,6 +10,9 @@
 - [x] Chief-of-Staff intent/lifecycle doc; backend work-order packet.
 - [x] Cron registry includes host-status + voice-readiness jobs.
 - [x] Delivery docs under `AI-OPS/delivery/`.
+- [x] Cua Driver 0.28.2 on Windows via GitHub-local official installer (cua.ai NXDOMAIN).
+- [x] Calculator 6×7=42 background computer-use test.
+- [x] Governed Windows worker + remote JOB-20260916-004 artifact.
 
 ## Requires owner (one consolidated physical session)
 - [ ] A01 autostart after real Windows login (restart/login — do not store the password).

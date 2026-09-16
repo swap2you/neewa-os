@@ -25,18 +25,21 @@
     {
       "id": "neewa-edge-01",
       "class": "windows-edge",
-      "runtime": "Hermes Desktop",
-      "status": "package-prepared-owner-install-pending"
+      "runtime": "Hermes Desktop + cua-driver 0.28.2 + governed Windows worker",
+      "status": "active-local-worker",
+      "location": "neewa-edge-01",
+      "transport": "outbound Tailscale SSH poll",
+      "computer_use": "local cua-driver; not the Ubuntu sandbox"
     },
     {
       "id": "codex",
       "class": "coding-worker",
-      "status": "not-installed"
+      "status": "gui-present-cli-not-on-path"
     },
     {
       "id": "claude-code",
       "class": "coding-worker",
-      "status": "not-installed"
+      "status": "gui-present-cli-not-installed"
     },
     {
       "id": "gemini-cli",

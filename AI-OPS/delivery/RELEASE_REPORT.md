@@ -1,3 +1,21 @@
+# NEEWA Jarvis V1 — release report
+
+**Product status:** PARTIAL (Windows computer-use worker proven; physical spoken session still required)
+**Report date/time + timezone:** 2026-09-16 17:10 America/New_York
+**Repo:** `swap2you/neewa-os`
+**Commit SHA:** see git after this push
+**Architecture:** NEEWA on `neewa-core-01` coordinates. `neewa-edge-01` runs cua-driver 0.28.2 in the interactive desktop session plus an outbound Tailscale SSH worker. Cursor is the Git writer.
+
+## Windows computer-use (this turn)
+
+`cua.ai` is NXDOMAIN. Official GitHub `install.ps1` SHA256 `3e770fa8c351b80db99ae6b080f696a22f844534498bf44d45816cbd05eb0c3f` was run from disk beside `_install-common.psm1` so the installer never called cua.ai. Zip `cua-driver-rs-0.28.2-windows-x86_64.zip` SHA256 `3c1fcf10ff9513b94e4af78ad6a216ab62aa95b2c9a3b70dfbdba9f04e021533`.
+
+Calculator test: background UIA, Display is 42, only Calculator closed. Local Hermes `computer_use` listed windows (session `20260916_170630_c254b7`) against the Windows driver, not Ubuntu. Remote job JOB-20260916-004 wrote `%USERPROFILE%\NEEWA-Personal\jobs\JOB-20260916-004-personal-artifact.txt`. Shell and A3 probes returned FAILED.
+
+Cua MCP was generated for Cursor/Claude/Codex and **not** merged. Claude Code CLI and Codex CLI are not on PATH (GUIs exist).
+
+---
+
 # NEEWA Jarvis V1 — release report (Home owns voice)
 
 **Product status:** PARTIAL (Home/voice integration patched; physical spoken session still required)

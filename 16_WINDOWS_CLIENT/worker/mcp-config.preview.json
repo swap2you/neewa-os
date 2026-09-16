@@ -1,0 +1,14 @@
+{
+  "note": "Preview only. Not merged into Cursor, Claude, or Codex. One local execution owner: neewa-windows-worker + the existing cua-driver daemon.",
+  "cursor": {
+    "mcpServers": {
+      "cua-driver": {
+        "command": "C:\\Users\\swap2\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.exe",
+        "args": ["mcp"],
+        "type": "stdio"
+      }
+    }
+  },
+  "claude_cli": "NOT INSTALLED — generated command would be: claude mcp add-json --scope user cua-computer-use ...",
+  "codex_cli": "NOT INSTALLED on PATH — generated command would be: codex mcp add cua-driver -- cua-driver.exe mcp"
+}

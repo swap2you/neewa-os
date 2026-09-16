@@ -17,7 +17,10 @@ Use NEEWA-EDGE-01 for:
 - existing paid coding subscriptions;
 - browser/UAT requiring local runtime;
 - local media tools;
-- sanitized local model work.
+- sanitized local model work;
+- Windows computer-use via locally installed cua-driver (not the Ubuntu sandbox).
+
+The remote NEEWA brain cannot drive this desktop because Hermes Desktop is connected to it. Governed jobs are polled outbound over Tailscale SSH by `16_WINDOWS_CLIENT/worker`. Cursor remains the Git writer.
 
 ## Cloud/GPU
 Use on-demand GPU only when:

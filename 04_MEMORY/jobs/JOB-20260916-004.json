@@ -1,0 +1,17 @@
+{
+  "job_id": "JOB-20260916-004",
+  "title": "Remote NEEWA to Windows worker personal artifact",
+  "status": "complete",
+  "scope": "USERPROFILE/NEEWA-Personal/jobs",
+  "coordinator": "neewa-core-01",
+  "worker": "neewa-windows-worker on neewa-edge-01 / LAPTOP-HKGLJEE8",
+  "transport": "outbound Tailscale SSH poll",
+  "public_listener": false,
+  "artifact": "JOB-20260916-004-personal-artifact.txt",
+  "cua_driver": "0.28.2",
+  "git_writer": "Cursor",
+  "denied_jobs": [
+    {"job_id": "JOB-20260916-004-deny-shell", "status": "FAILED", "reason": "action not allowlisted"},
+    {"job_id": "JOB-20260916-004-deny-a3", "status": "FAILED", "reason": "A3 owner gate"}
+  ]
+}

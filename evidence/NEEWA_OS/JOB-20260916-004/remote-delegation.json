@@ -1,0 +1,17 @@
+{
+  "job_id": "JOB-20260916-004",
+  "remote_inbox": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs",
+  "transport": "ssh ubuntu@neewa-core-01",
+  "complete": {
+    "job_id": "JOB-20260916-004",
+    "status": "complete",
+    "host": "LAPTOP-HKGLJEE8",
+    "artifact_on_windows": "%USERPROFILE%\\NEEWA-Personal\\jobs\\JOB-20260916-004-personal-artifact.txt"
+  },
+  "failed_as_required": [
+    {"job_id": "JOB-20260916-004-deny-shell", "status": "FAILED"},
+    {"job_id": "JOB-20260916-004-deny-a3", "status": "FAILED"}
+  ],
+  "ubuntu_did_not_receive_windows_shell": true,
+  "unapproved_folder_access": false
+}

@@ -1,0 +1,11 @@
+{
+  "test": "calculator_6x7",
+  "status": "PASS",
+  "delivery_mode": "background",
+  "route": "accessibility",
+  "display_sequence": ["Display is 0", "Display is 6", "Display is 6", "Display is 7", "Display is 42"],
+  "closed_only": "Calculator",
+  "untouched": ["Settings"],
+  "driver": "cua-driver 0.28.2",
+  "screenshots": "stored locally under NEEWA-Personal/evidence; not committed"
+}

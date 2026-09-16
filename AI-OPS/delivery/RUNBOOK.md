@@ -53,6 +53,16 @@ reopens. If Iriun is put back as Communications default, wake will fail again.
 - Rollback: restore `~/.hermes/.env.bak-isolation-*` and `config.yaml.bak-isolation-*`, then
   `systemctl --user restart hermes-gateway.service`.
 
+## Windows computer-use (neewa-edge-01, not Ubuntu)
+
+- Driver: `cua-driver 0.28.2` in the interactive Windows session. Telemetry off.
+- Install/repair: `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1` (does not use cua.ai).
+- Daemon: `Start-CuaDriver.ps1`. Worker: `Start-NeewaWindowsWorker.ps1` (outbound SSH poll).
+- Logon: HKCU Run keys `NEEWA-CuaDriver` and `NEEWA-WindowsWorker` (not a SYSTEM service).
+- Remote NEEWA does **not** drive this desktop through the Hermes SSH gateway. Jobs go to `windows-jobs/inbox` on the core workspace.
+- Calculator UWP needs a restored (not iconic) window for UIA. Do not grant `ApplicationFrameHost.exe`.
+- Cursor/Claude/Codex were **not** given concurrent cua MCP control.
+
 ## Recovery
 - Desktop: relaunch packed exe; reconnects to primary `neewa` and re-arms wake.
 - Gateway: `systemctl --user restart hermes-gateway.service`.
@@ -60,6 +70,9 @@ reopens. If Iriun is put back as Communications default, wake will fail again.
 - Capture device: re-run `Set-NeewaCaptureDevice.ps1`, then restart Hermes.
 
 ## Rollback
+- Windows worker Run keys: `Register-NeewaWindowsStartup.ps1 -Remove` or `Uninstall-NEEWA-Client.ps1`.
+- Cua Driver binary: official GitHub `uninstall.ps1` from the 0.28.2 release (binaries preserved by NEEWA uninstall).
+- Local Hermes `computer_use`: restore `%LOCALAPPDATA%\hermes\config.yaml.bak-neewa-cua-20260916` or delete the `computer_use` list entry under `platform_toolsets.cli`.
 - Plugin: `git revert` then copy `plugin.js` into `%LOCALAPPDATA%\hermes\desktop-plugins\neewa-command-center\`.
 - Desktop keep-mounted patch: restore `resources\app.asar.bak-neewa-*` (see
   `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`).

@@ -1,0 +1,14 @@
+{
+  "identity": {
+    "local_hermes_cli": "0.21.3 %LOCALAPPDATA%\\hermes\\bin\\hermes.exe",
+    "local_session": "20260916_170630_c254b7",
+    "remote_brain": "neewa-core-01 (not this session)",
+    "driver": "cua-driver 0.28.2 on neewa-edge-01 session 2"
+  },
+  "command": "hermes chat -q ... -t computer_use",
+  "yolo_or_oneshot": false,
+  "action": "list_windows",
+  "clicks": 0,
+  "result": "PASS",
+  "note": "Returned existing window titles only. Personal browser tab text is omitted from this evidence file."
+}

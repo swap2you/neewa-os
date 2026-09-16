@@ -6,4 +6,6 @@ No password, API key, SSH key, Tailscale auth key, token, or cookie is included.
 
 Preferred connection: Hermes Desktop → Settings → Gateways → Add connection → SSH → `ubuntu@neewa-core-01:22`. Desktop manages the Tailscale-private tunnel; normal use does not require a terminal or a public endpoint.
 
+Computer-use on this PC is the local Cua Driver plus the governed worker in `worker/`. Connecting Hermes Desktop to `neewa-core-01` does not move that driver onto Ubuntu. See `CUA_DRIVER.md`.
+
 Physical Windows validation remains: Tailscale identity approval, SSH host trust/key, microphone permission, Desktop connection test, acoustic wake phrase, and speaker playback.

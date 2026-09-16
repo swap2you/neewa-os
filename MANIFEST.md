@@ -30,6 +30,8 @@
 - `04_MEMORY/jobs/JOB-20260916-001.json`
 - `04_MEMORY/jobs/JOB-20260916-002.json`
 - `04_MEMORY/jobs/JOB-20260916-003.json`
+- `04_MEMORY/jobs/JOB-20260916-004.json`
+- `04_MEMORY/jobs/JOB-20260916-005.json`
 - `05_OPERATIONS/BACKUP_RECOVERY.md`
 - `05_OPERATIONS/DAILY_EXECUTIVE_BRIEF.md`
 - `05_OPERATIONS/DOCUMENTATION_STANDARD.md`
@@ -116,6 +118,7 @@
 - `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`
 - `12_SCRIPTS/server_readiness.sh`
+- `12_SCRIPTS/windows_job_inbox.py`
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
@@ -125,6 +128,7 @@
 - `13_TESTS/test_neewa_wake_phrases.py`
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_windows_package.py`
+- `13_TESTS/test_windows_worker.py`
 - `14_REFERENCE/DECISIONS_FREEZE.md`
 - `14_REFERENCE/GLOSSARY.md`
 - `14_REFERENCE/NEMOCLAW_MIGRATION_PLAN.md`
@@ -134,6 +138,7 @@
 - `15_BOOTSTRAP/BOOTSTRAP_PLAN.md`
 - `15_BOOTSTRAP/REPOSITORY_ASSESSMENT.md`
 - `15_BOOTSTRAP/VALIDATION_REPORT.md`
+- `16_WINDOWS_CLIENT/CUA_DRIVER.md`
 - `16_WINDOWS_CLIENT/Install-NEEWA.ps1`
 - `16_WINDOWS_CLIENT/README.md`
 - `16_WINDOWS_CLIENT/Set-NeewaCaptureDevice.ps1`
@@ -143,9 +148,18 @@
 - `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/Apply-NeewaDesktopPatch.ps1`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
+- `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
+- `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/README.md`
+- `16_WINDOWS_CLIENT/worker/Register-NeewaWindowsStartup.ps1`
+- `16_WINDOWS_CLIENT/worker/Start-CuaDriver.ps1`
+- `16_WINDOWS_CLIENT/worker/Start-NeewaWindowsWorker.ps1`
+- `16_WINDOWS_CLIENT/worker/allowlist.json`
+- `16_WINDOWS_CLIENT/worker/capability-manifest.yaml`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.json`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
+- `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
 - `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
 - `AI-OPS/company/APPROVAL_MATRIX.md`
 - `AI-OPS/company/OWNER.md`
@@ -181,6 +195,9 @@
 - `evidence/NEEWA_OS/JOB-20260916-002/voice-stack.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/windows-package.json`
 - `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`
+- `evidence/NEEWA_OS/JOB-20260916-004/calculator-6x7.json`
+- `evidence/NEEWA_OS/JOB-20260916-004/local-hermes-computer-use.json`
+- `evidence/NEEWA_OS/JOB-20260916-004/remote-delegation.json`
 - `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`
 - `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`
 - `evidence/NEEWA_OS/JOB-20260916-006/final-acceptance.json`

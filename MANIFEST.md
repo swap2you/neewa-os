@@ -62,6 +62,7 @@
 - `07_SETUP/18_LOCAL_MODEL_FALLBACK.md`
 - `07_SETUP/19_OPENAI_RESILIENCE.md`
 - `07_SETUP/20_SYSTEM_STATUS_REPORTING.md`
+- `07_SETUP/21_COMMAND_CENTER.md`
 - `08_PROJECTS/AAROHAN/PROJECT.md`
 - `08_PROJECTS/BHAVA/PROJECT.md`
 - `08_PROJECTS/CHAKRAOPS/PROJECT.md`
@@ -115,6 +116,7 @@
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
+- `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_ops.py`
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_windows_package.py`
@@ -158,3 +160,4 @@
 - `evidence/NEEWA_OS/JOB-20260916-002/windows-package.json`
 - `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`
 - `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`
+- `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`

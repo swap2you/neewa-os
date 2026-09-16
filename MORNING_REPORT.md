@@ -37,6 +37,23 @@ probe `12_SCRIPTS/neewa_voice_readiness.sh` publishes `/opt/neewa/status/voice.j
 (refreshed every 15 min). Remaining: in-app TTS spoken playback and Command Center
 UI visual confirmation. Evidence: `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`.
 
+## 0b. 2026-09-16 Command Center + brief hardening
+
+- Morning brief (`12_SCRIPTS/morning_brief.py`) is now context-aware: it consumes the
+  read-only host snapshot inside the sandbox (no more `systemctl` failures) and refreshes
+  it on the host. Explicit missing/stale/malformed/partial handling; a service is never
+  reported healthy when unknown. Covered by `13_TESTS/test_morning_brief.py` (8 cases).
+- Command Center plugin now shows real connection/assistant/context state and the live
+  scheduled-jobs list (`cron.manage`) with freshness + explicit unavailable states, plus
+  working controls; host-health/brief/projects are pointed to the authoritative snapshot
+  rather than fabricated. See `07_SETUP/21_COMMAND_CENTER.md`.
+- Skill audit: `~/.hermes/skills/operations/governed-system-bootstrap/SKILL.md` was patched
+  by Hermes's background curator; it strengthens (does not weaken) governance and lives in
+  the read-only-mounted runtime skills dir. Documented in
+  `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`.
+- Owner-only remaining: screenshot to confirm rendered skin/chip/pane, and enable voice
+  output to hear Edge TTS spoken replies (generation already verified).
+
 ## 1. Executive summary
 
 The validated NEEWA baseline was pushed to origin/main. The persistent gateway was restarted and recovered, voice/wake server capability was installed and tested, a loopback-only local model fallback was integrated into Hermes and tested through a forced primary failure, and a secret-free Windows Desktop bootstrap package was built and statically validated. No NemoClaw/OpenShell/K3s, firewall, public exposure, paid service, or employer integration was performed.

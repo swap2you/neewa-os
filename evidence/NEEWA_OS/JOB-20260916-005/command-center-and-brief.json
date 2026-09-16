@@ -1,0 +1,49 @@
+{
+  "verified_at": "2026-09-16T13:05:00Z",
+  "objective": "Command Center completion, morning-brief sandbox fix, skill audit, UI activation, TTS check",
+  "task1_morning_brief": {
+    "defect": "12_SCRIPTS/morning_brief.py shelled out to systemctl/swapon, which do not exist in the Docker sandbox; also parents[1] mis-resolved repo root when deployed to ~/.hermes/scripts.",
+    "fix": "Context-aware: HOST mode refreshes the read-only host snapshot; SANDBOX mode consumes /opt/neewa/status/latest.json. Robust repo-root resolution (NEEWA_REPO -> parent with 11_CONFIG -> /opt/neewa/neewa-os). Explicit missing/stale/malformed/partial handling; a service is never healthy when unknown; exit non-zero unless snapshot fresh and all key services active.",
+    "tests": "13_TESTS/test_morning_brief.py — 8 cases (sandbox pass, missing, malformed, stale, partial, inactive, no-timestamp, no-shell-out) all PASS",
+    "host_run": "Context: host; snapshot fresh; services all active; jobs=2; local fallback resolved; exit 0"
+  },
+  "task2_command_center": {
+    "real_data": [
+      "Connection: gateway/socket/source/profile (host.state)",
+      "Assistant: turn state, model, context% (host.state)",
+      "Scheduled jobs: live via host.request('cron.manage',{action:'list',include_disabled:true}) with freshness + unavailable state"
+    ],
+    "working_controls": ["Open scheduled jobs -> host.navigate('/cron')", "Refresh data -> re-fetch + toast"],
+    "no_fabrication": "Server health / morning brief / project status are NOT exposed to a renderer plugin via a supported read RPC; the pane shows an honest pointer to the authoritative host-snapshot-backed NEEWA chat answer instead of fake numbers.",
+    "limitation_documented": "07_SETUP/21_COMMAND_CENTER.md",
+    "supported_areas_confirmed": "panes + statusBar.right exist in installed desktop build (sdk/index.ts PANES_AREA, STATUSBAR_AREAS.right)",
+    "syntax": "node --check PASS (valid ESM)",
+    "rendered_ui_evidence": "PENDING_PHYSICAL — requires owner screenshot; renderer plugin load state is not file-logged headlessly"
+  },
+  "task3_ui_activation": {
+    "skin_registered": true,
+    "skin_file": "C:/Users/swap2/AppData/Local/hermes/skins/neewa.yaml present",
+    "display_skin": "neewa (local and remote config)",
+    "plugin_present_valid_enabled": "desktop-plugins/neewa-command-center/plugin.js present, valid ESM, disk-door default-enabled",
+    "build_supports_hooks": true,
+    "default_hermes_landing_explanation": "The large HERMES landing is the pre-chat EMPTY STATE wordmark, recolored by the skin — not a plugin failure. NEEWA identity is delivered by the teal/cyan skin, the Command Center chip + right pane, and the agent's own identity (SOUL: 'You are NEEWA'). Replacing the Hermes wordmark would require forking Hermes, which is out of scope and forbidden.",
+    "rendered_ui_evidence": "PENDING_PHYSICAL — owner screenshot"
+  },
+  "task4_tts": {
+    "generation": "Edge TTS synthesis PASS (server-side, observed 00:39 + standalone Aria synth)",
+    "in_app_playback": "PENDING_PHYSICAL — requires enabling voice output in the chat and owner listening; not verifiable headlessly",
+    "voice_input_preserved": true
+  },
+  "task5_skill_audit": {
+    "changed_file": "/home/ubuntu/.hermes/skills/operations/governed-system-bootstrap/SKILL.md",
+    "location": "Hermes installed skills dir (NOT the repo); mounted read-only into the sandbox",
+    "patched_at": "2026-09-16 08:41 by Hermes background curator (skill self-maintenance)",
+    "governance_impact": "NONE-WEAKENING. Content strengthens boundaries: no secrets/keys, A0/A1 vs A2/A3 approval separation, no public exposure/Funnel, loopback/Tailscale-private only, evidence discipline, read authoritative host snapshot when sandboxed, manifest discipline, verify-before-claim. Consistent with NEEWA_CONSTITUTION.",
+    "disposition": "Retained in place (governance-preserving, in read-only-mounted runtime dir). Documented; not silently accepted or discarded. No diff history (skills dir is not a git repo, no backup existed)."
+  },
+  "safety": {
+    "public_exposure": "none (no new listener/endpoint added for UI)",
+    "sandbox_isolation": "repo + status mounts remain read-only; verified touch fails",
+    "credentials_committed": "none"
+  }
+}

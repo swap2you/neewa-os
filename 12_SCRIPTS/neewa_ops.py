@@ -50,7 +50,7 @@ SECRET_PATTERNS = {
         r"(?i)(?:^|[{,])\s*['\"]?(?:api[_-]?key|secret[_-]?key|access[_-]?token|password)['\"]?\s*[:=]\s*['\"]?([^\s'\"#]{12,})"
     ),
 }
-SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules"}
+SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".pytest_cache"}
 
 
 def load_json(path: Path) -> dict[str, Any]:

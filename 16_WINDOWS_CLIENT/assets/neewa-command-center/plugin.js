@@ -274,55 +274,72 @@ function useWake() {
   return [state, load]
 }
 
-function useSafeConfig() {
-  const [state, setState] = useState({ status: 'loading', tts: 'unknown', voiceMode: 'unknown', at: 0 })
+// config.get in 0.21.3 only allowlists keys like provider/skin/full — NOT tts.provider
+// or voice.voice_chat_mode. Never call config.get full (it returns the whole YAML).
+function useVoiceRuntime() {
+  const [state, setState] = useState({
+    status: 'loading',
+    speech: 'telemetry unavailable',
+    mode: 'telemetry unavailable',
+    stt: 'telemetry unavailable',
+    at: 0,
+  })
   const load = useCallback(async () => {
     try {
-      const keys = ['tts.provider', 'tts.openai.voice', 'tts.edge.voice', 'voice.voice_chat_mode']
-      const got = {}
-      for (const key of keys) {
-        try {
-          const row = await host.request('config.get', { key })
-          const value = row && (row.value != null ? row.value : row.config != null ? row.config : row[key])
-          got[key] = value == null ? '' : String(value)
-        } catch {
-          got[key] = ''
-        }
-      }
-      const tts = got['tts.provider'] || 'unavailable'
-      const named = tts === 'openai' ? got['tts.openai.voice'] : tts === 'edge' ? got['tts.edge.voice'] : ''
+      const data = await host.request('voice.toggle', { action: 'status' })
+      const speechOn = !!(data && data.tts)
+      const modeOn = !!(data && data.enabled)
+      const stt = data && data.stt_available
       setState({
         status: 'ok',
-        tts: named ? `${tts} / ${named}` : tts,
-        voiceMode: got['voice.voice_chat_mode'] || 'unknown',
+        speech: speechOn ? 'on · verified' : 'off · verified',
+        mode: modeOn ? 'voice mode on · verified' : 'chained wake · verified',
+        stt: stt === false ? 'service unavailable' : stt === true ? 'verified working' : 'telemetry unavailable',
         at: Date.now(),
       })
     } catch {
-      setState((s) => ({ ...s, status: 'unavailable' }))
+      setState((s) => ({
+        ...s,
+        status: 'telemetry',
+        speech: 'telemetry unavailable',
+        mode: 'telemetry unavailable',
+        stt: 'telemetry unavailable',
+      }))
     }
   }, [])
-  useEffect(() => { load() }, [load])
-  return state
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 15000)
+    return () => clearInterval(t)
+  }, [load])
+  return [state, load]
 }
 
-function useApprovals() {
-  const [state, setState] = useState({ status: 'loading', count: 0, at: 0 })
+function useApprovals(sessionId) {
+  const [state, setState] = useState({ status: 'loading', label: '…', at: 0 })
   const load = useCallback(async () => {
-    try {
-      const data = await host.request('approval.pending', {})
-      const list = Array.isArray(data) ? data : (data && (data.pending || data.approvals || data.items)) || []
-      const count = typeof data === 'number' ? data : (Array.isArray(list) ? list.length : (data && data.count != null ? Number(data.count) : 0))
-      setState({ status: 'ok', count: Number.isFinite(count) ? count : 0, at: Date.now() })
-    } catch {
-      setState((s) => ({ ...s, status: 'unavailable' }))
+    if (!sessionId) {
+      setState({ status: 'ok', label: 'none (no focused session)', at: Date.now() })
+      return
     }
-  }, [])
+    try {
+      const data = await host.request('approval.pending', { session_id: sessionId })
+      const list = data && Array.isArray(data.approvals) ? data.approvals : []
+      setState({
+        status: 'ok',
+        label: list.length ? `${list.length} pending · verified` : '0 pending · verified',
+        at: Date.now(),
+      })
+    } catch {
+      setState({ status: 'telemetry', label: 'telemetry unavailable', at: Date.now() })
+    }
+  }, [sessionId])
   useEffect(() => {
     load()
     const t = setInterval(load, 20000)
     return () => clearInterval(t)
   }, [load])
-  return state
+  return [state, load]
 }
 
 function Grid(rows) {
@@ -358,27 +375,49 @@ function Btn({ children, onClick, danger }) {
 async function muteListener(refresh) {
   try {
     await host.request('wake.stop', {})
-    host.notify({ kind: 'info', message: 'NEEWA microphone muted' })
-  } catch (err) {
-    host.notify({ kind: 'error', message: 'Mute failed — wake.stop unavailable' })
+    host.notify({ kind: 'info', message: 'Microphone muted (wake listener off)' })
+  } catch {
+    host.notify({ kind: 'error', message: 'Mute failed — wake.stop not accepted' })
   }
   if (refresh) refresh()
 }
 async function rearmListener(refresh) {
   try {
     await host.request('wake.start', { surface: 'gui', client_capture: true })
-    host.notify({ kind: 'info', message: 'NEEWA listener re-armed' })
-  } catch (err) {
-    host.notify({ kind: 'error', message: 'Rearm failed — wake.start unavailable' })
+    host.notify({ kind: 'info', message: 'Wake listener re-armed' })
+  } catch {
+    host.notify({ kind: 'error', message: 'Rearm failed — wake.start not accepted' })
   }
   if (refresh) refresh()
 }
-async function stopAndRearm(refresh) {
+async function stopConversation(sessionId, refresh) {
+  // Distinct from mute: end voice mode + audio, interrupt the turn, then rearm.
   try {
-    await host.request('wake.stop', {})
-  } catch { /* still try rearm */ }
-  host.notify({ kind: 'info', message: 'Conversation stopped. Re-arming…' })
-  window.setTimeout(() => { void rearmListener(refresh) }, 600)
+    await host.request('voice.toggle', { action: 'off' })
+  } catch { /* voice mode may already be off */ }
+  if (sessionId) {
+    try {
+      await host.request('session.interrupt', { session_id: sessionId })
+    } catch { /* no running turn is fine */ }
+    try {
+      await host.request('voice.record', { action: 'stop', session_id: sessionId })
+    } catch { /* no capture is fine */ }
+  }
+  host.notify({ kind: 'info', message: 'Conversation and audio stop requested. Re-arming wake…' })
+  window.setTimeout(() => { void rearmListener(refresh) }, 400)
+}
+async function cancelTask(sessionId) {
+  if (!sessionId) {
+    host.notify({ kind: 'info', message: 'No focused session to cancel' })
+    return
+  }
+  try {
+    const result = await host.request('session.interrupt', { session_id: sessionId })
+    const status = result && result.status ? String(result.status) : 'interrupted'
+    host.notify({ kind: 'info', message: status === 'not_interrupted' ? 'No active task to cancel' : 'Active task cancelled' })
+  } catch {
+    host.notify({ kind: 'error', message: 'Cancel not accepted for this session' })
+  }
 }
 
 function PrivacyBadge({ persona, wake }) {
@@ -402,11 +441,12 @@ function CommandRail({ variant }) {
   const model = useValue(host.state.model)
   const profile = useValue(host.state.focusedSessionProfile)
   const connectionId = useValue(host.state.connectionId)
+  const sessionId = useValue(host.state.focusedSessionId)
   const usage = useValue(host.state.focusedUsage)
   const [cron, refreshCron] = useCron()
   const [wake, refreshWake] = useWake()
-  const cfg = useSafeConfig()
-  const approvals = useApprovals()
+  const [voiceRt] = useVoiceRuntime()
+  const [approvals] = useApprovals(sessionId)
   const persona = usePersonaState(wake)
   const meta = STATE_META[persona] || STATE_META.armed
   const ctxPct = usage && usage.context_percentage != null ? `${usage.context_percentage}%` : '—'
@@ -434,14 +474,16 @@ function CommandRail({ variant }) {
         ['State', meta.label],
         ['Wake', wake.status === 'ok' ? (wake.listening ? `armed · ${wake.phrase}` : 'off') : wake.status],
         ['Capture', wake.capture || '—'],
-        ['TTS', cfg.status === 'ok' ? cfg.tts : cfg.status],
-        ['Mode', cfg.status === 'ok' ? cfg.voiceMode : '—'],
+        ['Speech', voiceRt.speech],
+        ['Mode', voiceRt.mode],
+        ['STT', voiceRt.stt],
+        ['TTS provider', 'telemetry unavailable (no tts.provider RPC)'],
         ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' ? 'MIC LIVE' : 'MIC ARMED')],
       ])),
       Section('Assistant', Grid([
         ['Model', String(model || 'unknown')],
         ['Context', ctxPct],
-        ['Approvals', approvals.status === 'ok' ? String(approvals.count) : approvals.status],
+        ['Approvals', approvals.label],
       ])),
       Section('Scheduled jobs', jsxs('div', {
         className: 'flex flex-col gap-1.5',
@@ -471,7 +513,8 @@ function CommandRail({ variant }) {
         className: 'mt-1 flex flex-wrap gap-2',
         children: [
           jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
-          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopAndRearm(refreshWake) } }),
+          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopConversation(sessionId, refreshWake) } }),
+          jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),
           jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
           compact
             ? jsx(Btn, { children: 'Open Home', onClick: () => host.navigate(HOME_PATH) })
@@ -483,7 +526,7 @@ function CommandRail({ variant }) {
       }),
       jsx('div', {
         className: 'mt-auto pt-2 text-[0.6875rem] leading-relaxed text-(--ui-text-tertiary)',
-        children: 'Host health, morning brief and project jobs are snapshot-backed. Ask NEEWA (“system status” / “morning brief”). Native HUD: Ctrl+Shift+H. Unsupported fields read Unavailable.',
+        children: 'Host health and morning brief are snapshot-backed. TTS provider is CLI/host config (no plugin RPC). Native HUD: Ctrl+Shift+H.',
       }),
     ],
   })
@@ -491,6 +534,7 @@ function CommandRail({ variant }) {
 
 function NeewaHome() {
   const gateway = useValue(host.state.gateway)
+  const sessionId = useValue(host.state.focusedSessionId)
   const [wake, refreshWake] = useWake()
   const persona = usePersonaState(wake)
   const meta = STATE_META[persona] || STATE_META.armed
@@ -528,9 +572,10 @@ function NeewaHome() {
       jsxs('div', {
         className: 'mt-2 flex flex-wrap justify-center gap-2',
         children: [
-          jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
-          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopAndRearm(refreshWake) } }),
-          jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
+              jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
+              jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopConversation(sessionId, refreshWake) } }),
+              jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),
+              jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
           jsx(Btn, { children: 'Open HUD', onClick: () => { haptic('tap'); openHudSurface() } }),
           jsx(Btn, { children: 'Conversation', onClick: () => host.navigate('/') }),
         ],

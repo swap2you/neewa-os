@@ -17,7 +17,7 @@ One-time Windows action
 Normal use
 1. Sign in to Windows. Hermes Desktop auto-starts and reconnects to `neewa-core-01`.
 2. NEEWA Home (`/neewa-home`) is the default surface. Wake auto-arms on connect — no ear click.
-3. Say `Hey Neewa`, then speak. Follow-up turns stay in the same session. Mute / Stop / Rearm are on Home.
+3. Say `Hey Neewa`, then speak. Follow-up turns stay in the same session. Mute / Stop / Cancel task / Rearm are on Home. Live TTS is Nous coral (Edge fallback).
 4. Compact HUD: `Ctrl+Shift+H` (native overlay) or sidebar **NEEWA HUD**. Home hotkey: `Ctrl+Alt+N`.
 5. Ask: `Neewa, check your server health and tell me what you completed overnight.`
 

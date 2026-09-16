@@ -20,7 +20,16 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("wake.stop", self.src)
         self.assertIn("wake.start", self.src)
         self.assertIn("cron.manage", self.src)
-        self.assertIn("config.get", self.src)
+        self.assertIn("voice.toggle", self.src)
+        self.assertIn("session.interrupt", self.src)
+        self.assertIn("approval.pending", self.src)
+        self.assertNotIn("host.request('config.get'", self.src)
+        self.assertNotIn("stopAndRearm", self.src)
+
+    def test_telemetry_labels_are_honest(self):
+        self.assertIn("telemetry unavailable", self.src)
+        self.assertIn("verified", self.src)
+        self.assertIn("service unavailable", self.src)
 
     def test_no_secret_material(self):
         lower = self.src.lower()

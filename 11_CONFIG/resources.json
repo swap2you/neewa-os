@@ -63,7 +63,7 @@
       "class": "voice",
       "status": "server-validated-windows-pending",
       "stt": "faster-whisper base",
-      "tts": "Edge Aria",
+      "tts": "Nous managed OpenAI coral (Edge fallback)",
       "wake": "sherpa hey neewa"
     }
   ]

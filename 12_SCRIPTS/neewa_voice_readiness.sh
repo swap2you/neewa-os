@@ -37,7 +37,7 @@ find "$HOME/.cache/huggingface" -maxdepth 3 -iname "*faster-whisper*" >/dev/null
   [ -n "$(find "$HOME/.cache/huggingface" -maxdepth 3 -iname "*faster-whisper*" 2>/dev/null)" ] && whisper_cached="true"
 
 # --- live config ---
-w_enabled="?"; w_provider="?"; w_phrase="?"; w_capture="?"; w_surface="?"; w_sens="?"; stt_en="?"; tts_prov="?"
+w_enabled="?"; w_provider="?"; w_phrase="?"; w_capture="?"; w_surface="?"; w_sens="?"; stt_en="?"; tts_prov="?"; tts_voice="?"; w_new_sess="?"; v_mode="?"
 if [ -x "$HERMES_BIN" ]; then
   w_enabled="$("$HERMES_BIN" config get wake_word.enabled 2>/dev/null | head -1)"
   w_provider="$("$HERMES_BIN" config get wake_word.provider 2>/dev/null | head -1)"
@@ -47,6 +47,9 @@ if [ -x "$HERMES_BIN" ]; then
   w_sens="$("$HERMES_BIN" config get wake_word.sensitivity 2>/dev/null | head -1)"
   stt_en="$("$HERMES_BIN" config get stt.enabled 2>/dev/null | head -1)"
   tts_prov="$("$HERMES_BIN" config get tts.provider 2>/dev/null | head -1)"
+  tts_voice="$("$HERMES_BIN" config get tts.openai.voice 2>/dev/null | head -1)"
+  w_new_sess="$("$HERMES_BIN" config get wake_word.start_new_session 2>/dev/null | head -1)"
+  v_mode="$("$HERMES_BIN" config get voice.voice_chat_mode 2>/dev/null | head -1)"
 fi
 
 # --- voice RPC handlers present in code ---
@@ -97,7 +100,8 @@ read -r -d '' JSON <<EOF || true
   "config": {
     "wake_enabled": "${w_enabled}", "wake_provider": "${w_provider}", "wake_phrase": "${w_phrase}",
     "wake_capture": "${w_capture}", "wake_surface": "${w_surface}", "wake_sensitivity": "${w_sens}",
-    "stt_enabled": "${stt_en}", "tts_provider": "${tts_prov}"
+    "wake_start_new_session": "${w_new_sess}", "voice_chat_mode": "${v_mode}",
+    "stt_enabled": "${stt_en}", "tts_provider": "${tts_prov}", "tts_openai_voice": "${tts_voice}"
   },
   "last_observed_events": {
     "wake_listener_armed": ${wake_armed_seen}, "wake_start_line": "${last_wake_start}",
@@ -116,7 +120,7 @@ read -r -d '' TEXT <<EOF || true
 NEEWA VOICE READINESS — ${now_utc}
 Overall: ${overall}
 Readiness: imports=${imports_ok} sherpa_model=${sherpa_present} whisper_cached=${whisper_cached} rpc=${rpc_ok} gateway=${gw_running}
-Config: wake=${w_enabled}/${w_provider}/'${w_phrase}' capture=${w_capture} surface=${w_surface} sens=${w_sens} stt=${stt_en} tts=${tts_prov}
+Config: wake=${w_enabled}/${w_provider}/'${w_phrase}' capture=${w_capture} surface=${w_surface} start_new_session=${w_new_sess} stt=${stt_en} tts=${tts_prov} voice_mode=${v_mode}
 Last observed events:
   wake armed:        ${last_wake_start:-none}
   wake detected:     ${last_wake_detect:-none}

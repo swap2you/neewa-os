@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "default_model": "openai/gpt-5.6-luna",
+  "routes": [
+    {
+      "id": "routine",
+      "model": "openai/gpt-5.6-luna",
+      "provider": "nous",
+      "use": [
+        "background jobs",
+        "summaries",
+        "extraction",
+        "classification",
+        "simple transformations"
+      ]
+    },
+    {
+      "id": "balanced",
+      "model": "openai/gpt-5.6-terra",
+      "provider": "nous",
+      "use": [
+        "normal implementation",
+        "routine coding",
+        "substantial non-frontier reasoning"
+      ]
+    },
+    {
+      "id": "premium",
+      "model": "openai/gpt-5.6-sol",
+      "provider": "nous",
+      "use": [
+        "difficult reasoning",
+        "architecture",
+        "high-risk work",
+        "critical review"
+      ]
+    },
+    {
+      "id": "local-degraded",
+      "model": "qwen3:4b-instruct-2507-q4_K_M",
+      "provider": "ollama-custom",
+      "use": [
+        "offline/degraded operation",
+        "basic private tasks"
+      ]
+    }
+  ],
+  "policy": "Select the least expensive capable route; use deterministic tools before any model; high-risk work must not use routine tier."
+}

@@ -127,7 +127,7 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
     for rel in REQUIRED_GOVERNANCE:
         checks.append(check(f"governance:{rel}", (root / rel).is_file(), "required authority file"))
 
-    json_files = ["runtime.json", "budgets.json", "projects.json", "providers.json", "resources.json", "models.json", "workers.json", "automation.json", "subscriptions.json", "skills.json", "risks.json", "approvals.json"]
+    json_files = ["runtime.json", "budgets.json", "projects.json", "providers.json", "resources.json", "models.json", "workers.json", "automation.json", "subscriptions.json", "skills.json", "risks.json", "approvals.json", "routing.json"]
     loaded: dict[str, dict[str, Any]] = {}
     for filename in json_files:
         try:
@@ -171,6 +171,11 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
         rows = loaded.get(registry_name, {}).get(key, [])
         checks.append(check(f"{key}:registry", bool(rows), f"{len(rows)} entries"))
         checks.append(check(f"{key}:required_fields", all(all(row.get(field) is not None and row.get(field) != "" for field in required) for row in rows), ",".join(required)))
+    routing = loaded.get("routing.json", {})
+    route_rows = routing.get("routes", [])
+    checks.append(check("routing:registry", bool(route_rows), f"{len(route_rows)} routes"))
+    checks.append(check("routing:default", routing.get("default_model") == "openai/gpt-5.6-luna", str(routing.get("default_model"))))
+    checks.append(check("routing:required_tiers", {row.get("id") for row in route_rows} >= {"routine", "balanced", "premium", "local-degraded"}, "routine/balanced/premium/local-degraded"))
     approvals = loaded.get("approvals.json", {})
     authorized = set(approvals.get("authorized", [])); deferred = set(approvals.get("deferred", []))
     checks.append(check("approvals:standing_authorization", bool(authorized), "authorized actions"))

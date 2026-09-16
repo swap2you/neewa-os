@@ -16,7 +16,7 @@ if (-not (Test-Path $hermesPath)) { $hermesCmd = Get-Command hermes.exe -ErrorAc
 $desktopRelease = Join-Path $hermesHome 'hermes-agent\apps\desktop\release'
 $desktopExe = @((Join-Path $desktopRelease 'win-unpacked\Hermes.exe'),(Join-Path $desktopRelease 'win-arm64-unpacked\Hermes.exe')) | Where-Object { Test-Path $_ } | Select-Object -First 1
 $startup=[Environment]::GetFolderPath('Startup');$shortcutPath=Join-Path $startup 'NEEWA Hermes Desktop.lnk'
-if ($desktopExe) { $shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($shortcutPath);$shortcut.TargetPath=$desktopExe;$shortcut.WorkingDirectory=(Split-Path -Parent $desktopExe);$shortcut.Save() } else { Write-Warning "Packed Hermes.exe not found; use the official installer shortcut instead of creating a rebuild-on-login shortcut." }
+if ($desktopExe) { $shell=New-Object -ComObject WScript.Shell;$shortcut=$shell.CreateShortcut($shortcutPath);$shortcut.TargetPath=$desktopExe;$shortcut.WorkingDirectory=(Split-Path -Parent $desktopExe);$shortcut.Save(); Start-Process -FilePath $desktopExe } else { Write-Warning "Packed Hermes.exe not found; use the official installer shortcut instead of creating a rebuild-on-login shortcut." }
 $portTest=Test-NetConnection -ComputerName $ServerHost -Port 22 -WarningAction SilentlyContinue;if(-not $portTest.TcpTestSucceeded){Write-Warning "Cannot reach $ServerHost:22. Complete Tailscale sign-in/MagicDNS."}
 $steps=@"
 NEEWA ONE-TIME CONNECTION

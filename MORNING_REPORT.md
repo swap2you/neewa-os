@@ -77,7 +77,7 @@ The original validated commit was clean and synchronized before this milestone. 
 
 Package: `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 
-- Package SHA-256: `913b2cb82e5810bdea89ac41b1ffe4f37e180ee71774ac17bdfdd2296e4f4121`.
+- Package SHA-256: `4ddb7d654d906510b352ade772d44501c4845549af2cf06810da2880d247ed61`.
 - PowerShell parser: PASS in isolated network-disabled PowerShell container.
 - Official installer Authenticode validation logic: present.
 - First-install PATH refresh: implemented.
@@ -87,6 +87,7 @@ Package: `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 ## 12. Cloud model/provider status
 
 - Nous Portal: authenticated and primary probe PASS.
+- Routine default: Nous `openai/gpt-5.6-luna`; Sol is reserved for justified escalation.
 - OpenAI Codex OAuth: not authenticated; exact owner step is `hermes auth add openai-codex --type oauth`, followed by the browser/device approval if Hermes requests it.
 - OpenAI API: registry and activation script prepared with `key_env: OPENAI_API_KEY`; protected environment variable is not present on the server. The raw key supplied in chat was not read, copied, printed, or used.
 - OpenRouter and other API-key providers: not configured.
@@ -204,4 +205,4 @@ Complete Windows physical validation first. Then securely add Codex OAuth and/or
 
 ## 27. Final stopping point
 
-The authorized server-side overnight work is complete for this milestone. Commit `768a844` is pushed and synchronized. The only remaining blockers are owner-device physical tests and secure owner authentication steps.
+The authorized server-side overnight work is complete for this milestone. Commits `768a844`, `ceb7578`, and `63f98f8` are pushed and synchronized. The only remaining blockers are owner-device physical tests and secure owner authentication steps.

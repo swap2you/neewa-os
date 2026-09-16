@@ -3,7 +3,7 @@
 **Product status:** PARTIAL (Home/voice integration patched; physical spoken session still required)
 **Report date/time + timezone:** 2026-09-16 16:50 America/New_York
 **Repo:** `swap2you/neewa-os`
-**Commit SHA:** see `git rev-parse HEAD` after this push.
+**Commit SHA:** `f3260a8635aba46399cb81142f03b2da8561ec1b`
 **Hermes Desktop branch (local only, not Nous origin):** `neewa/keep-chat-mounted` from `2cfb655`
 **Windows packed asar:** replaced `release/win-unpacked/resources/app.asar` (backup `app.asar.bak-neewa-20260916T164627`)
 **Plugin SHA256:** `640EF675929E7A9F06C4FDE06D970C9D475FB5974421CBB3BD8D81AEA2FBC219`

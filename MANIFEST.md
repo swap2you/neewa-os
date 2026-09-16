@@ -92,6 +92,7 @@
 - `11_CONFIG/providers.json`
 - `11_CONFIG/resources.json`
 - `11_CONFIG/risks.json`
+- `11_CONFIG/routing.json`
 - `11_CONFIG/runtime.json`
 - `11_CONFIG/skills.json`
 - `11_CONFIG/subscriptions.json`
@@ -119,6 +120,7 @@
 - `14_REFERENCE/NEMOCLAW_MIGRATION_PLAN.md`
 - `14_REFERENCE/SOURCES_AND_ASSUMPTIONS.md`
 - `15_BOOTSTRAP/APPROVAL_BOUNDARIES.md`
+- `15_BOOTSTRAP/BACKLOG.md`
 - `15_BOOTSTRAP/BOOTSTRAP_PLAN.md`
 - `15_BOOTSTRAP/REPOSITORY_ASSESSMENT.md`
 - `15_BOOTSTRAP/VALIDATION_REPORT.md`
@@ -134,6 +136,7 @@
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`
+- `START_HERE.md`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/docker-sandbox.txt`
 - `evidence/NEEWA_OS/JOB-20260916-001/done-gate.json`

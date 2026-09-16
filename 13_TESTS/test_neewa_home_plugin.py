@@ -22,9 +22,29 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("cron.manage", self.src)
         self.assertIn("voice.toggle", self.src)
         self.assertIn("session.interrupt", self.src)
+        self.assertIn("wake.pause", self.src)
+        self.assertIn("hermes:composer-voice-toggle", self.src)
+        self.assertIn("startListening", self.src)
+        self.assertIn("Start listening", self.src)
         self.assertIn("approval.pending", self.src)
         self.assertNotIn("host.request('config.get'", self.src)
         self.assertNotIn("stopAndRearm", self.src)
+
+    def test_backup_listen_uses_desktop_conversation_not_server_record(self):
+        start = self.src.index("async function startListening")
+        end = self.src.index("async function stopConversation")
+        body = self.src[start:end]
+        self.assertIn("wake.pause", body)
+        self.assertIn("hermes:composer-voice-toggle", body)
+        self.assertNotIn("voice.record", body)
+        self.assertIn("Start listening", self.src)
+
+    def test_wake_aliases_and_negatives(self):
+        self.assertIn("hey niva", self.src)
+        self.assertIn("hey neeva", self.src)
+        self.assertIn("hey neva", self.src)
+        self.assertNotIn("hey nina", self.src)
+        self.assertNotIn("hey nio", self.src)
 
     def test_telemetry_labels_are_honest(self):
         self.assertIn("telemetry unavailable", self.src)

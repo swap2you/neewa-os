@@ -513,6 +513,25 @@ async function rearmListener(refresh) {
   }
   if (refresh) refresh()
 }
+
+// Backup path when Sherpa misses an accented wake. This is the same client
+// conversation start the Desktop uses after wake.detected (composer voice
+// toggle). voice.record start is NOT used: that RPC opens server PortAudio.
+async function startListening(refresh) {
+  try {
+    await host.request('wake.pause', {})
+  } catch { /* listener may already be idle */ }
+  try {
+    host.navigate('/')
+  } catch { /* already on chat */ }
+  window.setTimeout(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('hermes:composer-voice-toggle', { detail: { target: 'main' } }))
+    } catch { /* composer bus unavailable */ }
+  }, 280)
+  host.notify({ kind: 'info', message: 'Start Listening — speak now (same voice path as Hey Neewa)' })
+  if (refresh) window.setTimeout(refresh, 800)
+}
 async function stopConversation(sessionId, refresh) {
   // Distinct from mute: end voice mode + audio, interrupt the turn, then rearm.
   try {
@@ -605,6 +624,7 @@ function CommandRail({ variant }) {
       Section('Voice', Grid([
         ['State', meta.label],
         ['Wake', wake.status === 'ok' ? (wake.listening ? `listener on · ${wake.phrase}` : 'off') : wake.status],
+        ['Aliases', 'hey neewa · hey niva · hey neeva · hey neva'],
         ['Capture', wake.capture || '—'],
         ['Stream', wake.status === 'ok' ? (wake.audioSilent ? 'inactive (no/silent PCM)' : (persona === 'stream_active' ? 'active · verified' : (persona === 'starting' ? 'verifying' : 'unknown'))) : 'unknown'],
         ['Windows mic', probe.label ? `${probe.label} · ${probe.level}` : probe.permission === 'denied' ? 'permission denied' : probe.status],
@@ -646,6 +666,7 @@ function CommandRail({ variant }) {
       jsxs('div', {
         className: 'mt-1 flex flex-wrap gap-2',
         children: [
+          jsx(Btn, { children: 'Start listening', onClick: () => { haptic('tap'); void startListening(refreshWake) } }),
           jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
           jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopConversation(sessionId, refreshWake) } }),
           jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),
@@ -711,7 +732,7 @@ function NeewaHome() {
             : persona === 'mic_denied'
               ? 'Windows denied microphone permission for Hermes Desktop.'
             : persona === 'stream_active'
-              ? 'Say “Hey Neewa”, then speak. Audio stream is active.'
+              ? 'Say “Hey Neewa”, “Hey Niva”, or “Hey Neeva”. Or tap Start listening.'
             : persona === 'starting'
               ? 'Listener starting. Confirming that microphone frames reach the detector…'
             : 'Wake state unknown until telemetry is verified. Do not assume the mic is sending audio.',
@@ -719,6 +740,7 @@ function NeewaHome() {
       jsxs('div', {
         className: 'mt-2 flex flex-wrap justify-center gap-2',
         children: [
+              jsx(Btn, { children: 'Start listening', onClick: () => { haptic('tap'); void startListening(refreshWake) } }),
               jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
               jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopConversation(sessionId, refreshWake) } }),
               jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),

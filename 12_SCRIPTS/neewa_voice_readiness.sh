@@ -101,6 +101,7 @@ read -r -d '' JSON <<EOF || true
     "wake_enabled": "${w_enabled}", "wake_provider": "${w_provider}", "wake_phrase": "${w_phrase}",
     "wake_capture": "${w_capture}", "wake_surface": "${w_surface}", "wake_sensitivity": "${w_sens}",
     "wake_start_new_session": "${w_new_sess}", "voice_chat_mode": "${v_mode}",
+    "wake_aliases": "hey niva,hey neeva,hey neva",
     "stt_enabled": "${stt_en}", "tts_provider": "${tts_prov}", "tts_openai_voice": "${tts_voice}"
   },
   "last_observed_events": {

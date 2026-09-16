@@ -101,6 +101,7 @@
 - `11_CONFIG/watchdog.example.yaml`
 - `11_CONFIG/workers.json`
 - `12_SCRIPTS/README.md`
+- `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
 - `12_SCRIPTS/bootstrap.sh`
 - `12_SCRIPTS/configure_openai_fallback.sh`
@@ -111,6 +112,7 @@
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_voice_readiness.sh`
+- `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`
 - `12_SCRIPTS/server_readiness.sh`
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
@@ -119,6 +121,7 @@
 - `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_home_plugin.py`
 - `13_TESTS/test_neewa_ops.py`
+- `13_TESTS/test_neewa_wake_phrases.py`
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_windows_package.py`
 - `14_REFERENCE/DECISIONS_FREEZE.md`

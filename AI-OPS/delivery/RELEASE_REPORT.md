@@ -1,10 +1,10 @@
 # NEEWA Jarvis V1 — release report (wake-path repair)
 
 **Product status:** PARTIAL
-**Report date/time + timezone:** 2026-09-16 13:35 America/New_York
+**Report date/time + timezone:** 2026-09-16 14:30 America/New_York
 **Repo:** `swap2you/neewa-os`
-**Commit SHA:** parent `316f3f4`; this repair commit is the new `HEAD` after push.
-**Bootstrap ZIP SHA256:** `A2F9B50058F05EEFE5480DC80597476A27DC98F38770921971F004D5CFD68FDF`
+**Commit SHA:** parent `337f943`; this alias/backup commit is the new `HEAD` after push.
+**Bootstrap ZIP SHA256:** `29B19F19229A7C9C6CF83E41FE22166F9DD280C6EF49543780FFFEC796058E6C`
 **Windows app + Hermes:** Desktop 0.21.3; server hermes CLI on `neewa-core-01`.
 
 ## Defects fixed
@@ -21,9 +21,16 @@
    Probe never sends PCM to `wake.feed`.
 3. **Installer now pins Realtek as the capture endpoint** via `Set-NeewaCaptureDevice.ps1`.
 
+4. **Accented wake aliases** — Sherpa KeywordSpotter supports multiple keyword
+   lines. Hermes 0.21.3 only enrolled `wake_word.phrase`. Canonical remains
+   `hey neewa`; aliases `hey niva` / `hey neeva` / `hey neva` map to the same
+   profile. Home **Start listening** uses `wake.pause` + Desktop
+   `hermes:composer-voice-toggle` (not server `voice.record`, which would open
+   PortAudio on the headless host).
+
 ## Tests
 
-- `python -m unittest discover -s 13_TESTS -p test_*.py`: 47 OK, 1 skipped.
+- `python -m unittest discover -s 13_TESTS -p test_*.py`: 58 OK, 1 skipped.
 - Secret scan: 0 findings.
 - Isolation (live inspect): `/opt/neewa/neewa-os` and `/opt/neewa/status` `rw=false`;
   `/workspace` → sandbox scratch RW.

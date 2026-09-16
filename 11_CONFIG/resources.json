@@ -64,7 +64,7 @@
       "status": "server-validated-windows-pending",
       "stt": "faster-whisper base",
       "tts": "Nous managed OpenAI coral (Edge fallback)",
-      "wake": "sherpa hey neewa"
+      "wake": "sherpa hey neewa + aliases hey niva/neeva/neva"
     }
   ]
 }

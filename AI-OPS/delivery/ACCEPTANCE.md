@@ -9,6 +9,7 @@ Physical speech/speaker/login gates are **not** PASS.
 - Desktop Hermes 0.21.3; plugin deployed to `%LOCALAPPDATA%\hermes\desktop-plugins\neewa-command-center\`.
 - Remote: Tailscale SSH `ubuntu@neewa-core-01`. No Serve/Funnel.
 - Effective **remote** wake (server `hermes config get`): enabled=true, phrase=`hey neewa`,
+  aliases=`hey niva` / `hey neeva` / `hey neva` (same profile), surface=gui, capture=client,
   surface=gui, capture=client, **start_new_session=false**, voice_chat_mode=**chained**.
 - Live TTS: **nous / coral**. Direct OpenAI TTS key: **unconfigured**.
 - Windows capture: Communications + Multimedia + Console defaulted to

@@ -1,42 +1,53 @@
 # NEEWA Jarvis V1 — Acceptance
 
-Updated 2026-09-16 13:20 America/New_York after telemetry/Stop/isolation/voice fixes.
+Updated 2026-09-16 13:35 America/New_York after the wake-path repair.
 Physical speech/speaker/login gates are **not** PASS.
 
 ## Environment
 
-- Git: local = origin/main = server after this delivery push (see RELEASE_REPORT).
+- Git: see RELEASE_REPORT for HEAD after this push.
 - Desktop Hermes 0.21.3; plugin deployed to `%LOCALAPPDATA%\hermes\desktop-plugins\neewa-command-center\`.
 - Remote: Tailscale SSH `ubuntu@neewa-core-01`. No Serve/Funnel.
 - Effective **remote** wake (server `hermes config get`): enabled=true, phrase=`hey neewa`,
   surface=gui, capture=client, **start_new_session=false**, voice_chat_mode=**chained**.
-- Live TTS: **nous / coral** (managed OpenAI audio). Direct OpenAI TTS key: **unconfigured**.
-- Local Windows `hermes.exe config get` is “This device” and is not the mic path when Source=neewa.
+- Live TTS: **nous / coral**. Direct OpenAI TTS key: **unconfigured**.
+- Windows capture: Communications + Multimedia + Console defaulted to
+  **Microphone Array (Realtek(R) Audio)** at 13:32 (was Communications=Iriun Webcam).
+  Hermes restarted 13:32:47 so getUserMedia reopened on Realtek.
+
+## Diagnosis (owner-facing failure)
+
+UI showed Gateway ONLINE / MIC ARMED / capture client while “Hey Neewa” did nothing.
+`wake.status listening` is not PCM. Chromium wake capture uses the **Communications**
+role (`echoCancellation: true`). That role was **Iriun Webcam**, not the laptop array.
+No `wake.detected` after 08:02:14. Last pre-repair `wake.feed` was a WS send failure
+at 13:24:24. Home previously defaulted to **armed** whenever the gateway was online.
 
 ## Gates
 
 | ID | Status | Evidence |
 | --- | --- | --- |
-| A01 login autostart | PENDING_PHYSICAL | Startup shortcut exists → packed Hermes.exe. Not witnessed this logoff/login. |
-| A02 private backend | PASS | Live Home Source **neewa**, Gateway ONLINE. Funnel: No serve config. |
-| A03 no-click arm | PASS (infra) / PENDING_PHYSICAL (spoken) | MIC ARMED, wake armed · hey neewa, capture client on live Home. |
-| A04 wake phrase | PENDING_PHYSICAL | Do not pass from historical 08:02 logs. |
+| A01 login autostart | PENDING_PHYSICAL | Startup shortcut exists. Not witnessed this logoff/login. |
+| A02 private backend | PASS | Live Home Source **neewa**, Gateway ONLINE. No Funnel. |
+| A03 no-click arm | PASS (infra) / PENDING_PHYSICAL (spoken) | Auto-arm `wake.start(gui)` 13:32:48 after Desktop restart. Spoken confirm remaining. |
+| A04 wake phrase | PENDING_PHYSICAL | Do not pass from historical 08:02 logs. Repair is in place for this session. |
 | A05 speech → remote task | PENDING_PHYSICAL | Same. |
-| A06 3 continuous turns | PENDING_PHYSICAL | Remote `start_new_session=false` verified via server CLI. Spoken continuity not witnessed. |
-| A07 chosen voice on speakers | PENDING_PHYSICAL | Server generated coral.mp3 63360 bytes via Nous gateway. Not heard on Windows speakers this session. |
-| A08 stop | PASS (infra) / PENDING_PHYSICAL | Stop now calls `voice.toggle off` + `session.interrupt` + rearm. Spoken confirm remaining. |
-| A09 NEEWA Home | PASS | Running `#/neewa-home` screenshot (owner + this session). |
-| A10 animated state | PASS (infra) | Bound to wake.status + host.state + events. |
+| A06 3 continuous turns | PENDING_PHYSICAL | Remote `start_new_session=false`. Spoken continuity not witnessed. |
+| A07 chosen voice on speakers | PENDING_PHYSICAL | Server coral TTS configured. Not heard on Windows speakers this session. |
+| A08 stop | PASS (infra) / PENDING_PHYSICAL | Stop = `voice.toggle off` + `session.interrupt` + rearm. |
+| A09 NEEWA Home | PASS | Running `#/neewa-home`. |
+| A10 animated state | PASS (infra) | Honest states: unknown / starting / stream active / stream inactive. No default-armed. |
 | A11 HUD | PASS (infra) | `/neewa-hud` + Ctrl+Shift+H. |
-| A12 CoS task | PENDING_PHYSICAL | Isolation job proved sandbox writes; owner spoken job not done. |
-| A13 operational data | PASS | Jobs 4/4, model luna, speech/mode/STT **verified**; TTS provider labeled telemetry unavailable (no RPC); approvals none (no focused session). |
+| A12 CoS task | PENDING_PHYSICAL | Owner spoken job not done. |
+| A13 operational data | PASS (infra) | Jobs/model/speech labels remain; stream health now shown. |
 | A14 persistence | PARTIAL | Gateway restart + Desktop reconnect observed. Sleep/resume untested. |
-| A15 budget/fallback | PASS | Chained; GPT-Live off; Edge remains fallback; Nous TTS uses existing subscription. |
-| A16 security | PASS | Repo and status mounts RW=false. `/workspace` is sandbox scratch, not Git. Isolation test: repo write exit 1 (read-only). |
-| A17 installer | PASS after ZIP rebuild if plugin changed | Rebuild from tracked plugin. |
-| A18 source/test | PASS pending this push | Unit tests + secret scan. |
+| A15 budget/fallback | PASS | Chained; GPT-Live off; Edge fallback; Nous TTS uses existing subscription. |
+| A16 security | PASS | Repo and status mounts RW=false. `/workspace` is sandbox scratch. |
+| A17 installer | PASS | ZIP rebuilt with plugin + capture-device helper. |
+| A18 source/test | PASS pending this push | 47 tests, 1 skipped; secret scan 0. |
 | A19 workday | PENDING_PHYSICAL | Owner must close Cursor and use Home. |
 
 ## Release decision
 
-**PARTIAL.** Confirmed gaps 1–4 and 6 (engineering) are closed. Required physical speech, speakers, login, three-turn, and spoken job gates remain. Not ACCEPTED.
+**PARTIAL.** Wake capture routing is repaired and the UI no longer claims MIC ARMED
+as proof of audio. Not ACCEPTED until the single owner spoken session passes.

@@ -132,6 +132,7 @@
 - `15_BOOTSTRAP/VALIDATION_REPORT.md`
 - `16_WINDOWS_CLIENT/Install-NEEWA.ps1`
 - `16_WINDOWS_CLIENT/README.md`
+- `16_WINDOWS_CLIENT/Set-NeewaCaptureDevice.ps1`
 - `16_WINDOWS_CLIENT/Uninstall-NEEWA-Client.ps1`
 - `16_WINDOWS_CLIENT/assets/neewa-command-center/plugin.js`
 - `16_WINDOWS_CLIENT/assets/neewa.yaml`
@@ -173,3 +174,4 @@
 - `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`
 - `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`
 - `evidence/NEEWA_OS/JOB-20260916-006/final-acceptance.json`
+- `evidence/NEEWA_OS/JOB-20260916-007/wake-path-repair.json`

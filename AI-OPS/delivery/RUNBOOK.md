@@ -4,8 +4,16 @@
 1. Sign in to Windows normally. Hermes Desktop auto-starts (Startup shortcut → packed
    `...\apps\desktop\release\win-unpacked\Hermes.exe`) and reconnects to `neewa-core-01` (primary).
 2. The app opens **NEEWA Home** (`/neewa-home`). Wake auto-arms on connect (no ear click).
-3. Say **"Hey Neewa"**, then speak. **Mute** = wake.stop. **Stop** = voice.toggle off +
-   session.interrupt + rearm. **Cancel task** = session.interrupt. **Rearm** = wake.start.
+3. Home must show **STREAM ACTIVE** (not STREAM INACTIVE). Say **"Hey Neewa"**, then speak.
+   **Mute** = wake.stop. **Stop** = voice.toggle off + session.interrupt + rearm.
+   **Cancel task** = session.interrupt. **Rearm** = wake.start.
+
+## Microphone routing (load-bearing)
+Hermes Desktop wake capture uses Chromium Communications capture (echo cancellation on).
+That endpoint must be **Microphone Array (Realtek(R) Audio)**, not Iriun Webcam.
+`16_WINDOWS_CLIENT/Set-NeewaCaptureDevice.ps1` sets Console/Multimedia/Communications
+to the Realtek array. After changing it, restart packed `Hermes.exe` so getUserMedia
+reopens. If Iriun is put back as Communications default, wake will fail again.
 
 ## Voice (remote neewa-core-01 — not “This device”)
 - Live: `tts.provider=nous` (managed OpenAI audio via Nous), voice `coral`, mode `chained`.
@@ -23,8 +31,10 @@
 ## Recovery
 - Desktop: relaunch packed exe; reconnects to primary `neewa` and re-arms wake.
 - Gateway: `systemctl --user restart hermes-gateway.service`.
-- Wake: confirm Source **neewa**, not This device.
+- Wake: confirm Source **neewa**, Home **STREAM ACTIVE**, Communications device = Realtek.
+- Capture device: re-run `Set-NeewaCaptureDevice.ps1`, then restart Hermes.
 
 ## Rollback
 - Plugin: `git revert` then copy `plugin.js` into `%LOCALAPPDATA%\hermes\desktop-plugins\neewa-command-center\`.
 - TTS: `hermes config set tts.provider edge` on the server.
+- Capture device: Windows Sound settings → Communications input → previous device (Iriun if required for calls).

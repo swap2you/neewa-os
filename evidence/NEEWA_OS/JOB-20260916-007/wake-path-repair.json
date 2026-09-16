@@ -1,0 +1,24 @@
+{
+  "verified_at": "2026-09-16T17:33:00Z",
+  "objective": "Diagnose owner-facing Hey Neewa miss while UI showed MIC ARMED",
+  "failing_stage": "WINDOWS_MIC_CAPTURE — Chromium wake getUserMedia used Communications role = Iriun Webcam; laptop Realtek array was only Multimedia/Console default",
+  "timeline": {
+    "last_wake_detected": "2026-09-16 08:02:14 EDT (historical; not used as current PASS)",
+    "wake_feed_ws_fail": "2026-09-16 13:24:24 EDT peer=127.0.0.1 method=wake.feed",
+    "owner_report": "2026-09-16 ~13:27 EDT Gateway ONLINE, Source neewa, MIC ARMED, no activation",
+    "comms_before": "Microphone (Iriun Webcam)",
+    "comms_after": "Microphone Array (Realtek(R) Audio)",
+    "desktop_restart_mic_start": "2026-09-16T13:32:47-04:00 LastUsedTimeStart, LastUsedTimeStop=0",
+    "wake_start_after_repair": "2026-09-16 13:32:48 wake.start(gui) hey neewa sherpa capture=client frame=1280"
+  },
+  "not_equivalent": [
+    "LISTENER CONFIGURED",
+    "LISTENER ARMED",
+    "MIC CAPTURE ACTIVE",
+    "PCM STREAM ACTIVE",
+    "DETECTOR RECEIVING AUDIO",
+    "WAKE DETECTED"
+  ],
+  "ui_fix": "Home no longer defaults to armed; surfaces audio_silent and Windows track label; never treats MIC ARMED as proof of PCM",
+  "physical_wake": "PENDING_OWNER_SESSION"
+}

@@ -1,43 +1,55 @@
-# NEEWA Jarvis V1 — release report (gap closure)
+# NEEWA Jarvis V1 — release report (wake-path repair)
 
 **Product status:** PARTIAL
-**Report date/time + timezone:** 2026-09-16 13:20 America/New_York
+**Report date/time + timezone:** 2026-09-16 13:35 America/New_York
 **Repo:** `swap2you/neewa-os`
-**Commit SHA:** parent `2c3ff5d`; this closure commit is the new `HEAD` after push.
-**Bootstrap ZIP SHA256:** `dfc4563a44f8da54b2300d1cdd3c335fe261f12434e5faa56cfca906ee16f9df`
+**Commit SHA:** parent `316f3f4`; this repair commit is the new `HEAD` after push.
+**Bootstrap ZIP SHA256:** `A2F9B50058F05EEFE5480DC80597476A27DC98F38770921971F004D5CFD68FDF`
 **Windows app + Hermes:** Desktop 0.21.3; server hermes CLI on `neewa-core-01`.
 
 ## Defects fixed
 
-1. **Telemetry** — `config.get tts.provider` is not a 0.21.3 allowlisted key (error looked like “unavailable”). Command Center now uses `voice.toggle status` and `approval.pending` with `session_id`. Labels: verified / telemetry unavailable / none (no focused session). Never `config.get full`.
-2. **Stop** — no longer wake.stop + 600ms wake.start. Stop = `voice.toggle off` (ends voice mode + TTS) + `session.interrupt` + `voice.record stop` + rearm. Mute and Cancel task are separate.
-3. **Sandbox** — `TERMINAL_DOCKER_MOUNT_CWD_TO_WORKSPACE=false`. `/workspace` is host sandbox scratch, **not** the Git repo. `/opt/neewa/neewa-os` and `/opt/neewa/status` remain `:ro`. Proven: `MANIFEST.md` append → Read-only file system; `repo_w=False`.
-4. **Remote voice config** — server CLI: `start_new_session=false`, capture=client, surface=gui, chained. Live UI Source=neewa. Local `hermes.exe` is This device.
-5. **Voice upgrade** — no direct OpenAI TTS key. Switched live TTS to **Nous managed** `nous` / **coral** (sample 63360 bytes). Edge kept as fallback. GPT-Live not enabled.
+1. **Wake captured the wrong Windows microphone.** Default Communications capture was
+   Iriun Webcam. Hermes `getUserMedia` (echoCancellation/noiseSuppression/AGC) uses that
+   role. Laptop speech on Realtek never reached Sherpa. Set Console/Multimedia/Communications
+   to **Microphone Array (Realtek(R) Audio)** and restarted Desktop so the stream reopened
+   (mic LastUsedStart 13:32:47, still held; `wake.start(gui)` 13:32:48).
+2. **Home treated listener-armed as success.** `usePersonaState` defaulted to `armed` when
+   the gateway was online. UI now distinguishes OFFLINE / CONNECTING / UNKNOWN / LISTENER
+   STARTING / LISTENER ARMED (unverified) / STREAM ACTIVE / STREAM INACTIVE / WAKE DETECTED
+   using `wake.status.audio_silent` plus a local non-retained RMS/device-label probe.
+   Probe never sends PCM to `wake.feed`.
+3. **Installer now pins Realtek as the capture endpoint** via `Set-NeewaCaptureDevice.ps1`.
 
 ## Tests
 
-- `python -m unittest` home plugin + windows package + morning brief + neewa_ops: OK, 1 skipped (Windows symlink privilege).
-- Secret scan: 0 findings (run at commit).
-- Isolation: sandbox write to `/workspace` OK; repo write failed.
-- Physical A01/A04–A08/A12/A19: **not PASS**.
+- `python -m unittest discover -s 13_TESTS -p test_*.py`: 47 OK, 1 skipped.
+- Secret scan: 0 findings.
+- Isolation (live inspect): `/opt/neewa/neewa-os` and `/opt/neewa/status` `rw=false`;
+  `/workspace` → sandbox scratch RW.
+- No `wake.detected` this afternoon (expected until owner re-speaks). No `mic delivers
+  only silence` after the 13:32 re-arm.
 
 ## Security configuration (effective)
 
-- Docker: repo `RW=False` at `/opt/neewa/neewa-os`; status `RW=False`; `/workspace` → `~/.hermes/sandboxes/docker/default/workspace` RW.
+- Docker: repo `RW=False`; status `RW=False`; `/workspace` is not Git.
 - No Tailscale Funnel/Serve.
 - Cursor remains Git writer.
 
 ## Voice status
 
-- Live: nous / coral / chained.
+- Live TTS: nous / coral / chained.
 - Direct OpenAI TTS: unconfigured.
+- GPT-Live: off.
 - Windows speaker audition: PENDING_PHYSICAL.
 
-## Remaining owner-only
+## Remaining owner-only (one session)
 
-Sign-in autostart witness; say Hey Neewa; three no-click turns; hear coral through speakers (or revert to Edge); Stop while speaking; one safe spoken job; optional sleep/resume.
+1. Confirm Home shows STREAM ACTIVE (not STREAM INACTIVE / Iriun).
+2. Say **Hey Neewa** with no clicks.
+3. Ask for system status; then two follow-ups; confirm spoken reply on speakers.
+4. Stop; confirm wake re-arms; speak one safe task.
 
 ## Final statement
 
-**PARTIAL.** Do not declare ACCEPTED until those physical gates pass.
+**PARTIAL.** Do not declare ACCEPTED until that physical session passes.

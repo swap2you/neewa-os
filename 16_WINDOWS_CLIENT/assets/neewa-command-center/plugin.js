@@ -64,23 +64,50 @@ function openHudSurface() {
   return 'in-app'
 }
 
-function usePersonaState(wake) {
+function derivePersona(gateway, busy, waiting, phase, wake, probe) {
+  if (gateway === 'connecting') return 'connecting'
+  if (!ONLINE.has(gateway)) return 'offline'
+  if (phase === 'error') return 'error'
+  if (waiting) return 'thinking'
+  if (busy) return 'working'
+  if (phase === 'approval') return 'approval'
+  if (phase === 'speaking') return 'speaking'
+  if (phase === 'transcribing') return 'transcribing'
+  if (phase === 'detected') return 'detected'
+  if (phase === 'listening') return 'listening'
+  if (probe && probe.permission === 'denied') return 'mic_denied'
+  if (probe && probe.device === 'unavailable') return 'device_unavailable'
+  if (!wake || wake.status === 'loading') return 'starting'
+  if (wake.status === 'unavailable') return 'wake_unavailable'
+  if (wake.status === 'ok' && wake.available === false) return 'wake_unavailable'
+  if (wake.status === 'ok' && (wake.enabled === false || wake.listening === false)) return 'muted'
+  if (wake.status === 'ok' && wake.listening) {
+    if (wake.audioSilent) return 'stream_inactive'
+    if (probe && probe.wrongDevice) return 'device_unavailable'
+    if (probe && probe.level === 'live') return 'stream_active'
+    if (!wake.at || (Date.now() - wake.at) < 12000) return 'starting'
+    return 'armed'
+  }
+  return 'unknown'
+}
+
+function usePersonaState(wake, probe) {
   const gateway = useValue(host.state.gateway)
   const busy = useValue(host.state.busy)
   const waiting = useValue(host.state.awaitingResponse)
-  const [phase, setPhase] = useState('armed') // armed | listening | transcribing | speaking | muted | approval | error
+  const [phase, setPhase] = useState('unknown')
 
   useEffect(() => {
     let off = () => {}
     try {
       off = host.onEvent('*', (e) => {
         const t = e && e.type ? String(e.type).toLowerCase() : ''
-        if (t.indexOf('wake.detected') !== -1) setPhase('listening')
+        if (t.indexOf('wake.detected') !== -1) setPhase('detected')
         else if (t.indexOf('stt') !== -1 || t.indexOf('transcript') !== -1 || t.indexOf('asr') !== -1) setPhase('transcribing')
         else if (t.indexOf('tts') !== -1 || t.indexOf('audio.play') !== -1 || t.indexOf('speaking') !== -1) setPhase('speaking')
         else if (t.indexOf('approval') !== -1) setPhase('approval')
         else if (t.indexOf('wake.pause') !== -1) setPhase('listening')
-        else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('armed')
+        else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('unknown')
         else if (t.indexOf('wake.stop') !== -1) setPhase('muted')
         else if (t.indexOf('error') !== -1 && t.indexOf('parse') === -1) setPhase('error')
       })
@@ -88,23 +115,27 @@ function usePersonaState(wake) {
     return () => { try { off() } catch { /* noop */ } }
   }, [])
 
-  if (!ONLINE.has(gateway)) return 'disconnected'
-  if (waiting) return 'thinking'
-  if (busy) return 'working'
-  if (phase === 'listening' || phase === 'transcribing' || phase === 'speaking' || phase === 'approval' || phase === 'error') return phase
-  if (wake && wake.status === 'ok' && (wake.enabled === false || wake.listening === false)) return 'muted'
-  return 'armed'
+  return derivePersona(gateway, busy, waiting, phase, wake, probe)
 }
 
 const STATE_META = {
-  disconnected: { label: 'Disconnected', hue: '#6b7785', ring: '#3a444d' },
-  armed: { label: 'Ready · listening for “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
+  offline: { label: 'Offline', hue: '#6b7785', ring: '#3a444d' },
+  connecting: { label: 'Connecting', hue: '#A0AEC0', ring: '#4A5568' },
+  unknown: { label: 'Unknown · waiting for wake telemetry', hue: '#A0AEC0', ring: '#4A5568' },
+  starting: { label: 'Listener starting · verifying audio', hue: '#76E4F7', ring: '#2C7A7B' },
+  armed: { label: 'Listener armed · stream not yet verified', hue: '#4FD1C5', ring: '#2C7A7B' },
+  stream_active: { label: 'Audio stream active · say “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
+  stream_inactive: { label: 'Listener on · audio stream inactive', hue: '#F6AD55', ring: '#C05621' },
+  detected: { label: 'Wake detected', hue: '#68D391', ring: '#276749' },
   listening: { label: 'Listening', hue: '#63E6E2', ring: '#4FD1C5' },
   transcribing: { label: 'Transcribing', hue: '#9AE6B4', ring: '#2F855A' },
   thinking: { label: 'Thinking', hue: '#F6C85F', ring: '#B7902F' },
   working: { label: 'Working', hue: '#81E6D9', ring: '#2C7A7B' },
   speaking: { label: 'Speaking', hue: '#E6FFFA', ring: '#4FD1C5' },
   muted: { label: 'Muted · listener off', hue: '#FC8181', ring: '#9B2C2C' },
+  wake_unavailable: { label: 'Wake unavailable', hue: '#FC8181', ring: '#9B2C2C' },
+  mic_denied: { label: 'Microphone permission denied', hue: '#FC8181', ring: '#9B2C2C' },
+  device_unavailable: { label: 'Capture device unavailable or wrong', hue: '#F6AD55', ring: '#C05621' },
   approval: { label: 'Approval required', hue: '#F6AD55', ring: '#C05621' },
   error: { label: 'Error', hue: '#FC8181', ring: '#9B2C2C' },
 }
@@ -151,9 +182,9 @@ function PersonaCanvas({ state }) {
       const h = canvas.clientHeight || 360
       const cx = w / 2
       const cy = h / 2
-      const meta = STATE_META[stateRef.current] || STATE_META.armed
+      const meta = STATE_META[stateRef.current] || STATE_META.unknown
       const breath = reduced ? 0.5 : (Math.sin(t / 45) + 1) / 2
-      const active = stateRef.current === 'listening' || stateRef.current === 'working' || stateRef.current === 'speaking'
+      const active = stateRef.current === 'listening' || stateRef.current === 'working' || stateRef.current === 'speaking' || stateRef.current === 'detected' || stateRef.current === 'stream_active'
       const fast = stateRef.current === 'thinking' || stateRef.current === 'transcribing'
       ctx.clearRect(0, 0, w, h)
 
@@ -206,7 +237,7 @@ function PersonaCanvas({ state }) {
     const loop = () => {
       if (!running) return
       draw()
-      const idle = stateRef.current === 'armed' || stateRef.current === 'disconnected' || stateRef.current === 'muted'
+      const idle = stateRef.current === 'armed' || stateRef.current === 'offline' || stateRef.current === 'muted' || stateRef.current === 'unknown' || stateRef.current === 'stream_inactive'
       raf = window.setTimeout(() => { if (running) requestAnimationFrame(loop) }, idle ? 80 : 33)
     }
     if (reduced) draw()
@@ -248,7 +279,7 @@ function useCron() {
 function useWake() {
   const [state, setState] = useState({
     status: 'loading', listening: false, enabled: false, available: false,
-    phrase: 'hey neewa', capture: '', at: 0,
+    audioSilent: false, phrase: 'hey neewa', capture: '', hint: '', owner: '', at: 0,
   })
   const load = useCallback(async () => {
     try {
@@ -258,8 +289,11 @@ function useWake() {
         listening: !!(data && data.listening),
         enabled: !(data && data.enabled === false),
         available: !(data && data.available === false),
+        audioSilent: !!(data && data.audio_silent),
         phrase: String((data && (data.phrase || data.wake_phrase)) || 'hey neewa'),
         capture: String((data && data.capture) || ''),
+        hint: String((data && data.hint) || ''),
+        owner: String((data && data.owner_surface) || ''),
         at: Date.now(),
       })
     } catch {
@@ -268,10 +302,99 @@ function useWake() {
   }, [])
   useEffect(() => {
     load()
-    const t = setInterval(load, 8000)
+    const t = setInterval(load, 4000)
     return () => clearInterval(t)
   }, [load])
   return [state, load]
+}
+
+// Local non-retained RMS probe. Matches Desktop wake capture constraints
+// (echoCancellation on) so the track label is the device Chromium actually uses.
+// Never sends PCM to wake.feed — a second feeder would interleave frames.
+function useCaptureProbe() {
+  const [state, setState] = useState({
+    status: 'unknown', permission: 'unknown', device: 'unknown',
+    label: '', level: 'unknown', rms: 0, wrongDevice: false, at: 0,
+  })
+  useEffect(() => {
+    let stopped = false
+    let timer = 0
+    const sample = async () => {
+      if (stopped) return
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setState((s) => ({ ...s, status: 'unavailable', device: 'unavailable', permission: 'unknown' }))
+        return
+      }
+      let stream
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false,
+        })
+      } catch (err) {
+        const msg = err && err.name ? String(err.name) : 'error'
+        const denied = msg.indexOf('NotAllowed') !== -1 || msg.indexOf('Permission') !== -1
+        setState({
+          status: 'error',
+          permission: denied ? 'denied' : 'unknown',
+          device: denied ? 'unknown' : 'unavailable',
+          label: '',
+          level: 'unknown',
+          rms: 0,
+          wrongDevice: false,
+          at: Date.now(),
+        })
+        return
+      }
+      try {
+        const track = stream.getAudioTracks()[0]
+        const label = track && track.label ? String(track.label) : ''
+        const wrongDevice = /iriun/i.test(label)
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        if (!Ctx) {
+          setState({
+            status: 'ok', permission: 'granted', device: label ? 'ok' : 'unknown',
+            label, level: 'unknown', rms: 0, wrongDevice, at: Date.now(),
+          })
+          return
+        }
+        const ctx = new Ctx()
+        if (ctx.state === 'suspended') {
+          try { await ctx.resume() } catch { /* autoplay may still resume in Electron */ }
+        }
+        const src = ctx.createMediaStreamSource(stream)
+        const analyser = ctx.createAnalyser()
+        analyser.fftSize = 2048
+        src.connect(analyser)
+        const buf = new Uint8Array(analyser.fftSize)
+        await new Promise((resolve) => window.setTimeout(resolve, 280))
+        analyser.getByteTimeDomainData(buf)
+        let acc = 0
+        for (let i = 0; i < buf.length; i++) {
+          const v = (buf[i] - 128) / 128
+          acc += v * v
+        }
+        const rms = Math.sqrt(acc / buf.length)
+        const level = rms > 0.012 ? 'live' : 'silent'
+        setState({
+          status: 'ok', permission: 'granted', device: label ? 'ok' : 'unknown',
+          label, level, rms, wrongDevice, at: Date.now(),
+        })
+        src.disconnect()
+        analyser.disconnect()
+        void ctx.close().catch(() => undefined)
+      } finally {
+        try { stream.getTracks().forEach((t) => t.stop()) } catch { /* noop */ }
+      }
+    }
+    void sample()
+    timer = window.setInterval(() => { void sample() }, 8000)
+    return () => {
+      stopped = true
+      try { window.clearInterval(timer) } catch { /* noop */ }
+    }
+  }, [])
+  return state
 }
 
 // config.get in 0.21.3 only allowlists keys like provider/skin/full — NOT tts.provider
@@ -422,9 +545,17 @@ async function cancelTask(sessionId) {
 
 function PrivacyBadge({ persona, wake }) {
   const muted = persona === 'muted' || (wake && wake.status === 'ok' && !wake.listening)
-  const live = persona === 'listening' || persona === 'transcribing'
-  const label = muted ? 'MIC OFF' : live ? 'MIC LIVE' : wake && wake.listening ? 'MIC ARMED' : 'MIC UNKNOWN'
-  const color = muted ? '#FC8181' : live ? '#68D391' : '#4FD1C5'
+  let label = 'MIC UNKNOWN'
+  let color = '#A0AEC0'
+  if (muted) { label = 'MIC OFF'; color = '#FC8181' }
+  else if (persona === 'listening' || persona === 'transcribing' || persona === 'detected') { label = 'MIC LIVE'; color = '#68D391' }
+  else if (persona === 'stream_active') { label = 'STREAM ACTIVE'; color = '#68D391' }
+  else if (persona === 'stream_inactive') { label = 'STREAM INACTIVE'; color = '#F6AD55' }
+  else if (persona === 'starting' || persona === 'armed') { label = 'LISTENER ON'; color = '#4FD1C5' }
+  else if (persona === 'mic_denied') { label = 'MIC DENIED'; color = '#FC8181' }
+  else if (persona === 'device_unavailable') { label = 'DEVICE'; color = '#F6AD55' }
+  else if (persona === 'wake_unavailable') { label = 'WAKE UNAVAILABLE'; color = '#FC8181' }
+  else if (persona === 'offline' || persona === 'connecting') { label = persona === 'connecting' ? 'CONNECTING' : 'OFFLINE'; color = '#A0AEC0' }
   return jsx('span', {
     className: 'rounded-full border px-3 py-1 text-[0.6875rem] tracking-wide',
     style: { borderColor: color, color },
@@ -445,10 +576,11 @@ function CommandRail({ variant }) {
   const usage = useValue(host.state.focusedUsage)
   const [cron, refreshCron] = useCron()
   const [wake, refreshWake] = useWake()
+  const probe = useCaptureProbe()
   const [voiceRt] = useVoiceRuntime()
   const [approvals] = useApprovals(sessionId)
-  const persona = usePersonaState(wake)
-  const meta = STATE_META[persona] || STATE_META.armed
+  const persona = usePersonaState(wake, probe)
+  const meta = STATE_META[persona] || STATE_META.unknown
   const ctxPct = usage && usage.context_percentage != null ? `${usage.context_percentage}%` : '—'
   const activeJobs = cron.jobs.filter((j) => j && j.enabled !== false && j.paused !== true)
   const source = connectionId ? String(connectionId) : 'local/primary'
@@ -472,13 +604,15 @@ function CommandRail({ variant }) {
       ])),
       Section('Voice', Grid([
         ['State', meta.label],
-        ['Wake', wake.status === 'ok' ? (wake.listening ? `armed · ${wake.phrase}` : 'off') : wake.status],
+        ['Wake', wake.status === 'ok' ? (wake.listening ? `listener on · ${wake.phrase}` : 'off') : wake.status],
         ['Capture', wake.capture || '—'],
+        ['Stream', wake.status === 'ok' ? (wake.audioSilent ? 'inactive (no/silent PCM)' : (persona === 'stream_active' ? 'active · verified' : (persona === 'starting' ? 'verifying' : 'unknown'))) : 'unknown'],
+        ['Windows mic', probe.label ? `${probe.label} · ${probe.level}` : probe.permission === 'denied' ? 'permission denied' : probe.status],
         ['Speech', voiceRt.speech],
         ['Mode', voiceRt.mode],
         ['STT', voiceRt.stt],
         ['TTS provider', 'telemetry unavailable (no tts.provider RPC)'],
-        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' ? 'MIC LIVE' : 'MIC ARMED')],
+        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' ? 'MIC LIVE' : (persona === 'stream_active' ? 'STREAM ACTIVE' : (persona === 'stream_inactive' ? 'STREAM INACTIVE' : 'UNKNOWN')))],
       ])),
       Section('Assistant', Grid([
         ['Model', String(model || 'unknown')],
@@ -536,8 +670,9 @@ function NeewaHome() {
   const gateway = useValue(host.state.gateway)
   const sessionId = useValue(host.state.focusedSessionId)
   const [wake, refreshWake] = useWake()
-  const persona = usePersonaState(wake)
-  const meta = STATE_META[persona] || STATE_META.armed
+  const probe = useCaptureProbe()
+  const persona = usePersonaState(wake, probe)
+  const meta = STATE_META[persona] || STATE_META.unknown
 
   return jsxs('div', {
     className: 'flex h-full w-full flex-col items-center justify-center gap-4 bg-[#050f14] p-6 text-sm text-foreground',
@@ -563,11 +698,23 @@ function NeewaHome() {
       jsx('div', { className: 'text-base font-medium', style: { color: meta.hue }, children: meta.label }),
       jsx('div', {
         className: 'text-[0.75rem] text-(--ui-text-tertiary)',
-        children: persona === 'disconnected'
+        children: persona === 'offline' || persona === 'connecting'
           ? 'Reconnecting to NEEWA on neewa-core-01…'
           : persona === 'muted'
-            ? 'Microphone is off. Click Rearm, then say “Hey Neewa”.'
-            : 'Say “Hey Neewa”, then speak. No click needed when the listener is armed.',
+            ? 'Microphone listener is off. Click Rearm, then say “Hey Neewa”.'
+            : persona === 'stream_inactive'
+              ? (wake.hint || 'Listener is on but no wake audio is arriving. Check the Windows mic (not Iriun) and Rearm.')
+              : persona === 'device_unavailable'
+                ? (probe.wrongDevice
+                  ? 'Wake capture is using Iriun Webcam, not the Realtek array. Set Communications default to Realtek, then restart NEEWA.'
+                  : 'Capture device unavailable.')
+            : persona === 'mic_denied'
+              ? 'Windows denied microphone permission for Hermes Desktop.'
+            : persona === 'stream_active'
+              ? 'Say “Hey Neewa”, then speak. Audio stream is active.'
+            : persona === 'starting'
+              ? 'Listener starting. Confirming that microphone frames reach the detector…'
+            : 'Wake state unknown until telemetry is verified. Do not assume the mic is sending audio.',
       }),
       jsxs('div', {
         className: 'mt-2 flex flex-wrap justify-center gap-2',
@@ -586,8 +733,9 @@ function NeewaHome() {
 
 function NeewaHud() {
   const [wake] = useWake()
-  const persona = usePersonaState(wake)
-  const meta = STATE_META[persona] || STATE_META.armed
+  const probe = useCaptureProbe()
+  const persona = usePersonaState(wake, probe)
+  const meta = STATE_META[persona] || STATE_META.unknown
   const gateway = useValue(host.state.gateway)
   return jsxs('div', {
     className: 'flex h-full w-full flex-col bg-[#050f14] text-sm text-foreground',

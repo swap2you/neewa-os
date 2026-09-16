@@ -40,9 +40,23 @@ class NeewaHomePluginTests(unittest.TestCase):
 
     def test_privacy_and_hud_surfaces(self):
         self.assertIn("MIC OFF", self.src)
+        self.assertIn("STREAM ACTIVE", self.src)
+        self.assertIn("STREAM INACTIVE", self.src)
+        self.assertIn("LISTENER ON", self.src)
+        self.assertNotIn("'MIC ARMED'", self.src)
         self.assertIn("Open HUD", self.src)
         self.assertIn("hermesDesktop", self.src)
         self.assertIn("prefers-reduced-motion", self.src)
+
+    def test_wake_states_are_not_optimistic(self):
+        self.assertIn("audio_silent", self.src)
+        self.assertIn("stream_inactive", self.src)
+        self.assertIn("useCaptureProbe", self.src)
+        self.assertIn("wrongDevice", self.src)
+        self.assertIn("iriun", self.src.lower())
+        self.assertIn("return 'unknown'", self.src)
+        self.assertNotIn("useState('armed')", self.src)
+        self.assertIn("Never sends PCM to wake.feed", self.src)
 
     def test_no_public_bind(self):
         self.assertNotIn("0.0.0.0", self.src)

@@ -4,8 +4,9 @@
 1. Sign in to Windows normally. Hermes Desktop auto-starts (Startup shortcut → packed
    `...\apps\desktop\release\win-unpacked\Hermes.exe`) and reconnects to `neewa-core-01` (primary).
 2. The app opens **NEEWA Home** (`/neewa-home`) — glowing NEEWA persona, "Ready · listening
-   for Hey Neewa". Also reachable from the left sidebar "NEEWA Home" or the "NEEWA · READY" chip.
+   for Hey Neewa". Also reachable from the left sidebar, the "NEEWA · READY" chip, or Ctrl+Alt+N.
 3. Wake auto-arms on connect (no ear click). Say **"Hey Neewa"**, then speak.
+   Mute / Stop / Rearm are on Home. Compact HUD: sidebar **NEEWA HUD** or Ctrl+Shift+H (native overlay).
 
 ## Voice
 - Default TTS is Edge (free). To use premium OpenAI voices: audition, then on the server

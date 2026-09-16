@@ -27,7 +27,7 @@ NEEWA ONE-TIME CONNECTION
 4. Name: NEEWA; SSH host: $ServerUser@$ServerHost`:22.
 5. Save, Test (must be Reachable), then Make Primary.
 6. Settings > Voice: select remote NEEWA profile; test microphone and speech.
-7. Enable the ear icon and say: Hey Neewa.
-8. Optional: Quick Entry Ctrl+Shift+Space; HUD Ctrl+Shift+H.
+7. After connect, NEEWA Home (/neewa-home) should open and the wake listener auto-arms. No ear click.
+8. Say: Hey Neewa. Compact HUD: Ctrl+Shift+H (native) or sidebar NEEWA HUD. Home hotkey: Ctrl+Alt+N.
 No public endpoint or Tailscale Funnel is required.
 "@;$stepsPath=Join-Path ([Environment]::GetFolderPath('Desktop')) 'NEEWA-NEXT-STEPS.txt';Set-Content $stepsPath $steps -Encoding UTF8;Write-Host "Prepared. Open $stepsPath"

@@ -15,10 +15,11 @@ One-time Windows action
 3. Test the connection, microphone, speaker, and wake phrase.
 
 Normal use
-1. Open Hermes Desktop (auto-starts at login; NEEWA is the primary SSH gateway to `neewa-core-01`).
-2. Type or speak. Push-to-talk / the ear (wake) icon capture the Windows mic and stream it to NEEWA on the server.
-3. Say the wake phrase `Hey Neewa`, pause for the visible listening state, then speak your request.
-4. Ask: `Neewa, check your server health and tell me what you completed overnight.`
+1. Sign in to Windows. Hermes Desktop auto-starts and reconnects to `neewa-core-01`.
+2. NEEWA Home (`/neewa-home`) is the default surface. Wake auto-arms on connect — no ear click.
+3. Say `Hey Neewa`, then speak. Follow-up turns stay in the same session. Mute / Stop / Rearm are on Home.
+4. Compact HUD: `Ctrl+Shift+H` (native overlay) or sidebar **NEEWA HUD**. Home hotkey: `Ctrl+Alt+N`.
+5. Ask: `Neewa, check your server health and tell me what you completed overnight.`
 
 System status is truthful and layered: NEEWA reads a read-only host snapshot
 (`/opt/neewa/status/latest.json`, refreshed every 10 min by `12_SCRIPTS/neewa_host_status.sh`)

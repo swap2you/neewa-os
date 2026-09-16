@@ -2,23 +2,19 @@ import { cn, haptic, host, Tip, useValue } from '@hermes/plugin-sdk'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { jsx, jsxs } from 'react/jsx-runtime'
 
-// NEEWA Command Center + NEEWA Home (native Desktop plugin).
+// NEEWA Home + compact HUD + Command Center (native Desktop plugin).
 //
-// Registers, using only supported APIs:
-//   - a full-page route  /neewa-home  (ROUTES_AREA value 'routes')  — the product Home
-//   - a sidebar nav entry (SIDEBAR_NAV_AREA value 'sidebar.nav')     — discoverable entry
-//   - a status-bar chip and a right-side Command Center pane (unchanged, working)
-//   - a best-effort cold-start navigation to /neewa-home
-//
-// The persona animation is driven by REAL host.state + host.onEvent gateway
-// events (not decorative timers beyond a gentle idle breath). No fabricated
-// system metrics, no lip-sync claim. Every data panel shows real values with a
-// freshness stamp or an explicit "unavailable" state.
+// Supported SDK only: ROUTES_AREA, SIDEBAR_NAV_AREA, PALETTE_AREA, KEYBINDS_AREA,
+// panes, statusBar, host.state / host.request / host.navigate / host.onEvent.
+// Native Electron HUD (Ctrl+Shift+H) is opened via the installed Desktop bridge
+// when present — not a Hermes core patch. No public listener, no secrets.
 const ID = 'neewa-command-center'
-// Literal area ids (stable in the installed SDK; avoids import-availability risk).
 const ROUTES = 'routes'
 const SIDEBAR_NAV = 'sidebar.nav'
+const PALETTE = 'palette'
+const KEYBINDS = 'keybinds'
 const HOME_PATH = '/neewa-home'
+const HUD_PATH = '/neewa-hud'
 const ONLINE = new Set(['open', 'connected', 'ready'])
 
 function connLabel(g) {
@@ -44,36 +40,59 @@ function prefersReducedMotion() {
     return false
   }
 }
+function nativeHudApi() {
+  try {
+    const api = typeof window !== 'undefined' && window.hermesDesktop && window.hermesDesktop.hud
+    return api && typeof api.open === 'function' ? api : null
+  } catch {
+    return null
+  }
+}
+function openNativeHud() {
+  const api = nativeHudApi()
+  if (!api) return false
+  try {
+    api.open({})
+    return true
+  } catch {
+    return false
+  }
+}
+function openHudSurface() {
+  if (openNativeHud()) return 'native'
+  try { host.navigate(HUD_PATH) } catch { /* noop */ }
+  return 'in-app'
+}
 
-// Derived persona state from real signals. Wake transitions come from gateway
-// events; idle/thinking/working from host.state; disconnected from the socket.
-function usePersonaState() {
+function usePersonaState(wake) {
   const gateway = useValue(host.state.gateway)
   const busy = useValue(host.state.busy)
   const waiting = useValue(host.state.awaitingResponse)
-  const [wakePhase, setWakePhase] = useState('armed') // armed | listening | active
+  const [phase, setPhase] = useState('armed') // armed | listening | transcribing | speaking | muted | approval | error
 
   useEffect(() => {
     let off = () => {}
     try {
       off = host.onEvent('*', (e) => {
-        const t = e && e.type ? String(e.type) : ''
-        if (t.indexOf('wake.detected') !== -1) setWakePhase('listening')
-        else if (t.indexOf('wake.pause') !== -1) setWakePhase('active')
-        else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setWakePhase('armed')
+        const t = e && e.type ? String(e.type).toLowerCase() : ''
+        if (t.indexOf('wake.detected') !== -1) setPhase('listening')
+        else if (t.indexOf('stt') !== -1 || t.indexOf('transcript') !== -1 || t.indexOf('asr') !== -1) setPhase('transcribing')
+        else if (t.indexOf('tts') !== -1 || t.indexOf('audio.play') !== -1 || t.indexOf('speaking') !== -1) setPhase('speaking')
+        else if (t.indexOf('approval') !== -1) setPhase('approval')
+        else if (t.indexOf('wake.pause') !== -1) setPhase('listening')
+        else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('armed')
+        else if (t.indexOf('wake.stop') !== -1) setPhase('muted')
+        else if (t.indexOf('error') !== -1 && t.indexOf('parse') === -1) setPhase('error')
       })
-    } catch {
-      /* onEvent unavailable: fall back to host.state only */
-    }
-    return () => {
-      try { off() } catch { /* noop */ }
-    }
+    } catch { /* onEvent unavailable */ }
+    return () => { try { off() } catch { /* noop */ } }
   }, [])
 
   if (!ONLINE.has(gateway)) return 'disconnected'
   if (waiting) return 'thinking'
   if (busy) return 'working'
-  if (wakePhase === 'listening') return 'listening'
+  if (phase === 'listening' || phase === 'transcribing' || phase === 'speaking' || phase === 'approval' || phase === 'error') return phase
+  if (wake && wake.status === 'ok' && (wake.enabled === false || wake.listening === false)) return 'muted'
   return 'armed'
 }
 
@@ -81,14 +100,15 @@ const STATE_META = {
   disconnected: { label: 'Disconnected', hue: '#6b7785', ring: '#3a444d' },
   armed: { label: 'Ready · listening for “Hey Neewa”', hue: '#4FD1C5', ring: '#2C7A7B' },
   listening: { label: 'Listening', hue: '#63E6E2', ring: '#4FD1C5' },
+  transcribing: { label: 'Transcribing', hue: '#9AE6B4', ring: '#2F855A' },
   thinking: { label: 'Thinking', hue: '#F6C85F', ring: '#B7902F' },
   working: { label: 'Working', hue: '#81E6D9', ring: '#2C7A7B' },
+  speaking: { label: 'Speaking', hue: '#E6FFFA', ring: '#4FD1C5' },
+  muted: { label: 'Muted · listener off', hue: '#FC8181', ring: '#9B2C2C' },
+  approval: { label: 'Approval required', hue: '#F6AD55', ring: '#C05621' },
+  error: { label: 'Error', hue: '#FC8181', ring: '#9B2C2C' },
 }
 
-// Canvas persona: an original, abstract feminine-coded luminous presence
-// (concentric light rings around a soft core). Not a real person, not a movie
-// character. Motion derives from state; idle is a slow breath. Reduced-motion
-// renders a single static frame. Throttled + paused when hidden for low CPU.
 function PersonaCanvas({ state }) {
   const ref = useRef(null)
   const stateRef = useRef(state)
@@ -103,11 +123,18 @@ function PersonaCanvas({ state }) {
     let raf = 0
     let running = true
     let t = 0
+    let lastW = 0
+    let lastH = 0
+    let lastDpr = 0
 
     const resize = () => {
       const dpr = Math.min(2, (window.devicePixelRatio || 1))
       const w = canvas.clientWidth || 360
       const h = canvas.clientHeight || 360
+      if (w === lastW && h === lastH && dpr === lastDpr) return
+      lastW = w
+      lastH = h
+      lastDpr = dpr
       canvas.width = Math.round(w * dpr)
       canvas.height = Math.round(h * dpr)
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -125,12 +152,11 @@ function PersonaCanvas({ state }) {
       const cx = w / 2
       const cy = h / 2
       const meta = STATE_META[stateRef.current] || STATE_META.armed
-      const breath = reduced ? 0.5 : (Math.sin(t / 45) + 1) / 2 // 0..1 slow
-      const active = stateRef.current === 'listening' || stateRef.current === 'working'
-      const fast = stateRef.current === 'thinking'
+      const breath = reduced ? 0.5 : (Math.sin(t / 45) + 1) / 2
+      const active = stateRef.current === 'listening' || stateRef.current === 'working' || stateRef.current === 'speaking'
+      const fast = stateRef.current === 'thinking' || stateRef.current === 'transcribing'
       ctx.clearRect(0, 0, w, h)
 
-      // background vignette (graphite)
       const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) / 1.2)
       bg.addColorStop(0, 'rgba(9,30,38,0.0)')
       bg.addColorStop(1, 'rgba(4,12,16,0.35)')
@@ -138,7 +164,6 @@ function PersonaCanvas({ state }) {
       ctx.fillRect(0, 0, w, h)
 
       const base = Math.min(w, h) * 0.16
-      // concentric rings react to state
       const rings = 4
       for (let i = rings; i >= 1; i--) {
         const spread = active ? 0.9 : 0.6
@@ -153,7 +178,6 @@ function PersonaCanvas({ state }) {
       }
       ctx.globalAlpha = 1
 
-      // thinking arc (only in thinking state, real busy signal)
       if (fast && !reduced) {
         ctx.beginPath()
         ctx.arc(cx, cy, base * 2.2, t / 10, t / 10 + Math.PI / 2)
@@ -162,7 +186,6 @@ function PersonaCanvas({ state }) {
         ctx.stroke()
       }
 
-      // core
       const coreR = base * (0.9 + breath * 0.12)
       const grad = ctx.createRadialGradient(cx, cy - coreR * 0.2, coreR * 0.2, cx, cy, coreR)
       grad.addColorStop(0, '#E6FFFA')
@@ -176,15 +199,14 @@ function PersonaCanvas({ state }) {
       ctx.fill()
       ctx.shadowBlur = 0
 
-      if (reduced) return // single frame
+      if (reduced) return
       t += 1
     }
 
     const loop = () => {
       if (!running) return
       draw()
-      // ~30fps active, ~12fps idle for low CPU
-      const idle = stateRef.current === 'armed' || stateRef.current === 'disconnected'
+      const idle = stateRef.current === 'armed' || stateRef.current === 'disconnected' || stateRef.current === 'muted'
       raf = window.setTimeout(() => { if (running) requestAnimationFrame(loop) }, idle ? 80 : 33)
     }
     if (reduced) draw()
@@ -223,6 +245,86 @@ function useCron() {
   return [state, load]
 }
 
+function useWake() {
+  const [state, setState] = useState({
+    status: 'loading', listening: false, enabled: false, available: false,
+    phrase: 'hey neewa', capture: '', at: 0,
+  })
+  const load = useCallback(async () => {
+    try {
+      const data = await host.request('wake.status', { client_capture: true, surface: 'gui' })
+      setState({
+        status: 'ok',
+        listening: !!(data && data.listening),
+        enabled: !(data && data.enabled === false),
+        available: !(data && data.available === false),
+        phrase: String((data && (data.phrase || data.wake_phrase)) || 'hey neewa'),
+        capture: String((data && data.capture) || ''),
+        at: Date.now(),
+      })
+    } catch {
+      setState((s) => ({ ...s, status: 'unavailable' }))
+    }
+  }, [])
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 8000)
+    return () => clearInterval(t)
+  }, [load])
+  return [state, load]
+}
+
+function useSafeConfig() {
+  const [state, setState] = useState({ status: 'loading', tts: 'unknown', voiceMode: 'unknown', at: 0 })
+  const load = useCallback(async () => {
+    try {
+      const keys = ['tts.provider', 'tts.openai.voice', 'tts.edge.voice', 'voice.voice_chat_mode']
+      const got = {}
+      for (const key of keys) {
+        try {
+          const row = await host.request('config.get', { key })
+          const value = row && (row.value != null ? row.value : row.config != null ? row.config : row[key])
+          got[key] = value == null ? '' : String(value)
+        } catch {
+          got[key] = ''
+        }
+      }
+      const tts = got['tts.provider'] || 'unavailable'
+      const named = tts === 'openai' ? got['tts.openai.voice'] : tts === 'edge' ? got['tts.edge.voice'] : ''
+      setState({
+        status: 'ok',
+        tts: named ? `${tts} / ${named}` : tts,
+        voiceMode: got['voice.voice_chat_mode'] || 'unknown',
+        at: Date.now(),
+      })
+    } catch {
+      setState((s) => ({ ...s, status: 'unavailable' }))
+    }
+  }, [])
+  useEffect(() => { load() }, [load])
+  return state
+}
+
+function useApprovals() {
+  const [state, setState] = useState({ status: 'loading', count: 0, at: 0 })
+  const load = useCallback(async () => {
+    try {
+      const data = await host.request('approval.pending', {})
+      const list = Array.isArray(data) ? data : (data && (data.pending || data.approvals || data.items)) || []
+      const count = typeof data === 'number' ? data : (Array.isArray(list) ? list.length : (data && data.count != null ? Number(data.count) : 0))
+      setState({ status: 'ok', count: Number.isFinite(count) ? count : 0, at: Date.now() })
+    } catch {
+      setState((s) => ({ ...s, status: 'unavailable' }))
+    }
+  }, [])
+  useEffect(() => {
+    load()
+    const t = setInterval(load, 20000)
+    return () => clearInterval(t)
+  }, [load])
+  return state
+}
+
 function Grid(rows) {
   return jsx('div', {
     className: 'grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-(--ui-text-tertiary)',
@@ -241,9 +343,59 @@ function Section(title, child) {
     ],
   })
 }
+function Btn({ children, onClick, danger }) {
+  return jsx('button', {
+    className: cn(
+      'rounded-full border px-4 py-2 hover:bg-(--chrome-action-hover)',
+      danger ? 'border-[#9B2C2C] text-[#FC8181]' : 'border-(--ui-stroke-secondary)',
+    ),
+    type: 'button',
+    onClick,
+    children,
+  })
+}
 
-// The product Home: persona center stage + live state + real widgets + controls.
-function NeewaHome() {
+async function muteListener(refresh) {
+  try {
+    await host.request('wake.stop', {})
+    host.notify({ kind: 'info', message: 'NEEWA microphone muted' })
+  } catch (err) {
+    host.notify({ kind: 'error', message: 'Mute failed — wake.stop unavailable' })
+  }
+  if (refresh) refresh()
+}
+async function rearmListener(refresh) {
+  try {
+    await host.request('wake.start', { surface: 'gui', client_capture: true })
+    host.notify({ kind: 'info', message: 'NEEWA listener re-armed' })
+  } catch (err) {
+    host.notify({ kind: 'error', message: 'Rearm failed — wake.start unavailable' })
+  }
+  if (refresh) refresh()
+}
+async function stopAndRearm(refresh) {
+  try {
+    await host.request('wake.stop', {})
+  } catch { /* still try rearm */ }
+  host.notify({ kind: 'info', message: 'Conversation stopped. Re-arming…' })
+  window.setTimeout(() => { void rearmListener(refresh) }, 600)
+}
+
+function PrivacyBadge({ persona, wake }) {
+  const muted = persona === 'muted' || (wake && wake.status === 'ok' && !wake.listening)
+  const live = persona === 'listening' || persona === 'transcribing'
+  const label = muted ? 'MIC OFF' : live ? 'MIC LIVE' : wake && wake.listening ? 'MIC ARMED' : 'MIC UNKNOWN'
+  const color = muted ? '#FC8181' : live ? '#68D391' : '#4FD1C5'
+  return jsx('span', {
+    className: 'rounded-full border px-3 py-1 text-[0.6875rem] tracking-wide',
+    style: { borderColor: color, color },
+    children: label,
+  })
+}
+
+function CommandRail({ variant }) {
+  const compact = variant !== 'home'
+  const heading = variant === 'hud' ? 'NEEWA HUD' : 'Command Center'
   const gateway = useValue(host.state.gateway)
   const busy = useValue(host.state.busy)
   const waiting = useValue(host.state.awaitingResponse)
@@ -251,145 +403,178 @@ function NeewaHome() {
   const profile = useValue(host.state.focusedSessionProfile)
   const connectionId = useValue(host.state.connectionId)
   const usage = useValue(host.state.focusedUsage)
-  const persona = usePersonaState()
   const [cron, refreshCron] = useCron()
+  const [wake, refreshWake] = useWake()
+  const cfg = useSafeConfig()
+  const approvals = useApprovals()
+  const persona = usePersonaState(wake)
   const meta = STATE_META[persona] || STATE_META.armed
-
   const ctxPct = usage && usage.context_percentage != null ? `${usage.context_percentage}%` : '—'
   const activeJobs = cron.jobs.filter((j) => j && j.enabled !== false && j.paused !== true)
-
-  const openChat = () => host.navigate('/')
-  const openJobs = () => host.navigate('/cron')
+  const source = connectionId ? String(connectionId) : 'local/primary'
+  const isRemote = source !== 'local/primary' && source.toLowerCase().indexOf('local') === -1
 
   return jsxs('div', {
-    className: 'grid h-full w-full grid-cols-[1fr_320px] bg-[#050f14] text-sm text-foreground',
+    className: cn('flex flex-col gap-4 overflow-y-auto p-4 text-sm', compact ? 'h-full' : ''),
     children: [
-      // Center stage: persona + state label
       jsxs('div', {
-        className: 'flex min-h-0 min-w-0 flex-col items-center justify-center gap-4 p-6',
+        className: 'flex items-center justify-between',
+        children: [
+          jsx('span', { className: 'font-semibold tracking-wide', children: heading }),
+          jsx('span', { className: 'text-(--ui-accent)', children: turnLabel(gateway, busy, waiting) }),
+        ],
+      }),
+      Section('Connection', Grid([
+        ['Gateway', connLabel(gateway)],
+        ['Socket', String(gateway || 'unknown')],
+        ['Source', isRemote ? source : `${source} (not neewa-core-01)`],
+        ['Profile', String(profile || 'default')],
+      ])),
+      Section('Voice', Grid([
+        ['State', meta.label],
+        ['Wake', wake.status === 'ok' ? (wake.listening ? `armed · ${wake.phrase}` : 'off') : wake.status],
+        ['Capture', wake.capture || '—'],
+        ['TTS', cfg.status === 'ok' ? cfg.tts : cfg.status],
+        ['Mode', cfg.status === 'ok' ? cfg.voiceMode : '—'],
+        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' ? 'MIC LIVE' : 'MIC ARMED')],
+      ])),
+      Section('Assistant', Grid([
+        ['Model', String(model || 'unknown')],
+        ['Context', ctxPct],
+        ['Approvals', approvals.status === 'ok' ? String(approvals.count) : approvals.status],
+      ])),
+      Section('Scheduled jobs', jsxs('div', {
+        className: 'flex flex-col gap-1.5',
+        children: [
+          Grid([
+            ['Jobs', cron.status === 'loading' ? 'loading…' : cron.status === 'unavailable' ? 'unavailable' : `${activeJobs.length} active / ${cron.jobs.length} total`],
+            ['Updated', cron.status === 'ok' ? ago(cron.at) : '—'],
+          ]),
+          !compact && cron.status === 'ok' && cron.jobs.length
+            ? jsx('div', {
+                className: 'flex flex-col gap-1',
+                children: cron.jobs.slice(0, 6).map((j, i) => jsxs('div', {
+                  className: 'flex items-center justify-between gap-2',
+                  children: [
+                    jsx('span', { className: 'truncate text-foreground', children: String(j.name || j.job_id || 'job') }),
+                    jsx('span', { className: 'shrink-0 text-(--ui-text-tertiary)', children: String(j.schedule || '') }),
+                  ],
+                }, j.job_id || i)),
+              })
+            : null,
+          cron.status === 'unavailable'
+            ? jsx('div', { className: 'text-(--ui-text-tertiary)', children: 'Unavailable (gateway RPC).' })
+            : null,
+        ],
+      })),
+      jsxs('div', {
+        className: 'mt-1 flex flex-wrap gap-2',
+        children: [
+          jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
+          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopAndRearm(refreshWake) } }),
+          jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
+          compact
+            ? jsx(Btn, { children: 'Open Home', onClick: () => host.navigate(HOME_PATH) })
+            : jsx(Btn, { children: 'Open HUD', onClick: () => { haptic('tap'); openHudSurface() } }),
+          jsx(Btn, { children: 'Chat', onClick: () => host.navigate('/') }),
+          jsx(Btn, { children: 'Jobs', onClick: () => host.navigate('/cron') }),
+          jsx(Btn, { children: 'Refresh', onClick: () => { haptic('tap'); refreshCron(); refreshWake() } }),
+        ],
+      }),
+      jsx('div', {
+        className: 'mt-auto pt-2 text-[0.6875rem] leading-relaxed text-(--ui-text-tertiary)',
+        children: 'Host health, morning brief and project jobs are snapshot-backed. Ask NEEWA (“system status” / “morning brief”). Native HUD: Ctrl+Shift+H. Unsupported fields read Unavailable.',
+      }),
+    ],
+  })
+}
+
+function NeewaHome() {
+  const gateway = useValue(host.state.gateway)
+  const [wake, refreshWake] = useWake()
+  const persona = usePersonaState(wake)
+  const meta = STATE_META[persona] || STATE_META.armed
+
+  return jsxs('div', {
+    className: 'flex h-full w-full flex-col items-center justify-center gap-4 bg-[#050f14] p-6 text-sm text-foreground',
+    children: [
+      jsxs('div', {
+        className: 'flex w-full max-w-4xl items-center justify-between gap-2',
         children: [
           jsxs('div', {
-            className: 'flex items-center gap-2 self-start',
+            className: 'flex items-center gap-2',
             children: [
               jsx('span', { className: 'text-lg font-semibold tracking-[0.2em] text-(--ui-accent)', children: 'NEEWA' }),
               jsx('span', { className: 'text-[0.6875rem] uppercase tracking-wide text-(--ui-text-tertiary)', children: connLabel(gateway) }),
             ],
           }),
-          jsx('div', {
-            className: 'relative flex items-center justify-center',
-            style: { width: 'min(46vh, 440px)', height: 'min(46vh, 440px)' },
-            children: jsx(PersonaCanvas, { state: persona }),
-          }),
-          jsx('div', { className: 'text-base font-medium', style: { color: meta.hue }, children: meta.label }),
-          jsx('div', {
-            className: 'text-[0.75rem] text-(--ui-text-tertiary)',
-            children: persona === 'disconnected'
-              ? 'Reconnecting to NEEWA on neewa-core-01…'
-              : 'Say “Hey Neewa”, then speak. No click needed when the listener is armed.',
-          }),
-          jsxs('div', {
-            className: 'mt-2 flex gap-2',
-            children: [
-              jsx('button', {
-                className: 'rounded-full border border-(--ui-stroke-secondary) px-4 py-2 hover:bg-(--chrome-action-hover)',
-                type: 'button', onClick: openChat, children: 'Open conversation',
-              }),
-              jsx('button', {
-                className: 'rounded-full border border-(--ui-stroke-secondary) px-4 py-2 hover:bg-(--chrome-action-hover)',
-                type: 'button',
-                onClick: () => { haptic('tap'); refreshCron(); host.notify({ kind: 'info', message: 'NEEWA Home refreshed' }) },
-                children: 'Refresh',
-              }),
-            ],
-          }),
+          jsx(PrivacyBadge, { persona, wake }),
         ],
       }),
-      // Right rail: real Command Center data
+      jsx('div', {
+        className: 'relative flex items-center justify-center',
+        style: { width: 'min(52vh, 480px)', height: 'min(52vh, 480px)' },
+        children: jsx(PersonaCanvas, { state: persona }),
+      }),
+      jsx('div', { className: 'text-base font-medium', style: { color: meta.hue }, children: meta.label }),
+      jsx('div', {
+        className: 'text-[0.75rem] text-(--ui-text-tertiary)',
+        children: persona === 'disconnected'
+          ? 'Reconnecting to NEEWA on neewa-core-01…'
+          : persona === 'muted'
+            ? 'Microphone is off. Click Rearm, then say “Hey Neewa”.'
+            : 'Say “Hey Neewa”, then speak. No click needed when the listener is armed.',
+      }),
       jsxs('div', {
-        className: 'flex w-[320px] shrink-0 flex-col gap-4 overflow-y-auto border-l border-(--ui-border) bg-[#071318] p-4',
+        className: 'mt-2 flex flex-wrap justify-center gap-2',
         children: [
-          jsxs('div', {
-            className: 'flex items-center justify-between',
-            children: [
-              jsx('span', { className: 'font-semibold tracking-wide', children: 'Command Center' }),
-              jsx('span', { className: 'text-(--ui-accent)', children: turnLabel(gateway, busy, waiting) }),
-            ],
-          }),
-          Section('Connection', Grid([
-            ['Gateway', connLabel(gateway)],
-            ['Socket', String(gateway || 'unknown')],
-            ['Source', connectionId ? String(connectionId) : 'local/primary'],
-            ['Profile', String(profile || 'default')],
-          ])),
-          Section('Assistant', Grid([
-            ['State', meta.label],
-            ['Model', String(model || 'unknown')],
-            ['Context', ctxPct],
-          ])),
-          Section('Scheduled jobs', jsxs('div', {
-            className: 'flex flex-col gap-1.5',
-            children: [
-              Grid([
-                ['Jobs', cron.status === 'loading' ? 'loading…' : cron.status === 'unavailable' ? 'unavailable' : `${activeJobs.length} active / ${cron.jobs.length} total`],
-                ['Updated', cron.status === 'ok' ? ago(cron.at) : '—'],
-              ]),
-              cron.status === 'ok' && cron.jobs.length
-                ? jsx('div', {
-                    className: 'flex flex-col gap-1',
-                    children: cron.jobs.slice(0, 6).map((j, i) => jsxs('div', {
-                      className: 'flex items-center justify-between gap-2',
-                      children: [
-                        jsx('span', { className: 'truncate text-foreground', children: String(j.name || j.job_id || 'job') }),
-                        jsx('span', { className: 'shrink-0 text-(--ui-text-tertiary)', children: String(j.schedule || '') }),
-                      ],
-                    }, j.job_id || i)),
-                  })
-                : jsx('div', { className: 'text-(--ui-text-tertiary)', children: cron.status === 'unavailable' ? 'Unavailable (gateway RPC).' : 'No scheduled jobs.' }),
-              jsx('button', {
-                className: 'mt-1 rounded border border-(--ui-stroke-secondary) px-3 py-2 text-left hover:bg-(--chrome-action-hover)',
-                type: 'button', onClick: openJobs, children: 'Open scheduled jobs',
-              }),
-            ],
-          })),
-          jsx('div', {
-            className: 'mt-auto pt-2 text-[0.6875rem] leading-relaxed text-(--ui-text-tertiary)',
-            children: 'Server health, morning brief and project status are host-snapshot backed. Ask NEEWA (“system status” / “morning brief”) for the authoritative, timestamped report. Voice output and cost are shown when measured; unsupported fields read “Unavailable”.',
-          }),
+          jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
+          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopAndRearm(refreshWake) } }),
+          jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
+          jsx(Btn, { children: 'Open HUD', onClick: () => { haptic('tap'); openHudSurface() } }),
+          jsx(Btn, { children: 'Conversation', onClick: () => host.navigate('/') }),
         ],
       }),
     ],
   })
 }
 
-// Compact right-side pane (kept for the chat view).
-function Pane() {
+function NeewaHud() {
+  const [wake] = useWake()
+  const persona = usePersonaState(wake)
+  const meta = STATE_META[persona] || STATE_META.armed
   const gateway = useValue(host.state.gateway)
-  const busy = useValue(host.state.busy)
-  const waiting = useValue(host.state.awaitingResponse)
-  const model = useValue(host.state.model)
-  const profile = useValue(host.state.focusedSessionProfile)
-  const connectionId = useValue(host.state.connectionId)
-  const usage = useValue(host.state.focusedUsage)
-  const [cron] = useCron()
-  const ctxPct = usage && usage.context_percentage != null ? `${usage.context_percentage}%` : '—'
-  const activeJobs = cron.jobs.filter((j) => j && j.enabled !== false && j.paused !== true)
   return jsxs('div', {
-    className: 'flex h-full flex-col gap-3 overflow-y-auto p-4 text-sm',
+    className: 'flex h-full w-full flex-col bg-[#050f14] text-sm text-foreground',
     children: [
-      jsxs('div', { className: 'flex items-center justify-between', children: [
-        jsx('span', { className: 'font-semibold tracking-wide', children: 'NEEWA' }),
-        jsx('span', { className: 'text-(--ui-accent)', children: turnLabel(gateway, busy, waiting) }),
-      ] }),
-      Section('Connection', Grid([['Gateway', connLabel(gateway)], ['Source', connectionId ? String(connectionId) : 'local/primary'], ['Profile', String(profile || 'default')]])),
-      Section('Assistant', Grid([['Model', String(model || 'unknown')], ['Context', ctxPct]])),
-      Section('Scheduled jobs', Grid([['Jobs', cron.status === 'ok' ? `${activeJobs.length} active / ${cron.jobs.length} total` : cron.status === 'unavailable' ? 'unavailable' : 'loading…'], ['Updated', cron.status === 'ok' ? ago(cron.at) : '—']])),
-      jsxs('div', { className: 'mt-1 flex flex-col gap-2', children: [
-        jsx('button', { className: 'rounded border border-(--ui-stroke-secondary) px-3 py-2 text-left hover:bg-(--chrome-action-hover)', type: 'button', onClick: () => host.navigate(HOME_PATH), children: 'Open NEEWA Home' }),
-        jsx('button', { className: 'rounded border border-(--ui-stroke-secondary) px-3 py-2 text-left hover:bg-(--chrome-action-hover)', type: 'button', onClick: () => host.navigate('/cron'), children: 'Open scheduled jobs' }),
-      ] }),
-      jsx('div', { className: 'mt-auto pt-2 text-[0.6875rem] leading-relaxed text-(--ui-text-tertiary)', children: 'Server health & morning brief are host-snapshot backed — ask NEEWA in chat for the timestamped report.' }),
+      jsxs('div', {
+        className: 'flex items-center gap-4 border-b border-(--ui-border) px-4 py-3',
+        children: [
+          jsx('div', { style: { width: 72, height: 72 }, children: jsx(PersonaCanvas, { state: persona }) }),
+          jsxs('div', {
+            className: 'flex min-w-0 flex-1 flex-col gap-1',
+            children: [
+              jsxs('div', {
+                className: 'flex items-center gap-2',
+                children: [
+                  jsx('span', { className: 'font-semibold tracking-[0.2em] text-(--ui-accent)', children: 'NEEWA' }),
+                  jsx('span', { className: 'text-[0.6875rem] text-(--ui-text-tertiary)', children: connLabel(gateway) }),
+                  jsx(PrivacyBadge, { persona, wake }),
+                ],
+              }),
+              jsx('div', { style: { color: meta.hue }, children: meta.label }),
+              jsx('div', { className: 'text-[0.6875rem] text-(--ui-text-tertiary)', children: 'Compact HUD. Native overlay: Ctrl+Shift+H (movable, always-on-top).' }),
+            ],
+          }),
+        ],
+      }),
+      jsx('div', { className: 'min-h-0 flex-1', children: jsx(CommandRail, { variant: 'hud' }) }),
     ],
   })
+}
+
+function Pane() {
+  return jsx(CommandRail, { variant: 'pane' })
 }
 
 function Chip() {
@@ -408,13 +593,11 @@ function Chip() {
   })
 }
 
-// Best-effort cold-start: land on NEEWA Home when the app opened at its default
-// route (empty hash / root). Never override a deep link the user navigated to.
 function maybeOpenHomeOnStartup() {
   try {
     const hash = (typeof window !== 'undefined' && window.location ? window.location.hash : '') || ''
     const path = hash.replace(/^#/, '')
-    if (path === '' || path === '/' ) {
+    if (path === '' || path === '/') {
       setTimeout(() => {
         try {
           const now = (window.location.hash || '').replace(/^#/, '')
@@ -430,9 +613,26 @@ export default {
   name: 'NEEWA Command Center',
   register(ctx) {
     ctx.register({ id: 'home', area: ROUTES, title: 'NEEWA', data: { path: HOME_PATH }, render: () => jsx(NeewaHome, {}) })
+    ctx.register({ id: 'hud', area: ROUTES, title: 'NEEWA HUD', data: { path: HUD_PATH }, render: () => jsx(NeewaHud, {}) })
     ctx.register({ id: 'home-nav', area: SIDEBAR_NAV, order: 5, data: { codicon: 'hubot', label: 'NEEWA Home', path: HOME_PATH } })
+    ctx.register({ id: 'hud-nav', area: SIDEBAR_NAV, order: 6, data: { codicon: 'window', label: 'NEEWA HUD', path: HUD_PATH } })
     ctx.register({ id: 'pane', area: 'panes', title: 'NEEWA', data: { placement: 'right', width: '300px' }, render: () => jsx(Pane, {}) })
     ctx.register({ id: 'chip', area: 'statusBar.right', order: 110, render: () => jsx(Chip, {}) })
+    ctx.register({
+      id: 'open-home',
+      area: PALETTE,
+      data: { id: 'neewa.openHome', label: 'NEEWA: Open Home', keywords: ['neewa', 'home', 'jarvis', 'assistant'], run: () => host.navigate(HOME_PATH) },
+    })
+    ctx.register({
+      id: 'open-hud',
+      area: PALETTE,
+      data: { id: 'neewa.openHud', label: 'NEEWA: Open HUD', keywords: ['neewa', 'hud', 'overlay'], run: () => openHudSurface() },
+    })
+    ctx.register({
+      id: 'open-home-key',
+      area: KEYBINDS,
+      data: { id: 'neewa.openHome', category: 'view', defaults: ['mod+alt+n'], label: 'NEEWA: Open Home', run: () => host.navigate(HOME_PATH) },
+    })
     maybeOpenHomeOnStartup()
   },
 }

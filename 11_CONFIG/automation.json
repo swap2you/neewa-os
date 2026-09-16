@@ -17,6 +17,22 @@
       "mode": "no-agent",
       "status": "active",
       "delivery": "local"
+    },
+    {
+      "id": "26daccd8ac5a",
+      "name": "neewa-host-status",
+      "schedule": "every 10m",
+      "mode": "no-agent",
+      "status": "active",
+      "delivery": "local"
+    },
+    {
+      "id": "645d0638e928",
+      "name": "neewa-voice-readiness",
+      "schedule": "every 15m",
+      "mode": "no-agent",
+      "status": "active",
+      "delivery": "local"
     }
   ]
 }

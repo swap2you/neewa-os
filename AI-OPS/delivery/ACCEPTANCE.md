@@ -1,53 +1,49 @@
-# NEEWA Jarvis V1 — Acceptance Baseline (Phase 0 reconciliation)
+# NEEWA Jarvis V1 — Acceptance Baseline
 
-Reconciled 2026-09-16 from the ACTUAL local checkout + installed Hermes, not documents.
-Source of truth for gate status is `04_PRODUCT_ACCEPTANCE.md` (A01–A19).
+Reconciled 2026-09-16 12:40 ET from the live checkout, installed Hermes 0.21.3,
+running Desktop (`#/neewa-home`), and host snapshots. Physical speech/audio
+gates stay PENDING until the owner witnesses them.
 
-## Verified environment facts
+## Environment
 
-- Git: local HEAD = origin/main = `3d71463` (clean; untracked handoff ZIP/CMD/MD present and will NOT be committed).
-- Installed Hermes Desktop: v0.21.3 (upstream 2cfb655d), `C:\Users\swap2\AppData\Local\hermes`.
-- Remote backend: `neewa-core-01` (Ubuntu), reached via authenticated SSH over Tailscale; no Serve/Funnel.
-- Voice/wake config (installed): wake_word.enabled=true, provider=sherpa, phrase="hey neewa",
-  surface=gui, capture=client, **start_new_session=true** (3-turn fragmentation risk — to address),
-  tts.provider=edge, voice.voice_chat_mode=chained.
-- Desktop SDK capabilities CONFIRMED in installed source:
-  - `ROUTES_AREA` ('routes') full-page routes; `SIDEBAR_NAV_AREA` ('sidebar.nav'); working example: kanban `/kanban`.
-  - `host.navigate`, `host.onEvent` (gateway event tap, '*'), `host.request` (gateway JSON-RPC),
-    `host.state` (gateway/busy/awaitingResponse/model/profile/focusedUsage/connectionId), `host.logs`.
-  - Disk plugins load from `<HERMES_HOME>/desktop-plugins/<name>/plugin.js` (local), hot-reload on change.
+- Git before this delivery commit: `39e3a28` local = origin/main. Server checkout
+  was `39e3a28` / clean until the new push.
+- Desktop: packed `Hermes.exe`; plugin hash matches repo after install copy.
+- Remote: Tailscale SSH `ubuntu@neewa-core-01:22`. No Serve/Funnel.
+- Wake: sherpa, phrase `hey neewa`, surface=gui, capture=client,
+  `start_new_session=false`. Auto-arm observed `wake.start(gui)` at 12:21:19
+  after Desktop restart (no ear click in that restart).
+- TTS: `edge` (Aria rejected aesthetically). OpenAI TTS key present on server;
+  not switched pending owner audition.
+- Host snapshot: `generated_at=2026-09-16T16:29:17Z` host=`neewa-core-01` overall=ok.
+- Voice snapshot: `generated_at=2026-09-16T16:33:48Z` overall=`voice_pipeline_observed_working`.
 
-## Component evidence vs product acceptance (start of this delivery)
+## Gates
 
-| Gate | Prior evidence | Product status at Phase 0 |
+| ID | Status | Evidence |
 | --- | --- | --- |
-| A01 startup after login | login-startup shortcut -> packed exe | PENDING_PHYSICAL |
-| A02 correct private backend | connections.json primary=neewa; reconnect verified | PASS (infra) |
-| A03 no-click wake armed | wake armed only after GUI ear/session; not auto on cold start | TO IMPLEMENT |
-| A04 wake phrase detected | log: wake "hey neewa" phrase detected (08:02) | PENDING_PHYSICAL (needs live) |
-| A05 real speech->task | log: 6s webm -> faster-whisper -> remote turn complete | PENDING_PHYSICAL |
-| A06 3 continuous turns | not proven; start_new_session=true risk | TO IMPLEMENT + PHYSICAL |
-| A07 spoken reply chosen voice | Edge Aria generated; aesthetically rejected | PENDING (voice choice) + PHYSICAL |
-| A08 barge-in/stop | not verified | PENDING |
-| A09 original NEEWA Home | only skin + right pane; HERMES splash remains | TO BUILD |
-| A10 animated state authenticity | none | TO BUILD |
-| A11 HUD | none | TO BUILD |
-| A12 real CoS task | registries exist; no voice-created job | TO IMPLEMENT + PHYSICAL |
-| A13 operational data | Command Center shows real cron/host.state + snapshot | PASS (infra) |
-| A14 persistence/recovery | reconnect verified; sleep/resume untested | PARTIAL + PHYSICAL |
-| A15 budget/fallback | chained voice; local Qwen slow; no new billing | PARTIAL |
-| A16 security/governance | read-only mounts, no exposure, no secrets | PASS |
-| A17 installer/rollback | bootstrap ZIP rebuilt dc02b1eb | PARTIAL |
-| A18 source/test release | 40 tests Linux; manifest reproducible; HEAD synced | PASS |
-| A19 usable workday | not proven hands-free | PENDING_PHYSICAL |
+| A01 startup after login | PENDING_PHYSICAL | Startup shortcut → packed exe exists. Needs a real logoff/login witness. |
+| A02 correct private backend | PASS | Live Home shows Source **neewa**, Gateway ONLINE. Tailscale: no funnel. |
+| A03 no-click listener armed | PASS (infra) / PENDING_PHYSICAL (spoken) | Home MIC ARMED; wake.start 12:21:19 after restart. Spoken test still owner. |
+| A04 wake phrase | PENDING_PHYSICAL | Prior log 08:02 phrase detected; not re-witnessed this session. |
+| A05 speech → remote task | PENDING_PHYSICAL | Prior 11:32 6.5s whisper → 22.2s remote turn. Not re-run. |
+| A06 3 continuous turns | PENDING_PHYSICAL | `start_new_session=false` set; continuity not spoken-proven. |
+| A07 chosen voice on speakers | PENDING_PHYSICAL | Edge fallback live; OpenAI voices listed in VOICE_PROVIDER_MATRIX.md. |
+| A08 barge-in / stop | PARTIAL | Mute/Stop/Rearm buttons call `wake.stop` / `wake.start`. Barge-in = chained-engine limitation unless owner confirms. |
+| A09 original NEEWA Home | PASS (running UI) | Screenshot: persona + NEEWA Home selected, not HERMES splash. Physical ack still useful. |
+| A10 animated state | PASS (infra) | Bound to wake.status + host.state + gateway events. |
+| A11 HUD | PASS (infra) | `/neewa-hud` + native `Ctrl+Shift+H` bridge. Owner should toggle overlay. |
+| A12 CoS task | PENDING_PHYSICAL | Lifecycle documented; needs one spoken safe job. |
+| A13 operational data | PASS | Live: 4/4 jobs, model gpt-5.6-luna, source neewa. TTS/approvals show Unavailable when RPC lacks a session — not fabricated. |
+| A14 persistence | PARTIAL | Restart reconnect + re-arm observed. Sleep/resume untested. |
+| A15 budget/fallback | PASS (policy) | Chained voice; GPT-Live deferred; Qwen slow survival path. |
+| A16 security | PASS with note | RO `/opt/neewa/neewa-os` + `/opt/neewa/status`. Hermes also mounts repo RW at `/workspace` via `docker_mount_cwd_to_workspace` — remaining hardening, not a public exposure. No secrets in repo. A2/A3 intact. |
+| A17 installer | PASS | Bootstrap ZIP rebuilt from tracked files. |
+| A18 source/test | PASS pending push | Unit tests + secret scan 0 findings. Sync after commit. |
+| A19 usable workday | PENDING_PHYSICAL | Owner closes Cursor and uses Home hands-free. |
 
-## This delivery's autonomous scope (no owner needed)
+## Release decision
 
-1. No-click wake auto-arm on startup + start_new_session continuity (A03/A06 infra).
-2. Native NEEWA Home full-page route + animated persona + HUD + real widgets (A09–A11 build).
-3. Voice provider matrix (Nous managed TTS check; keep Edge fallback) (A07/A15 infra).
-4. Chief-of-Staff durable task lifecycle (A12/A13 infra).
-5. Bounded backend work order to NEEWA + independent review.
-6. Delivery docs, regression, commit/push/sync, release report.
-
-Physical gates (A01/A04–A08/A19 and visual A09–A11 confirmation) require one consolidated owner session.
+**PARTIAL.** Engineering surfaces for Home/HUD/wake/continuity/data are running on
+the owner PC against `neewa-core-01`. Required physical speech, speaker, login,
+and task-delegation witnesses remain. Continue; do not call ACCEPTED.

@@ -117,6 +117,7 @@
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
 - `13_TESTS/test_morning_brief.py`
+- `13_TESTS/test_neewa_home_plugin.py`
 - `13_TESTS/test_neewa_ops.py`
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_windows_package.py`
@@ -140,9 +141,13 @@
 - `AI-OPS/company/POLICIES.md`
 - `AI-OPS/delivery/ACCEPTANCE.md`
 - `AI-OPS/delivery/BACKLOG.md`
+- `AI-OPS/delivery/CHIEF_OF_STAFF.md`
 - `AI-OPS/delivery/NEEWA_JARVIS_V1_SPEC.md`
+- `AI-OPS/delivery/NEEWA_WORK_ORDER.md`
+- `AI-OPS/delivery/RELEASE_REPORT.md`
 - `AI-OPS/delivery/RUNBOOK.md`
 - `AI-OPS/delivery/VOICE_PROVIDER_MATRIX.md`
+- `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`

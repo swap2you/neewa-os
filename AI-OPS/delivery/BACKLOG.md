@@ -1,25 +1,27 @@
 # NEEWA Jarvis V1 — Delivery Backlog
 
-## Done (autonomous, this delivery)
-- [x] Phase 0 reconciliation + acceptance baseline (`ACCEPTANCE.md`).
-- [x] No-click wake: confirmed auto-arm on connect; `start_new_session=false` for 3-turn continuity.
-- [x] Native NEEWA Home: `/neewa-home` full-page route + sidebar nav + animated event-bound persona
-      + real widgets (connection/assistant/jobs) + working controls. Renders (screenshot evidence).
-- [x] Voice provider matrix; premium OpenAI TTS available (key present) as owner-selectable path.
-- [x] Durable delivery docs (`AI-OPS/delivery/*`), work-order packet for NEEWA.
-- [x] Bootstrap ZIP rebuilt with the new plugin; manifest reproducible; regression + secret scan.
+## Done (engineering, this delivery)
+- [x] Phase 0 reconciliation + acceptance baseline.
+- [x] No-click wake auto-arm on connect; `start_new_session=false`.
+- [x] NEEWA Home `/neewa-home` + compact HUD `/neewa-hud` + native HUD bridge.
+- [x] Mute / Stop / Rearm + MIC privacy badge bound to `wake.status`.
+- [x] Real widgets: connection, jobs, wake, TTS provider (named keys only), approvals count.
+- [x] Voice provider matrix; GPT-Live deferred.
+- [x] Chief-of-Staff intent/lifecycle doc; backend work-order packet.
+- [x] Cron registry includes host-status + voice-readiness jobs.
+- [x] Delivery docs under `AI-OPS/delivery/`.
 
 ## Requires owner (one consolidated physical session)
-- [ ] A01 autostart after real Windows login (restart/login).
-- [ ] A03/A04 no-click wake fires on spoken "Hey Neewa" (witness).
+- [ ] A01 autostart after real Windows login (restart/login — do not store the password).
+- [ ] A03/A04 no-click wake fires on spoken “Hey Neewa”.
 - [ ] A05/A06 three continuous voice turns with retained context.
-- [ ] A07 pick a premium OpenAI voice (audition) + confirm audible playback through speakers.
-- [ ] A08 stop/rearm behavior.
-- [ ] A09–A11 confirm NEEWA Home / persona / HUD live on the owner screen.
-- [ ] A12 speak a real task; confirm job id + progress + result.
+- [ ] A07 pick a premium OpenAI voice (audition) + confirm speakers.
+- [ ] A08 Stop then rearm; barge-in if the chained engine supports it.
+- [ ] A09–A11 confirm Home / persona / HUD on the owner screen.
+- [ ] A12 speak a real safe task; confirm job id + progress + result.
+- [ ] A19 close Cursor and use NEEWA for a normal signed-in stretch.
 
 ## Deferred (explicit)
-- [ ] Full-duplex GPT-Live voice — needs direct OpenAI key + owner-approved finite budget.
-- [ ] On-device local TTS (piper/kittentts) install if network TTS is unwanted.
-- [ ] Optional compact always-on-top HUD overlay window (separate from Home) if desired.
-- [ ] 3D avatar — only after 2D benchmark justifies it.
+- [ ] Full-duplex GPT-Live — direct OpenAI key + owner-approved finite budget.
+- [ ] On-device Piper/KittenTTS if network TTS is unwanted.
+- [ ] 3D avatar — only after the 2D persona is accepted.

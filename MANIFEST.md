@@ -61,6 +61,7 @@
 - `07_SETUP/17_VOICE_IMPLEMENTATION.md`
 - `07_SETUP/18_LOCAL_MODEL_FALLBACK.md`
 - `07_SETUP/19_OPENAI_RESILIENCE.md`
+- `07_SETUP/20_SYSTEM_STATUS_REPORTING.md`
 - `08_PROJECTS/AAROHAN/PROJECT.md`
 - `08_PROJECTS/BHAVA/PROJECT.md`
 - `08_PROJECTS/CHAKRAOPS/PROJECT.md`
@@ -106,6 +107,7 @@
 - `12_SCRIPTS/edge_readiness.ps1`
 - `12_SCRIPTS/emergency_lockdown.md`
 - `12_SCRIPTS/morning_brief.py`
+- `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/resource_governor.py`
 - `12_SCRIPTS/server_readiness.sh`
@@ -135,6 +137,7 @@
 - `AI-OPS/company/POLICIES.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
+- `NEEWA-OS-v1.0.zip`
 - `README.md`
 - `START_HERE.md`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`
@@ -153,3 +156,4 @@
 - `evidence/NEEWA_OS/JOB-20260916-002/private-connectivity.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/voice-stack.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/windows-package.json`
+- `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`

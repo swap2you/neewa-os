@@ -4,6 +4,30 @@ Report date: 2026-09-16
 Overnight job: JOB-20260916-002
 Status: A0/A1 operational milestone complete; secure OpenAI/Codex resources remain credential-pending.
 
+## 0. 2026-09-16 integration repair (Windows voice + status)
+
+Follow-up owner-PC session. Established the real execution topology and fixed the
+system-status defect; staged and verified every voice precondition.
+
+- Topology: Hermes Desktop's primary backend is the REMOTE `neewa-core-01` over
+  Tailscale SSH. The agent, sandbox, and wake engine run on the server; the Windows
+  client captures the mic and streams frames (client capture) to the server.
+- Root cause of the "server status" defect: the persistent Docker sandbox container
+  predated the `/opt/neewa/neewa-os` mount, so the agent read the empty sandbox as the
+  host. Fixed with a deterministic read-only host probe (`12_SCRIPTS/neewa_host_status.sh`),
+  an out-of-repo `/opt/neewa/status/` snapshot mounted read-only into the sandbox, a
+  10-minute no-agent refresh job, repo+status mounts hardened to read-only, sandbox
+  recreated, and a SYSTEM STATUS REPORTING directive added to server SOUL.md.
+- Verified: HOST_STATUS_PASS (agent reports real host facts with snapshot timestamp,
+  labels sandbox vs host vs repo), SANDBOX_ISOLATION_PASS (repo mount read-only),
+  PRIVATE_CONNECTION_PASS, TEXT_E2E_PASS, node desktop build on Node 22.23.1.
+- Voice preconditions staged: Windows mic present + consent Allow, server wake deps
+  import OK, sherpa `hey neewa` real detection phrase, STT loopback and Edge TTS OK.
+- Pending owner physical action: real microphone push-to-talk, acoustic `Hey Neewa`
+  wake, in-app TTS playback, voice task delegation, and NEEWA UI visual confirmation.
+- See `07_SETUP/20_SYSTEM_STATUS_REPORTING.md` and
+  `evidence/NEEWA_OS/JOB-20260916-003/windows-voice-status-integration.json`.
+
 ## 1. Executive summary
 
 The validated NEEWA baseline was pushed to origin/main. The persistent gateway was restarted and recovered, voice/wake server capability was installed and tested, a loopback-only local model fallback was integrated into Hermes and tested through a forced primary failure, and a secret-free Windows Desktop bootstrap package was built and statically validated. No NemoClaw/OpenShell/K3s, firewall, public exposure, paid service, or employer integration was performed.

@@ -1,0 +1,55 @@
+{
+  "verified_at": "2026-09-16T12:20:00Z",
+  "objective": "Final Windows voice, runtime, and status integration repair",
+  "execution_topology": {
+    "windows_client": "Hermes Desktop 0.17.3 (Electron), packed win-unpacked/Hermes.exe, auto-start at login",
+    "primary_connection": "SSH gateway 'neewa' -> ubuntu@neewa-core-01 over Tailscale (MagicDNS)",
+    "conversation_backend": "remote neewa-core-01 Hermes 0.21.3 (Nous Portal, openai/gpt-5.6-luna)",
+    "windows_local_hermes": "0.21.3 present but NOT the active bot backend (remote is primary)",
+    "sandbox": "Docker on neewa-core-01, image nikolaik/python-nodejs pinned digest",
+    "wake_capture": "client (Windows mic frames streamed via wake.feed RPC); detection on server sherpa engine"
+  },
+  "status_defect_root_cause": {
+    "symptom": "Agent reported /opt/neewa/neewa-os unavailable and /workspace empty for server status",
+    "cause": "Persistent Docker sandbox container hermes-7742beb6 was created 2026-09-16T04:02Z, before the /opt/neewa/neewa-os volume was added to terminal.docker_volumes; the stale container had no repo mount, so the agent read the empty sandbox as if it were the host",
+    "fix": [
+      "Added deterministic read-only host probe 12_SCRIPTS/neewa_host_status.sh (JSON+text snapshot)",
+      "Snapshot written to out-of-repo /opt/neewa/status/ and mounted READ-ONLY into the sandbox",
+      "Hardened terminal.docker_volumes: repo and status dir both mounted :ro",
+      "Removed stale sandbox container so it rebuilds with the new mounts",
+      "Added Hermes cron no-agent job neewa-host-status (every 10m) to refresh the snapshot",
+      "Appended SYSTEM STATUS REPORTING directive to server SOUL.md (label sandbox vs host vs repo vs Windows)"
+    ]
+  },
+  "results": {
+    "HOST_STATUS_PASS": "agent reported real host CPU/RAM/disk/services/tailscale/ollama/model/jobs from snapshot with timestamp",
+    "SANDBOX_ISOLATION_PASS": "repo mount read-only verified (touch failed: Read-only file system); status snapshot readable in sandbox",
+    "PRIVATE_CONNECTION_PASS": "Tailscale MagicDNS + SSH key auth to neewa-core-01:22; no Serve/Funnel",
+    "TEXT_E2E_PASS": "one-shot remote agent returned PONG and a correct layered status report",
+    "REMOTE_NEEWA_IDENTITY_PASS": "connections.json primary=neewa ssh ubuntu@neewa-core-01; server hostname neewa-core-01 verified over authenticated SSH",
+    "node_runtime": "Windows npm/desktop build on Node 22.23.1 (nvm), no EBADENGINE",
+    "voice_preconditions": {
+      "windows_mic": "Realtek Microphone Array present; desktop-app mic consent = Allow",
+      "server_wake_deps": "faster_whisper + sherpa_onnx + edge_tts import OK in server venv",
+      "wake_config": "provider=sherpa, phrase='hey neewa' (sherpa open-vocab: real detection key), capture=client, surface=gui, enabled=true",
+      "stt_loopback": "faster-whisper base transcribed generated speech",
+      "tts": "edge en-US-AriaNeural synth + Windows playback OK"
+    },
+    "physical_tests_pending_owner": [
+      "MICROPHONE_CAPTURE (real speech into Hermes Desktop)",
+      "REAL_SPEECH_TRANSCRIPTION",
+      "VOICE_TO_REMOTE_AGENT",
+      "WAKE_LISTENER_ARMED",
+      "WAKE_PHRASE_DETECTED",
+      "VOICE_TASK_DELEGATION",
+      "TTS_PLAYBACK in-app",
+      "NEEWA_UI visible/functional (chip + pane + teal skin)"
+    ]
+  },
+  "safety": {
+    "public_exposure": "none (Serve/Funnel off)",
+    "secrets_in_repo": "none",
+    "host_mutation_by_agent": "prevented (repo + status mounts read-only)",
+    "credentials_touched": "none"
+  }
+}

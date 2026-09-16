@@ -58,10 +58,51 @@ function openNativeHud() {
     return false
   }
 }
+function closeNativeHud() {
+  const api = nativeHudApi()
+  if (!api || typeof api.close !== 'function') return false
+  try {
+    api.close()
+    return true
+  } catch {
+    return false
+  }
+}
 function openHudSurface() {
-  if (openNativeHud()) return 'native'
   try { host.navigate(HUD_PATH) } catch { /* noop */ }
   return 'in-app'
+}
+function closeHudSurface() {
+  if (closeNativeHud()) return 'native'
+  try { host.navigate(HOME_PATH) } catch { /* noop */ }
+  return 'in-app'
+}
+function goHomeSurface() {
+  closeNativeHud()
+  try { host.navigate(HOME_PATH) } catch { /* noop */ }
+}
+function transcriptPath() {
+  try {
+    const stored = host.state.focusedStoredSessionId && host.state.focusedStoredSessionId.get
+      ? host.state.focusedStoredSessionId.get()
+      : null
+    const pinned = stored || (typeof localStorage !== 'undefined' ? localStorage.getItem('neewa.personalSessionId') : null)
+    if (pinned) return '/' + encodeURIComponent(String(pinned))
+  } catch { /* noop */ }
+  return HOME_PATH
+}
+function openTranscript() {
+  closeNativeHud()
+  try { host.navigate(transcriptPath()) } catch { /* noop */ }
+}
+function markVoiceTrace(stage) {
+  try {
+    const w = window
+    if (!w.__NEEWA_VOICE_TRACE__) w.__NEEWA_VOICE_TRACE__ = { stages: [] }
+    const stages = w.__NEEWA_VOICE_TRACE__.stages
+    stages.push({ stage, at: Date.now() })
+    if (stages.length > 40) stages.splice(0, stages.length - 40)
+  } catch { /* noop */ }
 }
 
 function derivePersona(gateway, busy, waiting, phase, wake, probe) {
@@ -85,9 +126,13 @@ function derivePersona(gateway, busy, waiting, phase, wake, probe) {
     // Server audio_silent is authoritative for client-capture health.
     // Never open a second getUserMedia probe — it steals the Windows mic
     // from Desktop's wake.feed and makes the detector go deaf.
-    if (wake.audioSilent) return 'stream_inactive'
+    // Missing audio_silent is UNKNOWN, never READY.
+    if (wake.audioSilent === true) return 'stream_inactive'
+    if (wake.audioSilentKnown !== true && !(wake.pcmFrames > 0)) return 'unknown'
     if (wake.armedAt && (Date.now() - wake.armedAt) < 2500) return 'starting'
-    return 'stream_active'
+    if (wake.audioSilentKnown === true && wake.audioSilent === false) return 'stream_active'
+    if (wake.pcmFrames > 0) return 'stream_active'
+    return 'unknown'
   }
   return 'unknown'
 }
@@ -103,12 +148,22 @@ function usePersonaState(wake, probe) {
     try {
       off = host.onEvent('*', (e) => {
         const t = e && e.type ? String(e.type).toLowerCase() : ''
-        if (t.indexOf('wake.detected') !== -1) setPhase('detected')
-        else if (t.indexOf('stt') !== -1 || t.indexOf('transcript') !== -1 || t.indexOf('asr') !== -1) setPhase('transcribing')
-        else if (t.indexOf('tts') !== -1 || t.indexOf('audio.play') !== -1 || t.indexOf('speaking') !== -1) setPhase('speaking')
-        else if (t.indexOf('approval') !== -1) setPhase('approval')
-        else if (t.indexOf('wake.pause') !== -1) setPhase('listening')
-        else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('unknown')
+        if (t.indexOf('wake.detected') !== -1) {
+          setPhase('detected')
+          markVoiceTrace('wake.detected')
+          // ChatView stays mounted under Home (Desktop keep-mounted patch).
+          // Do NOT navigate to '/' — that is NEW_CHAT_ROUTE and mints sessions.
+        } else if (t.indexOf('stt') !== -1 || t.indexOf('transcript') !== -1 || t.indexOf('asr') !== -1) {
+          setPhase('transcribing')
+          markVoiceTrace('stt')
+        } else if (t.indexOf('tts') !== -1 || t.indexOf('audio.play') !== -1 || t.indexOf('speaking') !== -1) {
+          setPhase('speaking')
+          markVoiceTrace('tts')
+        } else if (t.indexOf('approval') !== -1) setPhase('approval')
+        else if (t.indexOf('wake.pause') !== -1) {
+          setPhase('listening')
+          markVoiceTrace('wake.pause')
+        } else if (t.indexOf('wake.resume') !== -1 || t.indexOf('wake.start') !== -1) setPhase('unknown')
         else if (t.indexOf('wake.stop') !== -1) setPhase('muted')
         else if (t.indexOf('error') !== -1 && t.indexOf('parse') === -1) setPhase('error')
       })
@@ -117,6 +172,14 @@ function usePersonaState(wake, probe) {
   }, [])
 
   return derivePersona(gateway, busy, waiting, phase, wake, probe)
+}
+
+function usePinPersonalSession() {
+  const stored = useValue(host.state.focusedStoredSessionId)
+  useEffect(() => {
+    if (!stored) return
+    try { localStorage.setItem('neewa.personalSessionId', String(stored)) } catch { /* noop */ }
+  }, [stored])
 }
 
 const STATE_META = {
@@ -280,7 +343,7 @@ function useCron() {
 function useWake() {
   const [state, setState] = useState({
     status: 'loading', listening: false, enabled: false, available: false,
-    audioSilent: false, phrase: 'hey neewa', capture: '', hint: '', owner: '',
+    audioSilent: false, audioSilentKnown: false, pcmFrames: 0, phrase: 'hey neewa', capture: '', hint: '', owner: '',
     at: 0, armedAt: 0,
   })
   const armedAtRef = useRef(0)
@@ -292,12 +355,20 @@ function useWake() {
       if (listening && !wasListeningRef.current) armedAtRef.current = Date.now()
       if (!listening) armedAtRef.current = 0
       wasListeningRef.current = listening
+      const silentKnown = !!(data && Object.prototype.hasOwnProperty.call(data, 'audio_silent'))
+      let pcmFrames = 0
+      try {
+        const health = window.__NEEWA_WAKE_HEALTH__
+        if (health && typeof health.frames === 'number') pcmFrames = health.frames
+      } catch { /* noop */ }
       setState({
         status: 'ok',
         listening,
         enabled: !(data && data.enabled === false),
         available: !(data && data.available === false),
         audioSilent: !!(data && data.audio_silent),
+        audioSilentKnown: silentKnown,
+        pcmFrames,
         phrase: String((data && (data.phrase || data.wake_phrase)) || 'hey neewa'),
         capture: String((data && data.capture) || ''),
         hint: String((data && data.hint) || ''),
@@ -487,15 +558,13 @@ async function startListening(refresh) {
   try {
     await host.request('wake.pause', {})
   } catch { /* listener may already be idle */ }
-  try {
-    host.navigate('/')
-  } catch { /* already on chat */ }
+  markVoiceTrace('startListening')
   window.setTimeout(() => {
     try {
       window.dispatchEvent(new CustomEvent('hermes:composer-voice-toggle', { detail: { target: 'main' } }))
     } catch { /* composer bus unavailable */ }
-  }, 280)
-  host.notify({ kind: 'info', message: 'NEEWA is listening — speak your request now (same agent as Hey Neewa)' })
+  }, 80)
+  host.notify({ kind: 'info', message: 'NEEWA is listening on Home — speak now (same agent as Hey Neewa)' })
   if (refresh) window.setTimeout(refresh, 800)
 }
 async function stopConversation(sessionId, refresh) {
@@ -529,12 +598,16 @@ async function cancelTask(sessionId) {
 }
 
 function PrivacyBadge({ persona, wake }) {
-  const muted = persona === 'muted' || (wake && wake.status === 'ok' && !wake.listening)
+  // After wake.detected the detector pauses (!wake.listening). That is NOT mute —
+  // conversation capture owns the mic. Never treat pause as MIC OFF mid-turn.
+  const conversational = persona === 'listening' || persona === 'transcribing' || persona === 'detected'
+    || persona === 'speaking' || persona === 'thinking' || persona === 'working'
+  const muted = persona === 'muted' || (!conversational && wake && wake.status === 'ok' && !wake.listening)
   let label = 'UNKNOWN'
   let color = '#A0AEC0'
-  if (muted) { label = 'MIC OFF'; color = '#FC8181' }
-  else if (persona === 'listening' || persona === 'transcribing' || persona === 'detected') { label = 'MIC LIVE'; color = '#68D391' }
+  if (persona === 'listening' || persona === 'transcribing' || persona === 'detected') { label = 'MIC LIVE'; color = '#68D391' }
   else if (persona === 'speaking' || persona === 'thinking' || persona === 'working') { label = 'BUSY'; color = '#F6C85F' }
+  else if (muted) { label = 'MIC OFF'; color = '#FC8181' }
   else if (persona === 'stream_active') { label = 'READY'; color = '#68D391' }
   else if (persona === 'stream_inactive') { label = 'NO AUDIO'; color = '#F6AD55' }
   else if (persona === 'starting' || persona === 'armed') { label = 'STARTING'; color = '#4FD1C5' }
@@ -552,6 +625,7 @@ function PrivacyBadge({ persona, wake }) {
 function CommandRail({ variant }) {
   const compact = variant !== 'home'
   const heading = variant === 'hud' ? 'NEEWA HUD' : 'Command Center'
+  usePinPersonalSession()
   const gateway = useValue(host.state.gateway)
   const busy = useValue(host.state.busy)
   const waiting = useValue(host.state.awaitingResponse)
@@ -593,13 +667,13 @@ function CommandRail({ variant }) {
         ['Wake', wake.status === 'ok' ? (wake.listening ? `listener on · ${wake.phrase}` : 'off') : wake.status],
         ['Aliases', 'hey neewa · hey niva · hey neeva · hey neva · he neva'],
         ['Capture', wake.capture || '—'],
-        ['Stream', wake.status === 'ok' ? (wake.audioSilent ? 'SILENT — Rearm (PCM not reaching detector)' : (persona === 'stream_active' ? 'READY · wake audio flowing' : (persona === 'starting' ? 'starting…' : 'unknown'))) : 'unknown'],
+        ['Stream', wake.status === 'ok' ? (wake.audioSilent === true ? 'SILENT — Rearm (PCM not reaching detector)' : (wake.audioSilentKnown !== true && !(wake.pcmFrames > 0) ? 'UNKNOWN — no audio_silent/PCM proof' : (persona === 'stream_active' ? 'READY · wake audio flowing' : (persona === 'starting' ? 'starting…' : 'unknown')))) : 'unknown'],
         ['Windows mic', probe.label || (probe.permission === 'denied' ? 'permission denied' : probe.status)],
         ['Speech', voiceRt.speech],
         ['Mode', voiceRt.mode],
         ['STT', voiceRt.stt],
-        ['TTS provider', 'telemetry unavailable (no tts.provider RPC)'],
-        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' || persona === 'detected' ? 'MIC LIVE' : (persona === 'stream_active' ? 'READY' : (persona === 'stream_inactive' ? 'NO AUDIO' : 'UNKNOWN')))],
+        ['TTS provider', 'telemetry unavailable (no tts.provider RPC) · live=nous coral + auto_tts'],
+        ['Privacy', persona === 'muted' ? 'MIC OFF' : (persona === 'listening' || persona === 'detected' || persona === 'transcribing' ? 'MIC LIVE (conversation)' : (persona === 'speaking' || persona === 'thinking' || persona === 'working' ? 'BUSY' : (persona === 'stream_active' ? 'READY' : (persona === 'stream_inactive' ? 'NO AUDIO' : 'UNKNOWN'))))],
       ])),
       Section('Assistant', Grid([
         ['Model', String(model || 'unknown')],
@@ -639,16 +713,19 @@ function CommandRail({ variant }) {
           jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),
           jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
           compact
-            ? jsx(Btn, { children: 'Open Home', onClick: () => host.navigate(HOME_PATH) })
+            ? jsx(Btn, { children: 'Open Home', onClick: () => { haptic('tap'); goHomeSurface() } })
             : jsx(Btn, { children: 'Open HUD', onClick: () => { haptic('tap'); openHudSurface() } }),
-          jsx(Btn, { children: 'Chat', onClick: () => host.navigate('/') }),
+          variant === 'hud'
+            ? jsx(Btn, { children: 'Close HUD', onClick: () => { haptic('tap'); closeHudSurface() } })
+            : null,
+          jsx(Btn, { children: 'Chat', onClick: () => { haptic('tap'); openTranscript() } }),
           jsx(Btn, { children: 'Jobs', onClick: () => host.navigate('/cron') }),
           jsx(Btn, { children: 'Refresh', onClick: () => { haptic('tap'); refreshCron(); refreshWake() } }),
         ],
       }),
       jsx('div', {
         className: 'mt-auto pt-2 text-[0.6875rem] leading-relaxed text-(--ui-text-tertiary)',
-        children: 'Host health and morning brief are snapshot-backed. TTS provider is CLI/host config (no plugin RPC). Native HUD: Ctrl+Shift+H.',
+        children: 'Home = assistant. HUD = compact overlay. Conversation = optional transcript. Same NEEWA session. Unmute the speaker icon. Double-clap is off unless localStorage neewa.doubleClap=1.',
       }),
     ],
   })
@@ -657,6 +734,7 @@ function CommandRail({ variant }) {
 function NeewaHome() {
   const gateway = useValue(host.state.gateway)
   const sessionId = useValue(host.state.focusedSessionId)
+  usePinPersonalSession()
   const [wake, refreshWake] = useWake()
   const probe = useCaptureProbe()
   const persona = usePersonaState(wake, probe)
@@ -699,7 +777,9 @@ function NeewaHome() {
             : persona === 'mic_denied'
               ? 'Windows denied microphone permission for Hermes Desktop.'
             : persona === 'stream_active'
-              ? 'READY. Say “Hey Neewa / Niva / Neeva”, then your request. You should hear a spoken reply. Start listening = same NEEWA if wake misses.'
+              ? 'Stay on Home. Say “Hey Neewa”, then your request. Do not switch to Conversation — the orb is the assistant.'
+            : persona === 'unknown'
+              ? 'Listener is on but audio health is unproven. Wait for READY or tap Rearm.'
             : persona === 'listening' || persona === 'detected'
               ? 'Listening — keep speaking your request.'
             : persona === 'thinking' || persona === 'working'
@@ -719,7 +799,7 @@ function NeewaHome() {
               jsx(Btn, { children: 'Cancel task', danger: true, onClick: () => { haptic('tap'); void cancelTask(sessionId) } }),
               jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
           jsx(Btn, { children: 'Open HUD', onClick: () => { haptic('tap'); openHudSurface() } }),
-          jsx(Btn, { children: 'Conversation', onClick: () => host.navigate('/') }),
+          jsx(Btn, { children: 'Conversation', onClick: () => { haptic('tap'); openTranscript() } }),
         ],
       }),
     ],
@@ -727,23 +807,33 @@ function NeewaHome() {
 }
 
 function NeewaHud() {
-  const [wake] = useWake()
+  const [wake, refreshWake] = useWake()
   const probe = useCaptureProbe()
   const persona = usePersonaState(wake, probe)
   const meta = STATE_META[persona] || STATE_META.unknown
   const gateway = useValue(host.state.gateway)
+  const sessionId = useValue(host.state.focusedSessionId)
   return jsxs('div', {
-    className: 'flex h-full w-full flex-col bg-[#050f14] text-sm text-foreground',
+    className: 'relative flex h-full w-full flex-col overflow-hidden text-sm text-foreground',
+    style: {
+      background: 'radial-gradient(ellipse at 30% 20%, rgba(20,80,90,0.55) 0%, rgba(5,15,20,0.92) 45%, #030a0e 100%)',
+    },
     children: [
+      jsx('div', {
+        className: 'pointer-events-none absolute inset-0 opacity-40',
+        style: {
+          backgroundImage: 'radial-gradient(circle at 70% 80%, rgba(79,209,197,0.12), transparent 40%), radial-gradient(circle at 10% 60%, rgba(104,211,145,0.08), transparent 35%)',
+        },
+      }),
       jsxs('div', {
-        className: 'flex items-center gap-4 border-b border-(--ui-border) px-4 py-3',
+        className: 'relative z-10 flex items-center gap-4 border-b border-white/10 px-4 py-3 backdrop-blur-sm',
         children: [
           jsx('div', { style: { width: 72, height: 72 }, children: jsx(PersonaCanvas, { state: persona }) }),
           jsxs('div', {
             className: 'flex min-w-0 flex-1 flex-col gap-1',
             children: [
               jsxs('div', {
-                className: 'flex items-center gap-2',
+                className: 'flex flex-wrap items-center gap-2',
                 children: [
                   jsx('span', { className: 'font-semibold tracking-[0.2em] text-(--ui-accent)', children: 'NEEWA' }),
                   jsx('span', { className: 'text-[0.6875rem] text-(--ui-text-tertiary)', children: connLabel(gateway) }),
@@ -751,12 +841,32 @@ function NeewaHud() {
                 ],
               }),
               jsx('div', { style: { color: meta.hue }, children: meta.label }),
-              jsx('div', { className: 'text-[0.6875rem] text-(--ui-text-tertiary)', children: 'Compact HUD. Native overlay: Ctrl+Shift+H (movable, always-on-top).' }),
+              jsx('div', {
+                className: 'text-[0.6875rem] text-(--ui-text-tertiary)',
+                children: 'Compact overlay of the same NEEWA — not a second assistant. Go Home keeps this conversation.',
+              }),
+            ],
+          }),
+          jsxs('div', {
+            className: 'flex shrink-0 flex-wrap gap-2',
+            children: [
+              jsx(Btn, { children: 'Go Home', onClick: () => { haptic('tap'); goHomeSurface() } }),
+              jsx(Btn, { children: 'Conversation', onClick: () => { haptic('tap'); openTranscript() } }),
+              jsx(Btn, { children: 'Close HUD', onClick: () => { haptic('tap'); closeHudSurface() } }),
             ],
           }),
         ],
       }),
-      jsx('div', { className: 'min-h-0 flex-1', children: jsx(CommandRail, { variant: 'hud' }) }),
+      jsxs('div', {
+        className: 'relative z-10 flex flex-wrap gap-2 border-b border-white/10 px-4 py-2',
+        children: [
+          jsx(Btn, { children: 'Start listening', onClick: () => { haptic('tap'); void startListening(refreshWake) } }),
+          jsx(Btn, { children: 'Mute', danger: true, onClick: () => { haptic('tap'); void muteListener(refreshWake) } }),
+          jsx(Btn, { children: 'Stop', danger: true, onClick: () => { haptic('tap'); void stopConversation(sessionId, refreshWake) } }),
+          jsx(Btn, { children: 'Rearm', onClick: () => { haptic('tap'); void rearmListener(refreshWake) } }),
+        ],
+      }),
+      jsx('div', { className: 'relative z-10 min-h-0 flex-1', children: jsx(CommandRail, { variant: 'hud' }) }),
     ],
   })
 }
@@ -786,22 +896,22 @@ function maybeOpenHomeOnStartup() {
     const hash = (typeof window !== 'undefined' && window.location ? window.location.hash : '') || ''
     const path = hash.replace(/^#/, '')
     if (path === '' || path === '/') {
-      setTimeout(() => {
-        try {
-          const now = (window.location.hash || '').replace(/^#/, '')
-          if (now === '' || now === '/') host.navigate(HOME_PATH)
-        } catch { /* noop */ }
-      }, 1200)
+      try { host.navigate(HOME_PATH) } catch { /* noop */ }
     }
   } catch { /* noop */ }
+}
+
+function bindClapToVoice() {
+  const onClap = () => { void startListening(null) }
+  try { window.addEventListener('hermes:neewa-clap', onClap) } catch { /* noop */ }
 }
 
 export default {
   id: ID,
   name: 'NEEWA Command Center',
   register(ctx) {
-    ctx.register({ id: 'home', area: ROUTES, title: 'NEEWA', data: { path: HOME_PATH }, render: () => jsx(NeewaHome, {}) })
-    ctx.register({ id: 'hud', area: ROUTES, title: 'NEEWA HUD', data: { path: HUD_PATH }, render: () => jsx(NeewaHud, {}) })
+    ctx.register({ id: 'home', area: ROUTES, title: 'NEEWA', data: { path: HOME_PATH, keepChatMounted: true }, render: () => jsx(NeewaHome, {}) })
+    ctx.register({ id: 'hud', area: ROUTES, title: 'NEEWA HUD', data: { path: HUD_PATH, keepChatMounted: true }, render: () => jsx(NeewaHud, {}) })
     ctx.register({ id: 'home-nav', area: SIDEBAR_NAV, order: 5, data: { codicon: 'hubot', label: 'NEEWA Home', path: HOME_PATH } })
     ctx.register({ id: 'hud-nav', area: SIDEBAR_NAV, order: 6, data: { codicon: 'window', label: 'NEEWA HUD', path: HUD_PATH } })
     ctx.register({ id: 'pane', area: 'panes', title: 'NEEWA', data: { placement: 'right', width: '300px' }, render: () => jsx(Pane, {}) })
@@ -822,5 +932,6 @@ export default {
       data: { id: 'neewa.openHome', category: 'view', defaults: ['mod+alt+n'], label: 'NEEWA: Open Home', run: () => host.navigate(HOME_PATH) },
     })
     maybeOpenHomeOnStartup()
+    bindClapToVoice()
   },
 }

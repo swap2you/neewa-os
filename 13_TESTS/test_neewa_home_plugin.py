@@ -63,8 +63,37 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("READY", self.src)
         self.assertIn("NO AUDIO", self.src)
         self.assertIn("Open HUD", self.src)
+        self.assertIn("Close HUD", self.src)
+        self.assertIn("Go Home", self.src)
+        self.assertIn("closeHudSurface", self.src)
+        self.assertIn("keepChatMounted", self.src)
+        self.assertIn("openTranscript", self.src)
+        self.assertIn("neewa.personalSessionId", self.src)
+        self.assertIn("audioSilentKnown", self.src)
+        self.assertIn("__NEEWA_WAKE_HEALTH__", self.src)
+        self.assertIn("hermes:neewa-clap", self.src)
+        self.assertNotIn("ensureConversationAfterWake", self.src)
+        self.assertIn("conversational", self.src)
         self.assertIn("hermesDesktop", self.src)
         self.assertIn("prefers-reduced-motion", self.src)
+
+    def test_home_does_not_navigate_to_new_chat_on_wake_or_listen(self):
+        start = self.src.index("async function startListening")
+        end = self.src.index("async function stopConversation")
+        body = self.src[start:end]
+        self.assertNotIn("host.navigate('/'", body)
+        self.assertNotIn('host.navigate("/")', body)
+        self.assertIn("Do NOT navigate to '/'", self.src)
+        self.assertIn("NEW_CHAT_ROUTE", self.src)
+
+    def test_ready_requires_positive_audio_evidence(self):
+        derive_start = self.src.index("function derivePersona")
+        derive_end = self.src.index("function usePersonaState")
+        body = self.src[derive_start:derive_end]
+        self.assertIn("audioSilentKnown", body)
+        self.assertIn("pcmFrames", body)
+        self.assertIn("return 'unknown'", body)
+        self.assertNotRegex(body, r"if \(wake\.audioSilent\) return 'stream_inactive'\s+if \(wake\.armedAt")
 
     def test_wake_states_are_not_optimistic(self):
         self.assertIn("audio_silent", self.src)

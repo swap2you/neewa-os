@@ -1,0 +1,9 @@
+{
+  "job_id": "JOB-20260916-003",
+  "title": "Personal Windows worker artifact",
+  "status": "complete",
+  "scope": "USERPROFILE/NEEWA-Personal/jobs",
+  "artifact": "JOB-20260916T164408-personal-artifact.txt",
+  "git_writer": "Cursor",
+  "public_listener": false
+}

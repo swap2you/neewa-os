@@ -29,6 +29,7 @@
 - `04_MEMORY/PROJECT_REGISTRY.md`
 - `04_MEMORY/jobs/JOB-20260916-001.json`
 - `04_MEMORY/jobs/JOB-20260916-002.json`
+- `04_MEMORY/jobs/JOB-20260916-003.json`
 - `05_OPERATIONS/BACKUP_RECOVERY.md`
 - `05_OPERATIONS/DAILY_EXECUTIVE_BRIEF.md`
 - `05_OPERATIONS/DOCUMENTATION_STANDARD.md`
@@ -140,6 +141,12 @@
 - `16_WINDOWS_CLIENT/assets/neewa-command-center/plugin.js`
 - `16_WINDOWS_CLIENT/assets/neewa.yaml`
 - `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
+- `16_WINDOWS_CLIENT/hermes-desktop-patches/Apply-NeewaDesktopPatch.ps1`
+- `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
+- `16_WINDOWS_CLIENT/worker/README.md`
+- `16_WINDOWS_CLIENT/worker/capability_inventory.json`
+- `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
+- `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
 - `AI-OPS/company/APPROVAL_MATRIX.md`
 - `AI-OPS/company/OWNER.md`
 - `AI-OPS/company/POLICIES.md`

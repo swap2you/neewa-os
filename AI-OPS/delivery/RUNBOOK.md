@@ -4,25 +4,28 @@
 1. Sign in to Windows normally. Hermes Desktop auto-starts (Startup shortcut → packed
    `...\apps\desktop\release\win-unpacked\Hermes.exe`) and reconnects to `neewa-core-01` (primary).
 2. The app opens **NEEWA Home** (`/neewa-home`). Wake auto-arms on connect (no ear click).
-3. Home must show **STREAM ACTIVE** (not STREAM INACTIVE). Say **"Hey Neewa"**,
-   **"Hey Niva"**, or **"Hey Neeva"** — Sherpa listens for those aliases on the
-   same profile. If detection misses, tap **Start listening** (same client voice
-   path as a successful wake). **Mute** = wake.stop. **Stop** = voice.toggle off +
-   session.interrupt + rearm. **Cancel task** = session.interrupt. **Rearm** = wake.start.
+3. Home must show **READY** only when `audio_silent === false` or PCM frame
+   counters are flowing. Missing telemetry is **UNKNOWN**, not READY. Stay on
+   **NEEWA Home** while speaking — Conversation is an optional transcript, not
+   the required voice UI. Say **"Hey Neewa"**, **"Hey Niva"**, or **"Hey Neeva"**.
 
 ## What “READY” means (read this)
 
 | Badge | Meaning | What you do |
 | --- | --- | --- |
-| **READY** | Listener armed and wake audio is flowing | Say **Hey Neewa / Niva / Neeva**, then your request |
+| **UNKNOWN** | Listener on but no positive PCM/`audio_silent` proof | Wait or Rearm |
+| **READY** | Positive evidence of wake audio | Say **Hey Neewa / Niva / Neeva**, then your request |
 | **NO AUDIO** | Listener on but PCM is silent/missing | Tap **Rearm**; close Wispr/Zoom if they hold the mic |
 | **STARTING** | Just armed (≤2.5s) | Wait a moment for READY |
 | **MIC LIVE** | Wake fired / recording your request | Keep speaking |
 | **BUSY** | Thinking / working / speaking | Wait for the spoken reply |
 | **MIC OFF** | Muted | Tap **Rearm** |
 
-**Start listening** is still NEEWA (same remote agent). It opens the voice conversation
-the same way a successful wake does — not a different chatbot.
+**Start listening** is still NEEWA on Home (same remote agent and the same
+mounted composer). It must not jump to `#/` (that route is New Chat).
+
+Home / HUD / Conversation share one session. HUD is the compact overlay, not a
+second assistant. Native always-on-top HUD remains Ctrl+Shift+H.
 
 **Spoken reply:** after wake + your request, NEEWA should speak through your selected
 speakers (Nous coral). Chained mode is STT → agent → TTS, so a few seconds of delay is
@@ -58,6 +61,8 @@ reopens. If Iriun is put back as Communications default, wake will fail again.
 
 ## Rollback
 - Plugin: `git revert` then copy `plugin.js` into `%LOCALAPPDATA%\hermes\desktop-plugins\neewa-command-center\`.
+- Desktop keep-mounted patch: restore `resources\app.asar.bak-neewa-*` (see
+  `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`).
 - TTS: `hermes config set tts.provider edge` on the server.
 - Wake aliases: `python3 12_SCRIPTS/apply_neewa_wake_aliases.py` then
   `systemctl --user restart hermes-gateway.service`. Rollback the

@@ -141,6 +141,7 @@
 - `evidence/NEEWA_OS/JOB-20260916-001/repository-validation.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/system-audit.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/unit-tests.txt`
+- `evidence/NEEWA_OS/JOB-20260916-002/done-gate.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/fallback-integration.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/independent-review-final.json`
 - `evidence/NEEWA_OS/JOB-20260916-002/local-model-benchmark.json`

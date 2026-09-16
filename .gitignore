@@ -30,3 +30,13 @@ Thumbs.db
 NEEWA-OS-v1.0.zip
 *.zip
 !16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip
+
+# Temporary owner handoff packs (extracted/verified outside Git; never committed)
+NEEWA_Jarvis_V1_FINAL.zip.sha256
+NEEWA_Jarvis_V1_Cursor_Starting_Prompt.md
+00_EXTRACT_NEEWA_JARVIS_PACK.cmd
+02_MASTER_MISSION.md
+03_NEEWA_BACKEND_WORK_ORDER.md
+NEEWA_Jarvis_Master_Cursor_Prompt.md
+NEEWA_Jarvis_Delivery_Pack.zip
+Archive/

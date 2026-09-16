@@ -138,6 +138,12 @@
 - `AI-OPS/company/APPROVAL_MATRIX.md`
 - `AI-OPS/company/OWNER.md`
 - `AI-OPS/company/POLICIES.md`
+- `AI-OPS/delivery/ACCEPTANCE.md`
+- `AI-OPS/delivery/BACKLOG.md`
+- `AI-OPS/delivery/NEEWA_JARVIS_V1_SPEC.md`
+- `AI-OPS/delivery/RUNBOOK.md`
+- `AI-OPS/delivery/VOICE_PROVIDER_MATRIX.md`
+- `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`

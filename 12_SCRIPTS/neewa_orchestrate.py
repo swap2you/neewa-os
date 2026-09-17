@@ -356,7 +356,16 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                 except json.JSONDecodeError:
                     extra = {}
                 if isinstance(extra, dict):
-                    for key in ("stdout_tail", "usage", "artifact_paths", "status", "reason", "failure_class", "preflight"):
+                    for key in (
+                        "stdout_tail",
+                        "usage",
+                        "artifact_paths",
+                        "status",
+                        "reason",
+                        "failure_class",
+                        "preflight",
+                        "authorization",
+                    ):
                         if extra.get(key) not in (None, "", []):
                             payload[key] = extra[key]
             return inferred, payload
@@ -400,6 +409,8 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             record["failure_class"] = payload.get("failure_class")
         if payload.get("preflight"):
             record["preflight"] = payload.get("preflight")
+        if payload.get("authorization"):
+            record["authorization"] = payload.get("authorization")
         record["validation"] = {
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),

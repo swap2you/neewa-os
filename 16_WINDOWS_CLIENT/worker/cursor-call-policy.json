@@ -21,6 +21,7 @@
   "workspace_root": "C:\\Development\\Workspace",
   "sandbox_repo": "%USERPROFILE%\\NEEWA-Personal\\cursor-sandbox",
   "authorization_mode": "personal_roots_except_denied",
+  "authorization_semantics": "requested_vs_prohibited",
   "personal_roots": [
     "C:\\Development\\Workspace",
     "%USERPROFILE%\\NEEWA-Personal"
@@ -89,6 +90,8 @@
     "--trust is headless workspace trust for an already-approved repo. It is not all-drive access.",
     "--force is used only for authorized A1 writes. Read-only jobs use --mode ask.",
     "A2/A3 remain owner-gated. Routine A1 work under personal roots does not re-prompt and does not require a per-repo allowlist entry.",
+    "Authorization uses requested-versus-prohibited semantics shared with the controller. A prohibition such as 'publication is prohibited' is not a request to publish. Last-token stem matching is forbidden so KEY does not match keys.",
+    "Receipts record requested_action, prohibited_actions, matched_rule, effective_approval and decision reason. Do not log credentials or the full prompt.",
     "approved_repo_names and catalog_repo_names are descriptive. Authorization is personal roots minus the deny list.",
     "The Workspace drive root is not itself a Cursor workspace because it contains excluded trees."
   ]

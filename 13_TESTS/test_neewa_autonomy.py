@@ -1038,6 +1038,283 @@ class ActionSemanticsTests(unittest.TestCase):
                 self.mod.close_misclassified_intake(closed, reason="again")
 
 
+LOCAL_DATE_SUMMARY_56E_OBJECTIVE = (
+    "Build a new isolated personal project named local_date_summary in "
+    r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary. "
+    "Implement a Python 3 standard-library CLI that accepts a date in YYYY-MM-DD "
+    "format and prints its weekday and whether its year is a leap year. Invalid "
+    "dates must produce a clear stderr error and a nonzero exit code. Include unit "
+    "tests covering valid dates, leap years, non-leap years, and invalid dates, plus "
+    "concise usage documentation. Use the actual product test command for this new "
+    "project, independently rerun the product tests in the correct project workspace, "
+    "validate actual files and behavior, and produce controller-owned requirement "
+    "traceability. Keep all work isolated to this new project and preserve historical "
+    "jobs and unrelated projects. Stop at OWNER_REVIEW only after implementation, "
+    "tests, independent rerun, and traceability pass."
+)
+
+ORIGINAL_GENERATED_CHILD_PROMPT = f"""Implement this approved NEEWA work package. Do not change the objective.
+
+OBJECTIVE:
+{LOCAL_DATE_SUMMARY_56E_OBJECTIVE}
+
+REQUIREMENTS (REQ-v1):
+- REQ-001: Deliver the requested change for `isolated_personal_project_named`.
+- REQ-003: Run the repository test command (python -m unittest) covering the changed behavior.
+
+APPROVED DESIGN (DES-v1):
+Python CLI in the approved cursor-sandbox.
+Error handling: non-zero exit and stderr on missing/unreadable/invalid input
+Filesystem scope: explicit path argument only; approved workspace
+
+Write ALL of these files (relative to the workspace root):
+- isolated_personal_project_named/isolated_personal_project_named.py
+- isolated_personal_project_named/test_isolated_personal_project_named.py
+- isolated_personal_project_named/test-results.json
+
+Rules:
+- Python 3 stdlib only.
+- Automated tests must actually run via python -m unittest.
+- Write test-results.json in the product folder with keys exit_code, passed, stdout, stderr from that unittest run.
+- Print a single final line: TEST_JSON:<compact json of test-results>
+- Stay inside this workspace. Do not touch employer trees or the rest of the C drive.
+- No public distribution, production rollout, buying services, or brokerage actions.
+- Do not claim files exist unless you wrote them.
+"""
+
+
+class WorkerAuthAndReconcileTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_worker_auth", str(AUTO)).load_module()
+
+    def _gate(self, prompt, write=True, repo=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox"):
+        return self.mod.authorize_execution(
+            approval_level="A1",
+            owner_decision=None,
+            prompt=prompt,
+            repo=repo,
+            write=write,
+        )
+
+    def test_original_56e_objective_is_a1_allow(self):
+        row = self.mod.classify_intent(LOCAL_DATE_SUMMARY_56E_OBJECTIVE)
+        self.assertEqual(row["intent"], "software")
+        self.assertEqual(row["workflow"], "sdlc")
+        self.assertEqual(row["approval"], "A1")
+        gate = self._gate(LOCAL_DATE_SUMMARY_56E_OBJECTIVE)
+        self.assertTrue(gate["allowed"], gate)
+        self.assertEqual(gate["needed"], "A1")
+        self.assertEqual(gate["reason"], "ALLOW")
+        self.assertIn(gate.get("requested_action"), {"none", "local_write", "read"})
+
+    def test_original_generated_child_prompt_is_a1_allow(self):
+        gate = self._gate(ORIGINAL_GENERATED_CHILD_PROMPT)
+        self.assertTrue(gate["allowed"], gate)
+        self.assertEqual(gate["needed"], "A1")
+        self.assertEqual(gate["reason"], "ALLOW")
+        self.assertIsNone(gate.get("matched_rule"))
+        self.assertIn("purchase", gate.get("prohibited_actions") or [])
+        self.assertIn("deploy", gate.get("prohibited_actions") or [])
+        self.assertNotIn("purchase", gate.get("requested_families") or [])
+
+    def test_corrected_build_worker_prompt_is_a1_allow(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(
+                LOCAL_DATE_SUMMARY_56E_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary",
+                root=Path(tmp),
+            )
+            reqs = self.mod.build_requirements(
+                LOCAL_DATE_SUMMARY_56E_OBJECTIVE,
+                workspace=job.get("workspace"),
+            )
+            design = self.mod.initial_design(reqs, LOCAL_DATE_SUMMARY_56E_OBJECTIVE)
+            prompt = self.mod.build_worker_prompt(job, reqs, design)
+            self.assertIn("Do not publish, deploy to production", prompt)
+            self.assertNotIn("production rollout", prompt)
+            self.assertNotIn("with keys exit_code", prompt)
+            gate = self._gate(prompt)
+            self.assertTrue(gate["allowed"], gate)
+            self.assertEqual(gate["needed"], "A1")
+
+    def test_negated_and_comma_separated_prohibitions_are_not_requests(self):
+        cases = [
+            "build a helper CLI. No publication, deployment, external messages, purchases, or destructive actions.",
+            "build a helper. Do not publish, deploy to production, send external messages, purchase anything, or take destructive actions.",
+            "- No public distribution, production rollout, buying services, or brokerage actions.",
+            "Implement tests. Write JSON with keys exit_code, passed, stdout, stderr. No publication.",
+        ]
+        for obj in cases:
+            gate = self._gate("build a local helper with unit tests. " + obj)
+            self.assertTrue(gate["allowed"], (obj, gate))
+            self.assertEqual(gate["needed"], "A1", obj)
+
+    def test_affirmative_a2_a3_requests_remain_gated(self):
+        publish = self._gate("publish this article to the public blog")
+        self.assertFalse(publish["allowed"])
+        self.assertEqual(publish["needed"], "A2")
+        deploy = self._gate("please deploy this to production")
+        self.assertFalse(deploy["allowed"])
+        self.assertEqual(deploy["needed"], "A2")
+        self.assertEqual(deploy.get("matched_rule"), "deploy to production")
+        purchase = self._gate("purchase a new domain")
+        self.assertFalse(purchase["allowed"])
+        self.assertEqual(purchase["needed"], "A2")
+        email = self._gate("send email to the client about the release")
+        self.assertFalse(email["allowed"])
+        self.assertEqual(email["needed"], "A2")
+        destroy = self._gate("delete all files in the repo")
+        self.assertFalse(destroy["allowed"])
+        self.assertEqual(destroy["needed"], "A2")
+        trade = self._gate("place a live trade for AAPL")
+        self.assertFalse(trade["allowed"])
+        self.assertEqual(trade["needed"], "A3")
+        pem = "-----BEGIN " + "PRIVATE KEY----- abc -----END " + "PRIVATE KEY-----"
+        secret = self._gate("store this " + pem)
+        self.assertFalse(secret["allowed"])
+        self.assertEqual(secret.get("matched_rule"), "BEGIN PRIVATE KEY")
+
+    def test_keys_field_is_not_private_key_rule(self):
+        self.assertFalse(
+            self.mod.SEM.blocked_fragment_is_requested(
+                "Write test-results.json with keys exit_code, passed, stdout, stderr",
+                "BEGIN PRIVATE KEY",
+            )
+        )
+        self.assertFalse(
+            self.mod.SEM.blocked_fragment_is_requested(
+                "No public distribution, production rollout, buying services.",
+                "deploy to production",
+            )
+        )
+
+    def test_authorization_is_auditable_without_prompt(self):
+        gate = self._gate(ORIGINAL_GENERATED_CHILD_PROMPT)
+        blob = json.dumps(gate)
+        self.assertNotIn("CURSOR_API_KEY", blob)
+        self.assertNotIn("BEGIN PRIVATE KEY", blob)
+        self.assertIn("requested_action", gate)
+        self.assertIn("prohibited_actions", gate)
+        self.assertIn("effective_approval", gate)
+        self.assertIn("reason", gate)
+
+    def test_blocked_child_reconciles_parent_and_releases_reservation_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                LOCAL_DATE_SUMMARY_56E_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["assigned_worker"] = "cursor-agent-cli"
+            job["active_child_id"] = "JOB-TEST-56E-CC01"
+            job["child_jobs"] = [{"job_id": "JOB-TEST-56E-CC01", "at": "2026-09-17T21:07:12Z"}]
+            job["budget"]["reserved_usd"] = 0.5
+            job["budget"]["consumed_usd"] = 0.0
+            self.mod.save_job(job)
+            harvests = {"n": 0}
+
+            def harvest(job_id, inbox_root=None):
+                harvests["n"] += 1
+                return {
+                    "job_id": job_id,
+                    "state": "BLOCKED",
+                    "failure_class": "POLICY",
+                    "failure_reason": "prompt requests a sensitive or consequential A2/A3 action; owner gate required",
+                    "authorization": {
+                        "allowed": False,
+                        "needed": "A2",
+                        "reason": "BLOCKED_INTENT",
+                        "matched_rule": "BEGIN PRIVATE KEY",
+                    },
+                }
+
+            closed = self.mod.reconcile_parent_job(job, orch_harvest=harvest)
+            self.assertEqual(closed["state"], "BLOCKED")
+            self.assertEqual(closed["budget"]["reserved_usd"], 0.0)
+            self.assertEqual(closed["budget"]["consumed_usd"], 0.0)
+            self.assertEqual(closed["child_failure"]["job_id"], "JOB-TEST-56E-CC01")
+            self.assertEqual(closed["child_failure"]["failure_class"], "POLICY")
+            self.assertEqual(len(closed["budget"]["invocations"]), 1)
+            self.assertEqual(closed["budget"]["invocations"][0]["cost_basis"], "not-started")
+            again = self.mod.reconcile_parent_job(closed, orch_harvest=harvest)
+            self.assertEqual(again["state"], "BLOCKED")
+            self.assertEqual(again["budget"]["reserved_usd"], 0.0)
+            self.assertEqual(again["budget"]["consumed_usd"], 0.0)
+            self.assertEqual(len(again["budget"]["invocations"]), 1)
+
+    def test_policy_block_does_not_redispatch_or_charge(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            inbox = Path(tmp) / "inboxroot"
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            submits = []
+
+            def submit(**kwargs):
+                submits.append(kwargs["job_id"])
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            def harvest(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "BLOCKED",
+                    "failure_class": "POLICY",
+                    "failure_reason": "prompt requests a sensitive or consequential A2/A3 action; owner gate required",
+                }
+
+            finished = self.mod.run_until_idle(
+                job, root=root, inbox_root=inbox, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(finished["state"], "BLOCKED")
+            self.assertEqual(len(submits), 1)
+            self.assertEqual(finished["budget"]["reserved_usd"], 0.0)
+            self.assertEqual(finished["budget"]["consumed_usd"], 0.0)
+            self.assertNotEqual(finished["state"], "DONE")
+            self.assertNotEqual(finished["state"], "OWNER_REVIEW")
+
+    def test_repair_unstarted_policy_charges_preserves_failed_history(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(LOCAL_DATE_SUMMARY_56E_OBJECTIVE, root=root)
+            job["state"] = "FAILED"
+            job["failure_reason"] = "identical child failure; stopping retries"
+            job["budget"]["consumed_usd"] = 1.0
+            job["budget"]["reserved_usd"] = 0.0
+            job["budget"]["invocations"] = [
+                {
+                    "worker": "cursor-agent-cli",
+                    "outcome": "BLOCKED",
+                    "cost_usd": 0.5,
+                    "cost_basis": "conservative_estimate",
+                },
+                {
+                    "worker": "cursor-agent-cli",
+                    "outcome": "BLOCKED",
+                    "cost_usd": 0.5,
+                    "cost_basis": "conservative_estimate",
+                },
+            ]
+            self.mod.save_job(job)
+            repaired = self.mod.repair_unstarted_policy_charges(
+                job, reason="POLICY blocked before Cursor start"
+            )
+            self.assertEqual(repaired["state"], "FAILED")
+            self.assertEqual(repaired["failure_reason"], "identical child failure; stopping retries")
+            self.assertEqual(repaired["budget"]["consumed_usd"], 0.0)
+            self.assertEqual(repaired["budget"]["reserved_usd"], 0.0)
+            self.assertFalse(repaired["budget_repair"]["restarted"])
+            self.assertFalse(repaired["budget_repair"]["relabeled_successful"])
+            self.assertIsNone(repaired["budget_repair"]["replacement_job"])
+            with self.assertRaises(ValueError):
+                self.mod.repair_unstarted_policy_charges(repaired, reason="again")
+
+
 class OrchestrateUsageTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_orchestrate_usage", str(ORCH)).load_module()

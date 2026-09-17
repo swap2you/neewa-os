@@ -172,7 +172,9 @@
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaRepoPreflight.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
+- `16_WINDOWS_CLIENT/worker/NeewaPersonalWorkspace.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/New-WorkspaceInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/README.md`

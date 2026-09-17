@@ -160,6 +160,79 @@ class CursorCallTests(unittest.TestCase):
         self.assertIn(result["status"], {"BLOCKED", "FAILED"})
         self.assertIn("not installed", (result.get("reason") or "").lower())
 
+    def test_original_generated_child_prompt_is_not_policy_blocked(self):
+        prompt = (
+            "Implement this approved NEEWA work package. Do not change the objective.\n"
+            "Write test-results.json in the product folder with keys exit_code, passed, "
+            "stdout, stderr from that unittest run.\n"
+            "- No public distribution, production rollout, buying services, or brokerage actions.\n"
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-56E-CHILD",
+                    "prompt": prompt,
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+        self.assertNotIn("sensitive", (result.get("reason") or "").lower())
+        self.assertIn("not installed", (result.get("reason") or "").lower())
+        auth = result.get("authorization")
+        if auth:
+            self.assertTrue(auth.get("allowed"))
+            self.assertEqual(auth.get("needed"), "A1")
+
+    def test_comma_separated_prohibition_bullet_is_not_sensitive(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-COMMA-NO",
+                    "prompt": (
+                        "Build a helper CLI.\n"
+                        "- Do not publish, deploy to production, send external messages, "
+                        "purchase anything, or take destructive actions."
+                    ),
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+        self.assertIn("not installed", (result.get("reason") or "").lower())
+
+    def test_affirmative_deploy_and_purchase_remain_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            deploy = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-DEPLOY-YES",
+                    "prompt": "Please deploy this to production after the tests pass.",
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+            purchase = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BUY-YES",
+                    "prompt": "Purchase a new domain for this app.",
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+        self.assertEqual(deploy["status"], "BLOCKED")
+        self.assertIn("sensitive", (deploy.get("reason") or "").lower())
+        self.assertEqual(purchase["status"], "BLOCKED")
+        self.assertIn("sensitive", (purchase.get("reason") or "").lower())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -43,7 +43,7 @@ function Get-OperativePrompt([string]$text) {
   $parts = [regex]::Split($work, '(?<=[.!?;])\s+|\s+(?i:but|however)\s+')
   $keep = New-Object System.Collections.Generic.List[string]
   foreach ($p in $parts) {
-    $t = ([string]$p).Trim()
+    $t = [regex]::Replace(([string]$p).Trim(), '^[\s>*\-•]+', '')
     if (-not $t) { continue }
     if ($t -match '^(?i)(?:please\s+)?(?:do not|does not|don''t|dont|must not|cannot|can''t|never|without|no|not to|avoid|refrain from|not for)\b') {
       continue
@@ -53,20 +53,89 @@ function Get-OperativePrompt([string]$text) {
   return ($keep -join ' ')
 }
 
-function Test-BlockedIntent([string]$text) {
-  $operative = (Get-OperativePrompt $text).ToLowerInvariant()
-  if (-not $operative) { return $false }
+function Get-NeewaAuthorizationFallback([string]$text) {
+  $operative = Get-OperativePrompt $text
+  $requested = @()
+  $prohibited = @()
+  $families = [ordered]@{
+    publish = 'publish|publication'
+    deploy = 'deploy|production rollout|rollout to production|roll this out'
+    purchase = 'purchase|purchases|purchasing|buy|buys|buying|subscribe'
+    send_message = 'send email|external messages|email the client'
+    destructive = 'drop database|format c:|rm -rf|delete everything|destructive actions'
+    financial = 'live trade|place order|wire transfer|bank transfer|send money'
+  }
+  $lower = $operative.ToLowerInvariant()
+  foreach ($name in $families.Keys) {
+    if ($lower -match ('\b(?:' + $families[$name] + ')')) { $requested += $name }
+  }
+  $prohibitedText = [regex]::Replace($text, '"[^"]*"', ' ')
+  $parts = [regex]::Split($prohibitedText, '(?<=[.!?;])\s+|\s+(?i:but|however)\s+')
+  foreach ($p in $parts) {
+    $t = [regex]::Replace(([string]$p).Trim(), '^[\s>*\-•]+', '')
+    if ($t -match '^(?i)(?:please\s+)?(?:do not|does not|don''t|dont|must not|cannot|can''t|never|without|no|not to|avoid|refrain from|not for)\b') {
+      $pt = $t.ToLowerInvariant()
+      foreach ($name in $families.Keys) {
+        if ($pt -match ('\b(?:' + $families[$name] + ')') -and $prohibited -notcontains $name) { $prohibited += $name }
+      }
+    }
+  }
+  $matched = $null
   foreach ($frag in @($policy.blocked_intent_substrings)) {
     if (-not $frag) { continue }
     $needle = $frag.ToLowerInvariant()
-    $token = (($frag.Trim() -split '\s+')[-1]).ToLowerInvariant()
-    $stem = [regex]::Replace($token, '(?:es|s|ed|ing)$', '')
-    if (-not $stem) { $stem = $token }
-    $present = $operative.Contains($needle) -or ($operative -match ('\b' + [regex]::Escape($stem) + '[a-z]*\b'))
-    if (-not $present) { continue }
-    return $true
+    $familyHit = $false
+    foreach ($name in $families.Keys) {
+      if ($needle -match ('\b(?:' + $families[$name] + ')')) {
+        $familyHit = $true
+        if ($requested -contains $name) { $matched = $frag; break }
+      }
+    }
+    if ($matched) { break }
+    if (-not $familyHit -and $lower.Contains($needle)) { $matched = $frag; break }
   }
-  return $false
+  $needed = 'A1'
+  if ($requested -contains 'financial' -or ($matched -and ($matched -match '(?i)live trade|place order|wire transfer|bank transfer|send money'))) { $needed = 'A3' }
+  elseif ($matched -or $requested.Count -gt 0) { $needed = 'A2' }
+  $allowed = $needed -in @('A0', 'A1')
+  return [pscustomobject]@{
+    allowed = $allowed
+    needed = $needed
+    reason = $(if ($allowed) { 'ALLOW' } elseif ($matched) { 'BLOCKED_INTENT' } else { ($needed + '_OWNER_GATE') })
+    matched_rule = $matched
+    requested_action = $(if ($requested.Count) { ($requested -join ',') } else { 'local_write' })
+    requested_families = $requested
+    prohibited_actions = $prohibited
+    effective_approval = $needed
+    detail = $matched
+  }
+}
+
+function Get-NeewaAuthorization([string]$text) {
+  $sem = Join-Path $here '..\..\12_SCRIPTS\neewa_action_semantics.py'
+  $py = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+  if ($py -and (Test-Path -LiteralPath $sem)) {
+    $tmpText = Join-Path $env:TEMP ('neewa-auth-' + [guid]::NewGuid().ToString() + '.txt')
+    $tmpFrag = Join-Path $env:TEMP ('neewa-auth-frags-' + [guid]::NewGuid().ToString() + '.json')
+    try {
+      [System.IO.File]::WriteAllText($tmpText, $text, [System.Text.UTF8Encoding]::new($false))
+      $fragJson = (@($policy.blocked_intent_substrings) | ConvertTo-Json -Compress)
+      if ($fragJson -notmatch '^\s*\[') { $fragJson = '[' + $fragJson + ']' }
+      [System.IO.File]::WriteAllText($tmpFrag, $fragJson, [System.Text.UTF8Encoding]::new($false))
+      $writeFlag = @()
+      if ($write) { $writeFlag = @('--write') }
+      $out = & $py.Source $sem --authorize --text-file $tmpText --fragments-file $tmpFrag @writeFlag
+      if ($LASTEXITCODE -eq 0 -and $out) {
+        return ($out | ConvertFrom-Json)
+      }
+    } catch {
+    } finally {
+      Remove-Item -LiteralPath $tmpText -Force -ErrorAction SilentlyContinue
+      Remove-Item -LiteralPath $tmpFrag -Force -ErrorAction SilentlyContinue
+    }
+  }
+  return Get-NeewaAuthorizationFallback $text
 }
 
 function Protect-Log([string]$text) {
@@ -157,10 +226,12 @@ function New-CursorResult($status, $reason, $artifact, $extra) {
     unrestricted_shell = $false
     write = $write
   }
+  if ($authorization) { $obj['authorization'] = $authorization }
   if ($extra) { foreach ($k in $extra.Keys) { $obj[$k] = $extra[$k] } }
   return [pscustomobject]$obj
 }
 
+$authorization = $null
 $artifact = Join-Path $JobsDir "$jobId-cursor-call.json"
 $logPath = Join-Path $JobsDir "$jobId-cursor-call.log"
 $argsPath = Join-Path $JobsDir "$jobId-cursor-call.args.txt"
@@ -172,9 +243,11 @@ if (-not $prompt) {
   $r.artifact = $artifact
   return $r
 }
-if (Test-BlockedIntent $prompt) {
+$authorization = Get-NeewaAuthorization $prompt
+if (-not [bool]$authorization.allowed) {
   $r = New-CursorResult 'BLOCKED' 'prompt requests a sensitive or consequential A2/A3 action; owner gate required' $null @{
     failure_class = 'POLICY'
+    authorization = $authorization
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact

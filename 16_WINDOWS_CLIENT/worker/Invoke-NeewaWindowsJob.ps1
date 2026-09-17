@@ -103,6 +103,7 @@ $result = [pscustomobject]@{
   host = $env:COMPUTERNAME
   failure_class = $(if ($cursorResult) { $cursorResult.failure_class } else { $null })
   preflight = $(if ($cursorResult -and $cursorResult.PSObject.Properties['preflight']) { $cursorResult.preflight } else { $null })
+  authorization = $(if ($cursorResult -and $cursorResult.PSObject.Properties['authorization']) { $cursorResult.authorization } else { $null })
 }
 $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stampFile -Encoding utf8
 return $result

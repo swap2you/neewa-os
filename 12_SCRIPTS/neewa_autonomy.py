@@ -430,7 +430,7 @@ def create_parent_job(
 
 def save_job(job: dict, root: Path | None = None) -> Path:
     path = Path(job.get("_path") or (autonomy_root(root) / f"{job['job_id']}.json"))
-    payload = {k: v for k, v in job.items() if k != "_path"}
+    payload = {k: v for k, v in job.items() if k not in {"_path", "_harvested_child"}}
     payload["updated_at"] = utc_now()
     save_json(path, payload)
     job["_path"] = str(path)
@@ -658,6 +658,54 @@ def load_policy() -> dict:
     return {}
 
 
+PRE_START_FAILURES = {
+    "POLICY",
+    "DENIED_REPO",
+    "UNAPPROVED_PATH",
+    "MALFORMED_EXPECTED_PATH",
+    "PATH_ESCAPE",
+    "BLOCKED_INTENT",
+    "CLI_MISSING",
+    "UNAUTHORIZED_REPO",
+}
+
+WORKER_SAFETY_RULE = (
+    "- Do not publish, deploy to production, send external messages, "
+    "purchase anything, or take destructive actions."
+)
+
+
+def _usage_measured(usage: dict | None) -> bool:
+    if not isinstance(usage, dict):
+        return False
+    for key in (
+        "inputTokens",
+        "input_tokens",
+        "outputTokens",
+        "output_tokens",
+        "cacheReadTokens",
+        "cacheWriteTokens",
+        "cost_usd",
+    ):
+        value = usage.get(key)
+        if value not in (None, "", 0, 0.0, "0"):
+            return True
+    return False
+
+
+def cursor_was_started(record: dict | None, usage: dict | None = None) -> bool:
+    payload = record or {}
+    measured = usage if usage is not None else payload.get("usage")
+    if _usage_measured(measured if isinstance(measured, dict) else None):
+        return True
+    cls = str(payload.get("failure_class") or "")
+    if cls in PRE_START_FAILURES:
+        return False
+    if payload.get("cli") or payload.get("exit_code") is not None:
+        return True
+    return False
+
+
 def authorize_execution(
     *,
     approval_level: str,
@@ -668,14 +716,12 @@ def authorize_execution(
 ) -> dict:
     """Job JSON owner_decision is untrusted and never grants A2/A3."""
     del owner_decision  # mutable job files are not an approval channel
-    blob = f"{prompt}\n{repo}".lower()
-    needed = "A1" if write else "A0"
-    needed_from_text = action_needed_from_text(blob)
-    if needed_from_text == "A3":
-        needed = "A3"
-    elif needed_from_text == "A2":
-        needed = "A2"
     policy = load_policy()
+    text_gate = SEM.authorize_text(
+        prompt or "",
+        blocked_fragments=policy.get("blocked_intent_substrings") or [],
+        write=write,
+    )
     repo_norm = repo.replace("/", "\\").lower()
     try:
         if repo:
@@ -685,62 +731,131 @@ def authorize_execution(
         pass
     for name in policy.get("denied_name_equals") or []:
         if name and name.lower() in repo_norm:
-            return {
-                "allowed": False,
-                "reason": "UNAUTHORIZED_REPO",
-                "needed": "DENIED",
-                "detail": name,
-            }
+            return SEM.public_authorization(
+                {
+                    **text_gate,
+                    "allowed": False,
+                    "reason": "UNAUTHORIZED_REPO",
+                    "needed": "DENIED",
+                    "detail": name,
+                    "matched_rule": name,
+                    "effective_approval": "DENIED",
+                }
+            )
     for frag in policy.get("denied_name_contains") or []:
         if frag and frag.lower() in repo_norm:
-            return {
-                "allowed": False,
-                "reason": "UNAUTHORIZED_REPO",
-                "needed": "DENIED",
-                "detail": frag,
-            }
+            return SEM.public_authorization(
+                {
+                    **text_gate,
+                    "allowed": False,
+                    "reason": "UNAUTHORIZED_REPO",
+                    "needed": "DENIED",
+                    "detail": frag,
+                    "matched_rule": frag,
+                    "effective_approval": "DENIED",
+                }
+            )
     if repo:
         path_gate = PLANNING.workspace_authorization(repo)
         if not path_gate["allowed"]:
-            return {
-                "allowed": False,
-                "reason": path_gate["reason"],
-                "needed": "DENIED",
-                "detail": repo,
-            }
-    for frag in policy.get("blocked_intent_substrings") or []:
-        if frag and SEM.blocked_fragment_is_requested(blob, frag):
-            mapped = "A3" if any(h in frag.lower() for h in A3_HINTS) else "A2"
-            return {
-                "allowed": False,
-                "reason": "BLOCKED_INTENT",
-                "needed": mapped,
-                "detail": frag,
-            }
+            return SEM.public_authorization(
+                {
+                    **text_gate,
+                    "allowed": False,
+                    "reason": path_gate["reason"],
+                    "needed": "DENIED",
+                    "detail": None,
+                    "matched_rule": path_gate["reason"],
+                    "effective_approval": "DENIED",
+                }
+            )
     rank = {"A0": 0, "A1": 1, "A2": 2, "A3": 3, "DENIED": 9}
+    needed = text_gate.get("needed") or ("A1" if write else "A0")
     if rank.get(needed, 9) >= 2:
-        return {"allowed": False, "reason": f"{needed}_OWNER_GATE", "needed": needed}
+        return SEM.public_authorization(
+            {
+                **text_gate,
+                "allowed": False,
+                "reason": text_gate.get("reason") or f"{needed}_OWNER_GATE",
+                "needed": needed,
+                "effective_approval": needed,
+            }
+        )
     if rank.get(needed, 0) > rank.get(approval_level, 0):
-        return {"allowed": False, "reason": f"{needed}_OWNER_GATE", "needed": needed}
-    return {"allowed": True, "needed": needed, "reason": None}
+        return SEM.public_authorization(
+            {
+                **text_gate,
+                "allowed": False,
+                "reason": f"{needed}_OWNER_GATE",
+                "needed": needed,
+                "effective_approval": needed,
+            }
+        )
+    return SEM.public_authorization({**text_gate, "allowed": True, "reason": "ALLOW"})
 
 
-def record_usage(job: dict, worker: str, outcome: str, usage: dict | None = None) -> None:
+def record_usage(
+    job: dict,
+    worker: str,
+    outcome: str,
+    usage: dict | None = None,
+    *,
+    child_id: str | None = None,
+    failure_class: str | None = None,
+    cursor_started: bool | None = None,
+) -> None:
+    invocations = job.setdefault("budget", {}).setdefault("invocations", [])
+    if child_id:
+        for existing in invocations:
+            if existing.get("child_id") == child_id:
+                if str(outcome).upper() in {"BLOCKED", "FAILED", "CANCELLED"}:
+                    release_open_reservation(job)
+                return
+    started = cursor_started
+    if started is None:
+        started = cursor_was_started(
+            {"failure_class": failure_class, "usage": usage},
+            usage,
+        )
+        if str(failure_class or "") in PRE_START_FAILURES:
+            started = False
+    if started is False:
+        inv = {
+            "at": utc_now(),
+            "worker": worker,
+            "outcome": outcome,
+            "child_id": child_id,
+            "input_tokens": None,
+            "output_tokens": None,
+            "cache_read_tokens": None,
+            "cache_write_tokens": None,
+            "cost_usd": 0.0,
+            "cost_basis": "not-started",
+            "failure_class": failure_class,
+        }
+        invocations.append(inv)
+        release_open_reservation(job)
+        decision = budget_decision(job, worker)
+        job["budget"]["consumed_usd"] = decision.get("consumed") or 0.0
+        job["budget"]["consumed_basis"] = "not-started"
+        return
     inv = {
         "at": utc_now(),
         "worker": worker,
         "outcome": outcome,
+        "child_id": child_id,
         "input_tokens": (usage or {}).get("inputTokens") or (usage or {}).get("input_tokens"),
         "output_tokens": (usage or {}).get("outputTokens") or (usage or {}).get("output_tokens"),
         "cache_read_tokens": (usage or {}).get("cacheReadTokens"),
         "cache_write_tokens": (usage or {}).get("cacheWriteTokens"),
         "cost_usd": (usage or {}).get("cost_usd"),
         "cost_basis": "measured" if (usage or {}).get("cost_usd") is not None else "pending",
+        "failure_class": failure_class,
     }
     cost, basis = invocation_cost(inv)
     inv["cost_usd"] = cost
     inv["cost_basis"] = basis
-    job["budget"].setdefault("invocations", []).append(inv)
+    invocations.append(inv)
     settle_reservation(job, cost)
     decision = budget_decision(job, worker)
     job["budget"]["consumed_usd"] = decision.get("consumed")
@@ -1236,7 +1351,7 @@ Rules:
 - Use this repository's toolchain. Run: {test_cmd}
 - Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
-- No public distribution, production rollout, buying services, or brokerage actions.
+{WORKER_SAFETY_RULE}
 - Do not claim files exist unless you changed or verified them.
 """
     return f"""Implement this approved NEEWA work package. Do not change the objective.
@@ -1258,10 +1373,10 @@ Write ALL of these files (relative to the workspace root):
 Rules:
 - Python 3 stdlib only.
 - Automated tests must actually run via python -m unittest.
-- Write test-results.json in the product folder with keys exit_code, passed, stdout, stderr from that unittest run.
+- Write test-results.json in the product folder with fields exit_code, passed, stdout, stderr from that unittest run.
 - Print a single final line: TEST_JSON:<compact json of test-results>
 - Stay inside this workspace. Do not touch employer trees or the rest of the C drive.
-- No public distribution, production rollout, buying services, or brokerage actions.
+{WORKER_SAFETY_RULE}
 - Do not claim files exist unless you wrote them.
 """
 
@@ -1593,13 +1708,25 @@ def _submit_cursor(
     inbox_root: Path | None,
     orch_submit,
 ) -> dict:
-    gate = authorize_execution(
+    parent_gate = authorize_execution(
         approval_level=job.get("approval_level") or "A1",
         owner_decision=job.get("owner_decision"),
         prompt=job.get("parent_objective") or "",
         repo=job.get("workspace") or "",
         write=True,
     )
+    child_gate = authorize_execution(
+        approval_level=job.get("approval_level") or "A1",
+        owner_decision=job.get("owner_decision"),
+        prompt=prompt or "",
+        repo=job.get("workspace") or "",
+        write=True,
+    )
+    job["authorization"] = {
+        "parent": SEM.public_authorization(parent_gate),
+        "child": SEM.public_authorization(child_gate),
+    }
+    gate = child_gate if not child_gate.get("allowed") else parent_gate
     if not gate["allowed"]:
         return {"state": "BLOCKED", "failure_reason": gate["reason"], "authorization": gate}
     reservation = reserve_budget(job, job.get("assigned_worker") or "cursor-agent-cli")
@@ -1639,13 +1766,88 @@ def _child_terminal(record: dict | None) -> bool:
     return bool(record and record.get("state") in {"COMPLETED", "BLOCKED", "FAILED", "CANCELLED"})
 
 
+def _is_blocked_child(record: dict | None) -> bool:
+    if not record:
+        return False
+    if record.get("state") == "BLOCKED":
+        return True
+    return str(record.get("failure_class") or "") == "POLICY"
+
+
+def apply_blocked_child(job: dict, record: dict | None) -> dict:
+    """A terminal BLOCKED child closes the parent and releases an unused reservation."""
+    child_id = job.get("active_child_id")
+    payload = record or {}
+    record_usage(
+        job,
+        job.get("assigned_worker") or "cursor-agent-cli",
+        payload.get("state") or "BLOCKED",
+        payload.get("usage"),
+        child_id=child_id,
+        failure_class=payload.get("failure_class") or "POLICY",
+        cursor_started=cursor_was_started(payload),
+    )
+    job["child_failure"] = {
+        "job_id": child_id,
+        "state": payload.get("state"),
+        "failure_class": payload.get("failure_class"),
+        "failure_reason": payload.get("failure_reason") or payload.get("reason"),
+        "authorization": SEM.public_authorization(payload.get("authorization")),
+    }
+    job["failure_reason"] = (
+        payload.get("failure_reason") or payload.get("reason") or "child blocked"
+    )
+    job["failure_class"] = payload.get("failure_class") or "POLICY"
+    job["active_child_id"] = None
+    release_open_reservation(job)
+    if job.get("state") not in TERMINAL:
+        transition(job, "BLOCKED", job["failure_reason"])
+    save_job(job)
+    return job
+
+
+def repair_unstarted_policy_charges(job: dict, *, reason: str) -> dict:
+    """Zero false Cursor charges when POLICY blocked before start. Does not restart."""
+    prior = job.get("budget_repair") or {}
+    if prior.get("applied"):
+        raise ValueError("unstarted policy charges already repaired")
+    changed = 0
+    for inv in job.get("budget", {}).get("invocations") or []:
+        outcome = str(inv.get("outcome") or "").upper()
+        if outcome != "BLOCKED":
+            continue
+        if inv.get("input_tokens") or inv.get("output_tokens"):
+            continue
+        if inv.get("cost_basis") == "conservative_estimate":
+            inv["cost_usd"] = 0.0
+            inv["cost_basis"] = "not-started"
+            inv["corrected"] = True
+            changed += 1
+    release_open_reservation(job)
+    decision = budget_decision(job, job.get("assigned_worker") or "cursor-agent-cli")
+    job.setdefault("budget", {})["consumed_usd"] = decision.get("consumed") or 0.0
+    job["budget"]["consumed_basis"] = "not-started" if changed else job["budget"].get("consumed_basis")
+    job["budget_repair"] = {
+        "at": utc_now(),
+        "applied": True,
+        "reason": reason,
+        "corrected_unstarted_charges": changed,
+        "restarted": False,
+        "relabeled_successful": False,
+        "replacement_job": None,
+        "preserved_state": job.get("state"),
+    }
+    save_job(job)
+    return job
+
+
 def reconcile_parent_job(
     job: dict,
     *,
     inbox_root: Path | None = None,
     orch_harvest=None,
 ) -> dict:
-    """A terminal FAILED child must not leave the parent EXECUTING. Config defects do not retry."""
+    """A terminal BLOCKED/FAILED child must not leave the parent EXECUTING."""
     if job.get("state") in TERMINAL:
         if float((job.get("budget") or {}).get("reserved_usd") or 0) and job["state"] in {"FAILED", "BLOCKED", "CANCELLED"}:
             release_open_reservation(job)
@@ -1659,7 +1861,21 @@ def reconcile_parent_job(
             "malformed expected_paths treated stack labels as files: " + ", ".join(bad),
         )
     child_id = job.get("active_child_id")
-    if job.get("state") in {"EXECUTING", "VALIDATING", "PREFLIGHT"} and child_id and child_is_stale(job):
+    if job.get("state") in {"EXECUTING", "VALIDATING"} and child_id:
+        orch_harvest = orch_harvest or ORCH.harvest
+        record = orch_harvest(child_id, inbox_root)
+        job["_harvested_child"] = record
+        if _is_blocked_child(record):
+            return apply_blocked_child(job, record)
+        if child_is_stale(job) and not _child_terminal(record):
+            job["failure_reason"] = "CHILD_TIMEOUT"
+            job["active_child_id"] = None
+            job.pop("_harvested_child", None)
+            release_open_reservation(job)
+            transition(job, "FAILED", "CHILD_TIMEOUT")
+            save_job(job)
+            return job
+    if job.get("state") == "PREFLIGHT" and child_id and child_is_stale(job):
         orch_harvest = orch_harvest or ORCH.harvest
         record = orch_harvest(child_id, inbox_root)
         if not _child_terminal(record):
@@ -1926,7 +2142,9 @@ def advance_job(
         expected = job.get("expected_paths") or expected_paths_from_design(design)
         child_id = job.get("active_child_id")
         if child_id:
-            record = orch_harvest(child_id, inbox_root)
+            record = job.pop("_harvested_child", None)
+            if record is None:
+                record = orch_harvest(child_id, inbox_root)
             if not _child_terminal(record):
                 if child_is_stale(job):
                     job["failure_reason"] = "CHILD_TIMEOUT"
@@ -1936,7 +2154,17 @@ def advance_job(
                 save_job(job)
                 return job
             usage = (record or {}).get("usage")
-            record_usage(job, job.get("assigned_worker") or "cursor-agent-cli", record.get("state"), usage)
+            if _is_blocked_child(record):
+                return apply_blocked_child(job, record)
+            record_usage(
+                job,
+                job.get("assigned_worker") or "cursor-agent-cli",
+                record.get("state"),
+                usage,
+                child_id=child_id,
+                failure_class=(record or {}).get("failure_class"),
+                cursor_started=cursor_was_started(record, usage),
+            )
             job["execution_worker"] = record.get("selected_worker") or job.get("assigned_worker")
             if record.get("state") != "COMPLETED":
                 if is_config_defect(record, expected):
@@ -2098,7 +2326,11 @@ def advance_job(
                     job["validation"]["independent_rerun"] = "UNVERIFIED"
                     job["validation"]["independent_rerun_reason"] = budget_decision(job).get("reason")
             elif job.get("active_child_id") == job.get("validation_child_id"):
-                record = orch_harvest(job["active_child_id"], inbox_root)
+                record = job.pop("_harvested_child", None)
+                if record is None:
+                    record = orch_harvest(job["active_child_id"], inbox_root)
+                if _is_blocked_child(record):
+                    return apply_blocked_child(job, record)
                 if not _child_terminal(record):
                     if child_is_stale(job):
                         job["failure_reason"] = "CHILD_TIMEOUT"
@@ -2108,7 +2340,15 @@ def advance_job(
                     save_job(job)
                     return job
                 usage = (record or {}).get("usage")
-                record_usage(job, job.get("assigned_worker") or "cursor-agent-cli", record.get("state"), usage)
+                record_usage(
+                    job,
+                    job.get("assigned_worker") or "cursor-agent-cli",
+                    record.get("state"),
+                    usage,
+                    child_id=job.get("active_child_id"),
+                    failure_class=(record or {}).get("failure_class"),
+                    cursor_started=cursor_was_started(record, usage),
+                )
                 stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
                 test_ev = parse_test_evidence(stdout, record)
                 job["validation"]["independent_test_evidence"] = test_ev
@@ -2479,12 +2719,48 @@ def main() -> int:
         "--reason",
         default="classifier treated a prohibition as a requested action",
     )
+    authp = sub.add_parser("authorize")
+    authp.add_argument("--text")
+    authp.add_argument("--text-file")
+    authp.add_argument("--repo", default="")
+    authp.add_argument("--write", action="store_true")
+    authp.add_argument("--approval-level", default="A1")
+    repairp = sub.add_parser("repair-unstarted-policy-block")
+    repairp.add_argument("--job-id", required=True)
+    repairp.add_argument("--root")
+    repairp.add_argument(
+        "--reason",
+        default="POLICY blocked before Cursor start; unused reservation released; consumed preserved at 0",
+    )
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps(capability_matrix(), indent=2))
         return 0
     if args.command == "classify":
         print(json.dumps(classify_intent(args.text), indent=2))
+        return 0
+    if args.command == "authorize":
+        if args.text_file:
+            text = Path(args.text_file).read_text(encoding="utf-8")
+        elif args.text is not None:
+            text = args.text
+        else:
+            raise SystemExit("authorize requires --text or --text-file")
+        gate = authorize_execution(
+            approval_level=args.approval_level,
+            owner_decision=None,
+            prompt=text,
+            repo=args.repo or "",
+            write=args.write,
+        )
+        print(json.dumps(SEM.public_authorization(gate), indent=2))
+        return 0 if gate.get("allowed") else 2
+    if args.command == "repair-unstarted-policy-block":
+        job = resume_job(args.job_id, Path(args.root) if args.root else None)
+        if not job:
+            raise SystemExit(f"unknown job {args.job_id}")
+        job = repair_unstarted_policy_charges(job, reason=args.reason)
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
         return 0
     if args.command == "get":
         job = resume_job(args.job_id, Path(args.root) if args.root else None)

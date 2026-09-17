@@ -6,7 +6,11 @@ objective. Affirmative consequential requests still require their gates.
 """
 from __future__ import annotations
 
+import argparse
+import json
 import re
+import sys
+from pathlib import Path
 
 NEGATION_LEADERS = (
     "do not",
@@ -39,7 +43,10 @@ FAMILIES = {
     },
     "deploy": {
         "level": "A2",
-        "pattern": r"\b(?:deploy(?:s|ed|ing|ment)?|roll(?:s|ed|ing)? (?:this )?out)\b",
+        "pattern": (
+            r"\b(?:deploy(?:s|ed|ing|ment)?|roll(?:s|ed|ing)? (?:this )?out|"
+            r"production rollout|rollout to production)\b"
+        ),
         "doc_exempt": True,
     },
     "purchase": {
@@ -70,6 +77,8 @@ FAMILIES = {
     },
 }
 
+A3_HINTS = ("live trade", "place order", "wire transfer", "bank transfer", "send money")
+
 _LEADER_RE = re.compile(
     r"^(?:please\s+)?(?:"
     + "|".join(re.escape(x) for x in sorted(NEGATION_LEADERS, key=len, reverse=True))
@@ -84,6 +93,7 @@ _INLINE_NEG_RE = re.compile(
 )
 _QUOTE_RE = re.compile(r"\"[^\"]*\"|'[^']*'|`[^`]*`")
 _CLAUSE_RE = re.compile(r"(?<=[.!?;])\s+|\s+\bbut\b\s+|\s+\bhowever\b\s+|\s+\bexcept that\b\s+", re.I)
+_LIST_PREFIX_RE = re.compile(r"^[\s>*\-•]+")
 
 
 def strip_quoted(text: str) -> tuple[str, list[str]]:
@@ -100,8 +110,12 @@ def split_clauses(text: str) -> list[str]:
     return [part.strip() for part in _CLAUSE_RE.split(text or "") if part and part.strip()]
 
 
+def normalize_clause(clause: str) -> str:
+    return _LIST_PREFIX_RE.sub("", (clause or "").strip())
+
+
 def clause_is_prohibition(clause: str) -> bool:
-    return bool(_LEADER_RE.search((clause or "").strip()))
+    return bool(_LEADER_RE.search(normalize_clause(clause)))
 
 
 def _clause_bounds(text: str, index: int) -> tuple[int, int]:
@@ -186,21 +200,141 @@ def family_is_requested(text: str, family: str) -> bool:
     return family in analyze_objective(text)["requested_families"]
 
 
+def _fragment_in_text(fragment: str, text: str) -> bool:
+    blob = (fragment or "").strip().lower()
+    hay = (text or "").lower()
+    if not blob or not hay:
+        return False
+    if re.search(r"[\s:/\-]", blob):
+        return blob in hay
+    return bool(re.search(rf"\b{re.escape(blob)}\b", hay))
+
+
+def _family_for_fragment(fragment: str) -> str | None:
+    blob = (fragment or "").strip()
+    if not blob:
+        return None
+    for name, spec in FAMILIES.items():
+        if re.search(spec["pattern"], blob, re.I):
+            return name
+    return None
+
+
 def blocked_fragment_is_requested(text: str, fragment: str) -> bool:
-    """True when a worker blocked-intent fragment is an actual requested action."""
+    """True when a worker blocked-intent fragment is an actual requested action.
+
+    Multi-word and secret-like fragments match as exact phrases in requested
+    text only. Single-word family fragments follow requested-family semantics.
+    Last-token stemming is intentionally not used: KEY must not match keys.
+    """
     blob = (fragment or "").strip().lower()
     if not blob:
         return False
     analysis = analyze_objective(text)
-    operative = (analysis["requested_text"] or "").lower()
+    operative = analysis["requested_text"] or ""
     if not operative:
         return False
-    token = blob.split()[-1]
-    stem = re.escape(re.sub(r"(?:es|s|ed|ing)$", "", token) or token)
-    present = blob in operative or bool(re.search(rf"\b{stem}[a-z]*\b", operative, re.I))
-    if not present:
-        return False
-    for name, spec in FAMILIES.items():
-        if re.search(spec["pattern"], blob, re.I):
-            return name in analysis["requested_families"]
-    return True
+    family = _family_for_fragment(blob)
+    if family:
+        return family in analysis["requested_families"]
+    return _fragment_in_text(blob, operative)
+
+
+def _requested_action_label(analysis: dict, write: bool) -> str:
+    families = analysis.get("requested_families") or []
+    if families:
+        return ",".join(families)
+    return "local_write" if write else "read"
+
+
+def public_authorization(decision: dict | None) -> dict:
+    """Auditable authorization fields without prompt text or credentials."""
+    src = decision or {}
+    allowed_keys = (
+        "allowed",
+        "needed",
+        "reason",
+        "detail",
+        "matched_rule",
+        "requested_action",
+        "requested_families",
+        "prohibited_actions",
+        "effective_approval",
+    )
+    out = {key: src.get(key) for key in allowed_keys if src.get(key) is not None}
+    if "allowed" in src:
+        out["allowed"] = bool(src.get("allowed"))
+    return out
+
+
+def authorize_text(
+    text: str,
+    *,
+    blocked_fragments: list[str] | None = None,
+    write: bool = False,
+) -> dict:
+    """Shared controller/worker authorization decision for a prompt or objective."""
+    analysis = analyze_objective(text)
+    needed = analysis.get("needed") or "A0"
+    if write and needed == "A0":
+        needed = "A1"
+    matched_rule = None
+    for frag in blocked_fragments or []:
+        if frag and blocked_fragment_is_requested(text, frag):
+            matched_rule = frag
+            mapped = "A3" if any(h in frag.lower() for h in A3_HINTS) else "A2"
+            if needed in {"A0", "A1"} or (mapped == "A3" and needed != "A3"):
+                needed = mapped
+            break
+    allowed = needed in {"A0", "A1"}
+    if allowed:
+        reason = "ALLOW"
+    elif matched_rule:
+        reason = "BLOCKED_INTENT"
+    else:
+        reason = f"{needed}_OWNER_GATE"
+    return public_authorization(
+        {
+            "allowed": allowed,
+            "needed": needed,
+            "reason": reason,
+            "detail": matched_rule,
+            "matched_rule": matched_rule,
+            "requested_action": _requested_action_label(analysis, write),
+            "requested_families": analysis.get("requested_families") or [],
+            "prohibited_actions": analysis.get("prohibited_actions") or [],
+            "effective_approval": needed,
+        }
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="NEEWA requested-vs-prohibited authorization")
+    parser.add_argument("--authorize", action="store_true")
+    parser.add_argument("--text")
+    parser.add_argument("--text-file")
+    parser.add_argument("--fragments-json")
+    parser.add_argument("--fragments-file")
+    parser.add_argument("--write", action="store_true")
+    args = parser.parse_args(argv)
+    if not args.authorize:
+        parser.error("--authorize is required")
+    if args.text is None and not args.text_file:
+        parser.error("provide --text or --text-file")
+    if args.text_file:
+        text = Path(args.text_file).read_text(encoding="utf-8")
+    else:
+        text = args.text
+    fragments: list[str] = []
+    if args.fragments_json:
+        loaded = json.loads(args.fragments_json)
+        fragments = loaded if isinstance(loaded, list) else [loaded]
+    elif args.fragments_file:
+        loaded = json.loads(Path(args.fragments_file).read_text(encoding="utf-8"))
+        fragments = loaded if isinstance(loaded, list) else [loaded]
+    print(json.dumps(authorize_text(text, blocked_fragments=fragments, write=args.write)))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

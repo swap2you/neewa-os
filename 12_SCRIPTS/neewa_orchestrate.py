@@ -365,6 +365,9 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                         "failure_class",
                         "preflight",
                         "authorization",
+                        "cli",
+                        "exit_code",
+                        "duration_sec",
                     ):
                         if extra.get(key) not in (None, "", []):
                             payload[key] = extra[key]

@@ -33,6 +33,9 @@ PLANNING = SourceFileLoader(
 SEM = SourceFileLoader(
     "neewa_action_semantics", str(ROOT / "12_SCRIPTS" / "neewa_action_semantics.py")
 ).load_module()
+IDENTITY = SourceFileLoader(
+    "neewa_project_identity", str(ROOT / "12_SCRIPTS" / "neewa_project_identity.py")
+).load_module()
 BUDGETS = ROOT / "11_CONFIG" / "budgets.json"
 WORKERS = ROOT / "11_CONFIG" / "workers.json"
 PROVIDERS = ROOT / "11_CONFIG" / "providers.json"
@@ -61,10 +64,10 @@ PARENT_STATES = (
     "CANCELLED",
 )
 ALLOWED_TRANSITIONS = {
-    "INTAKE": {"CLASSIFIED", "BLOCKED", "CANCELLED"},
-    "CLASSIFIED": {"REQUIREMENTS", "BLOCKED", "CANCELLED"},
-    "REQUIREMENTS": {"DESIGN", "BLOCKED", "CANCELLED"},
-    "DESIGN": {"COUNCIL", "BLOCKED", "CANCELLED"},
+    "INTAKE": {"CLASSIFIED", "BLOCKED", "CANCELLED", "FAILED"},
+    "CLASSIFIED": {"REQUIREMENTS", "BLOCKED", "CANCELLED", "FAILED"},
+    "REQUIREMENTS": {"DESIGN", "BLOCKED", "CANCELLED", "FAILED"},
+    "DESIGN": {"COUNCIL", "BLOCKED", "CANCELLED", "FAILED"},
     "COUNCIL": {"BASELINE_LOCKED", "PLANNED", "WAITING", "BLOCKED", "CANCELLED"},
     "BASELINE_LOCKED": {"PLANNED", "BLOCKED", "CANCELLED"},
     "PLANNED": {"PREFLIGHT", "EXECUTING", "BLOCKED", "WAITING", "CANCELLED"},
@@ -406,6 +409,9 @@ def create_parent_job(
             "reason": resolved.get("reason"),
             "access_stage": (resolved.get("project") or {}).get("access_stage"),
         },
+        "project_identity": IDENTITY.public_identity(
+            IDENTITY.resolve_project_identity(objective, workspace=workspace)
+        ),
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "lease": None,
         "timeout_sec": 600,
@@ -703,6 +709,8 @@ def cursor_was_started(record: dict | None, usage: dict | None = None) -> bool:
         return False
     if payload.get("cli") or payload.get("exit_code") is not None:
         return True
+    if cls in {"VALIDATION", "CLI_EXIT", "READONLY_VIOLATION"}:
+        return True
     return False
 
 
@@ -887,16 +895,34 @@ def select_coding_worker(registry: dict | None = None, fallback_order: list[str]
     }
 
 
-def product_slug(objective: str) -> str:
-    text = re.sub(r"(?i)^(?:neewa,?\s*|please\s*|owner:\s*)+", "", objective.strip())
-    match = re.search(
-        r"(?i)(?:build|create|implement|write|make)\s+(?:an?\s+)?(.+?)(?:\s+that\b|\s+which\b|\s+with\b|,|\.|$)",
-        text,
+def product_slug(objective: str, workspace: str | None = None) -> str:
+    identity = IDENTITY.resolve_project_identity(objective, workspace=workspace)
+    if identity.get("allowed") and identity.get("project_name"):
+        return identity["project_name"]
+    return IDENTITY.generated_safe_name(objective)
+
+
+def attach_project_identity(job: dict) -> dict:
+    identity = IDENTITY.resolve_project_identity(
+        job.get("parent_objective") or "",
+        workspace=job.get("workspace"),
+        persisted=job.get("project_identity"),
     )
-    phrase = match.group(1) if match else text[:80]
-    phrase = re.sub(r"(?i)\b(cli|application|app|tool|utility|program)\b", " ", phrase)
-    words = [w for w in re.findall(r"[a-z0-9]+", phrase.lower()) if w not in STOP_WORDS][:4]
-    return "_".join(words) or "task"
+    job["project_identity"] = IDENTITY.public_identity(identity)
+    if (
+        identity.get("allowed")
+        and identity.get("project_path")
+        and identity.get("source") in {"explicit_name", "path_basename", "persisted"}
+    ):
+        job["workspace"] = identity["project_path"]
+    elif (
+        identity.get("allowed")
+        and identity.get("project_path")
+        and identity.get("source") == "generated"
+        and IDENTITY._is_sandbox_root(job.get("workspace"))
+    ):
+        job["workspace"] = identity["project_path"]
+    return identity
 
 
 def split_objective_clauses(objective: str) -> list[str]:
@@ -917,7 +943,8 @@ def build_requirements(
         return FIXTURE.fixture_build_requirements(objective)
     workflow = workflow or classify_intent(objective)["workflow"]
     inspect = PLANNING.inspect_workspace(workspace, project_id)
-    slug = product_slug(objective)
+    identity = IDENTITY.resolve_project_identity(objective, workspace=workspace)
+    slug = identity.get("project_name") if identity.get("allowed") else product_slug(objective, workspace)
     clauses = split_objective_clauses(objective)
     reqs: list[dict] = []
 
@@ -977,6 +1004,7 @@ def build_requirements(
         "created_at": utc_now(),
         "source_class": "DERIVED_FROM_OBJECTIVE",
         "baseline_id": load_baseline_lock().get("baseline_id"),
+        "project_identity": IDENTITY.public_identity(identity),
     }
     return PLANNING.attach_acceptance_checks(payload, inspect, workflow)
 
@@ -985,7 +1013,14 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
     if requirements.get("fixture") == FIXTURE.FIXTURE_ID:
         return FIXTURE.fixture_initial_design(requirements)
     objective = objective or requirements.get("original_objective") or ""
-    slug = requirements.get("product_slug") or product_slug(objective)
+    identity = requirements.get("project_identity") or IDENTITY.resolve_project_identity(
+        objective, workspace=requirements.get("workspace")
+    )
+    slug = (
+        (identity.get("project_name") if identity.get("allowed") else None)
+        or requirements.get("product_slug")
+        or product_slug(objective)
+    )
     workflow = requirements.get("workflow") or classify_intent(objective)["workflow"]
     if workflow == "research_report":
         return {
@@ -1046,16 +1081,23 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "acceptance": [r["id"] for r in requirements["requirements"]],
             "created_at": utc_now(),
         }
-    components = [f"{slug}/{slug}.py", f"{slug}/test_{slug}.py", f"{slug}/sample_input.txt", f"{slug}/test-results.json"]
+    include_release = any(r.get("kind") == "release" for r in requirements["requirements"])
+    include_readme = bool(re.search(r"\b(usage documentation|readme|documentation)\b", objective, re.I))
+    components = IDENTITY.expected_paths_for_identity(
+        {"project_name": slug},
+        include_release=include_release,
+        include_readme=include_readme,
+    )
     blob = " ".join(r["text"].lower() for r in requirements["requirements"]) + " " + objective.lower()
-    if "changelog" in blob or "markdown" in blob:
-        components[2] = f"{slug}/sample_CHANGELOG.md"
-    if "csv" in blob:
-        components[2] = f"{slug}/sample.csv"
-    if any(r.get("kind") == "release" for r in requirements["requirements"]):
-        components.append(f"{slug}/RELEASE_CANDIDATE.md")
+    if "changelog" in blob or ("markdown" in blob and "changelog" in blob):
+        if "sample_input.txt" in components:
+            components[components.index("sample_input.txt")] = "sample_CHANGELOG.md"
+        elif not any(p.endswith("CHANGELOG.md") for p in components):
+            components.append("sample_CHANGELOG.md")
+    if "csv" in blob and not any(p.endswith(".csv") for p in components):
+        components.append("sample.csv")
     summary = (
-        f"Python CLI `{slug}/{slug}.py` in the approved cursor-sandbox. "
+        f"Python CLI `{slug}.py` in `{identity.get('project_path') or slug}`. "
         f"It implements: " + "; ".join(r["text"] for r in requirements["requirements"] if r["kind"] == "functional")
     )
     return {
@@ -1065,15 +1107,16 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
         "summary": summary,
         "assumptions": [
             "Local Python 3 is available on the Windows worker.",
-            "Workspace is the approved personal sandbox unless a connected repo is named.",
+            "Workspace is the canonical project_path unless a connected repo is named.",
         ],
         "components": components,
         "error_handling": "non-zero exit and stderr on missing/unreadable/invalid input",
-        "filesystem_scope": "explicit path argument only; approved workspace",
+        "filesystem_scope": "canonical project_path only; approved workspace",
         "acceptance": [r["id"] for r in requirements["requirements"]],
         "stack": stack,
         "create_new_package": True,
         "test_command": requirements.get("test_command") or "python -m unittest",
+        "project_identity": IDENTITY.public_identity(identity),
         "created_at": utc_now(),
     }
 
@@ -1712,14 +1755,14 @@ def _submit_cursor(
         approval_level=job.get("approval_level") or "A1",
         owner_decision=job.get("owner_decision"),
         prompt=job.get("parent_objective") or "",
-        repo=job.get("workspace") or "",
+        repo=(job.get("project_identity") or {}).get("project_path") or job.get("workspace") or "",
         write=True,
     )
     child_gate = authorize_execution(
         approval_level=job.get("approval_level") or "A1",
         owner_decision=job.get("owner_decision"),
         prompt=prompt or "",
-        repo=job.get("workspace") or "",
+        repo=(job.get("project_identity") or {}).get("project_path") or job.get("workspace") or "",
         write=True,
     )
     job["authorization"] = {
@@ -1741,7 +1784,7 @@ def _submit_cursor(
             job_id=child_id,
             capability="code_implementation",
             objective=job["parent_objective"],
-            repo=job.get("workspace"),
+            repo=(job.get("project_identity") or {}).get("project_path") or job.get("workspace"),
             prompt=prompt,
             write=True,
             timeout_sec=job.get("timeout_sec") or 600,
@@ -1774,6 +1817,126 @@ def _is_blocked_child(record: dict | None) -> bool:
     return str(record.get("failure_class") or "") == "POLICY"
 
 
+def finalize_budget(job: dict) -> None:
+    job.setdefault("budget", {})
+    release_open_reservation(job)
+    decision = budget_decision(job, job.get("assigned_worker") or "cursor-agent-cli")
+    job["budget"]["consumed_usd"] = float(decision.get("consumed") or 0.0)
+    job["budget"]["reserved_usd"] = 0.0
+    job["budget_finalized"] = {
+        "at": utc_now(),
+        "reserved_usd": 0.0,
+        "consumed_usd": job["budget"]["consumed_usd"],
+    }
+
+
+def apply_failed_child(job: dict, record: dict | None) -> dict:
+    """A terminal FAILED/CANCELLED child closes the parent. No further dispatch."""
+    child_id = job.get("active_child_id")
+    payload = record or {}
+    state = str(payload.get("state") or "FAILED").upper()
+    if state not in {"FAILED", "CANCELLED"}:
+        state = "FAILED"
+    record_usage(
+        job,
+        job.get("assigned_worker") or "cursor-agent-cli",
+        state,
+        payload.get("usage"),
+        child_id=child_id,
+        failure_class=payload.get("failure_class"),
+        cursor_started=cursor_was_started(payload),
+    )
+    job["child_failure"] = {
+        "job_id": child_id,
+        "state": payload.get("state") or state,
+        "failure_class": payload.get("failure_class"),
+        "failure_reason": payload.get("failure_reason") or payload.get("reason"),
+        "authorization": SEM.public_authorization(payload.get("authorization")),
+    }
+    job["failure_reason"] = (
+        payload.get("failure_reason") or payload.get("reason") or "child failed"
+    )
+    job["failure_class"] = payload.get("failure_class") or state
+    job["active_child_id"] = None
+    finalize_budget(job)
+    parent_state = "CANCELLED" if state == "CANCELLED" and job.get("state") not in TERMINAL else "FAILED"
+    if job.get("state") not in TERMINAL:
+        if parent_state == "CANCELLED" and "CANCELLED" in ALLOWED_TRANSITIONS.get(job.get("state"), set()):
+            transition(job, "CANCELLED", job["failure_reason"])
+        else:
+            transition(job, "FAILED", job["failure_reason"])
+    save_job(job)
+    return job
+
+
+def close_parent_after_failed_child(job: dict, *, reason: str) -> dict:
+    """Historically close EXECUTING after a failed child. Does not restart or dispatch."""
+    prior = job.get("historical_close") or {}
+    if prior.get("applied") and job.get("state") in TERMINAL:
+        finalize_budget(job)
+        save_job(job)
+        return job
+    for inv in job.get("budget", {}).get("invocations") or []:
+        if (
+            str(inv.get("outcome") or "").upper() == "FAILED"
+            and str(inv.get("failure_class") or "") == "VALIDATION"
+            and inv.get("cost_basis") == "not-started"
+            and not inv.get("input_tokens")
+        ):
+            est = conservative_cursor_estimate()
+            if est is not None:
+                inv["cost_usd"] = float(est)
+                inv["cost_basis"] = "conservative_estimate"
+                inv["corrected"] = True
+                inv["cursor_started"] = True
+    job["historical_close"] = {
+        "at": utc_now(),
+        "applied": True,
+        "reason": reason,
+        "preserved_child": (job.get("child_jobs") or [{}])[0].get("job_id"),
+        "preserved_expected_paths": list(job.get("expected_paths") or []),
+        "restarted": False,
+        "relabeled_successful": False,
+        "replacement_job": None,
+        "additional_child_created": False,
+    }
+    job["failure_reason"] = job.get("failure_reason") or reason
+    job["active_child_id"] = None
+    finalize_budget(job)
+    if job.get("state") not in TERMINAL:
+        transition(job, "FAILED", job["failure_reason"])
+    save_job(job)
+    return job
+
+
+def replay_plan(objective: str, *, workspace: str | None = None, project_id: str | None = None) -> dict:
+    """Side-effect-free planning replay. No job and no Cursor."""
+    identity = IDENTITY.resolve_project_identity(objective, workspace=workspace)
+    requirements = None
+    design = None
+    expected = []
+    if identity.get("allowed"):
+        requirements = build_requirements(
+            objective,
+            workspace=identity.get("project_path") or workspace,
+            project_id=project_id,
+        )
+        design = initial_design(requirements, objective)
+        expected = expected_paths_from_design(design)
+    return {
+        "project_name": identity.get("project_name"),
+        "workspace_root": identity.get("workspace_root"),
+        "project_path": identity.get("project_path"),
+        "source": identity.get("source"),
+        "normalization": identity.get("normalization"),
+        "allowed": identity.get("allowed"),
+        "reason": identity.get("reason"),
+        "expected_paths": expected,
+        "product_slug": (requirements or {}).get("product_slug"),
+        "design_components": (design or {}).get("components"),
+    }
+
+
 def apply_blocked_child(job: dict, record: dict | None) -> dict:
     """A terminal BLOCKED child closes the parent and releases an unused reservation."""
     child_id = job.get("active_child_id")
@@ -1799,7 +1962,7 @@ def apply_blocked_child(job: dict, record: dict | None) -> dict:
     )
     job["failure_class"] = payload.get("failure_class") or "POLICY"
     job["active_child_id"] = None
-    release_open_reservation(job)
+    finalize_budget(job)
     if job.get("state") not in TERMINAL:
         transition(job, "BLOCKED", job["failure_reason"])
     save_job(job)
@@ -1867,6 +2030,8 @@ def reconcile_parent_job(
         job["_harvested_child"] = record
         if _is_blocked_child(record):
             return apply_blocked_child(job, record)
+        if record and str(record.get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+            return apply_failed_child(job, record)
         if child_is_stale(job) and not _child_terminal(record):
             job["failure_reason"] = "CHILD_TIMEOUT"
             job["active_child_id"] = None
@@ -1913,6 +2078,12 @@ def advance_job(
 
     if job["state"] == "CLASSIFIED":
         job = maybe_reclassify(job)
+        identity = attach_project_identity(job)
+        if job.get("workflow") == "sdlc" and not identity.get("allowed"):
+            return fail_config_defect(
+                job,
+                identity.get("detail") or identity.get("reason") or "PROJECT_PATH_DISAGREEMENT",
+            )
         gate = authorize_execution(
             approval_level=job.get("approval_level") or "A1",
             owner_decision=job.get("owner_decision"),
@@ -2156,6 +2327,8 @@ def advance_job(
             usage = (record or {}).get("usage")
             if _is_blocked_child(record):
                 return apply_blocked_child(job, record)
+            if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+                return apply_failed_child(job, record)
             record_usage(
                 job,
                 job.get("assigned_worker") or "cursor-agent-cli",
@@ -2172,44 +2345,7 @@ def advance_job(
                         job,
                         record.get("failure_reason") or "CONFIG_DEFECT",
                     )
-                retries = len(job.get("retry_history") or [])
-                max_retries = int(load_json(BUDGETS)["job_defaults"].get("max_retries", 2))
-                job.setdefault("retry_history", []).append(
-                    {
-                        "at": utc_now(),
-                        "child": child_id,
-                        "state": record.get("state"),
-                        "reason": record.get("failure_reason"),
-                    }
-                )
-                last_reasons = [str(item.get("reason") or "") for item in job.get("retry_history") or []]
-                if len(last_reasons) >= 2 and last_reasons[-1] == last_reasons[-2]:
-                    job["failure_reason"] = "identical child failure; stopping retries"
-                    job["active_child_id"] = None
-                    release_open_reservation(job)
-                    transition(job, "FAILED", job["failure_reason"])
-                    return job
-                if retries + 1 > max_retries:
-                    job["failure_reason"] = record.get("failure_reason") or "child failed"
-                    job["active_child_id"] = None
-                    release_open_reservation(job)
-                    transition(job, "FAILED", job["failure_reason"])
-                    return job
-                if not budget_allows(job):
-                    job["failure_reason"] = budget_decision(job)["reason"]
-                    transition(job, "BLOCKED", job["failure_reason"])
-                    return job
-                prompt = build_worker_prompt(job, requirements, design)
-                prompt += f"\nPrevious child {child_id} failed: {record.get('failure_reason')}. Write the missing files. Do not claim success without them.\n"
-                job["active_child_id"] = None
-                submitted = _submit_cursor(
-                    job, prompt, expected, inbox_root=inbox_root, orch_submit=orch_submit
-                )
-                if submitted.get("state") == "BLOCKED":
-                    job["failure_reason"] = submitted.get("failure_reason")
-                    transition(job, "BLOCKED", job["failure_reason"])
-                save_job(job)
-                return job
+                return apply_failed_child(job, record)
             job["last_child"] = record
             stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
             # harvest may not copy stdout; keep payload if present
@@ -2732,6 +2868,18 @@ def main() -> int:
         "--reason",
         default="POLICY blocked before Cursor start; unused reservation released; consumed preserved at 0",
     )
+    planp = sub.add_parser("replay-plan")
+    planp.add_argument("--text")
+    planp.add_argument("--text-file")
+    planp.add_argument("--workspace")
+    planp.add_argument("--project-id")
+    closefp = sub.add_parser("close-failed-child")
+    closefp.add_argument("--job-id", required=True)
+    closefp.add_argument("--root")
+    closefp.add_argument(
+        "--reason",
+        default="terminal FAILED child closed parent; expected-path evidence preserved; not restarted",
+    )
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps(capability_matrix(), indent=2))
@@ -2755,6 +2903,22 @@ def main() -> int:
         )
         print(json.dumps(SEM.public_authorization(gate), indent=2))
         return 0 if gate.get("allowed") else 2
+    if args.command == "replay-plan":
+        if args.text_file:
+            text = Path(args.text_file).read_text(encoding="utf-8")
+        elif args.text is not None:
+            text = args.text
+        else:
+            raise SystemExit("replay-plan requires --text or --text-file")
+        print(json.dumps(replay_plan(text, workspace=args.workspace, project_id=args.project_id), indent=2))
+        return 0
+    if args.command == "close-failed-child":
+        job = resume_job(args.job_id, Path(args.root) if args.root else None)
+        if not job:
+            raise SystemExit(f"unknown job {args.job_id}")
+        job = close_parent_after_failed_child(job, reason=args.reason)
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
+        return 0
     if args.command == "repair-unstarted-policy-block":
         job = resume_job(args.job_id, Path(args.root) if args.root else None)
         if not job:

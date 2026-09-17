@@ -177,12 +177,10 @@ class GeneralAutonomyTests(unittest.TestCase):
                 orch_submit=submit,
                 orch_harvest=harvest,
             )
-            self.assertEqual(job["state"], "OWNER_REVIEW")
-            self.assertEqual(job["execution_worker"], "cursor-agent-cli")
-            self.assertGreaterEqual(calls["submit"], 2)
-            self.assertTrue(any("FAILED" in str(item) for item in job["retry_history"]))
-            self.assertEqual(job["validation"]["tests"], "PASS")
-            self.assertEqual(job["validation"]["traceability"], "PASS")
+            self.assertEqual(job["state"], "FAILED")
+            self.assertEqual(calls["submit"], 1)
+            self.assertEqual(job["budget"]["reserved_usd"], 0.0)
+            self.assertIn("digest.py", job.get("failure_reason") or "")
             self.assertNotEqual(job["state"], "DONE")
 
     def test_worker_unavailable_then_recovery(self):
@@ -874,26 +872,15 @@ class PathAndRecoveryTests(unittest.TestCase):
             failed = self.mod.run_until_idle(
                 job, root=root, orch_submit=submit, orch_harvest=harvest_fail_then_wait, max_steps=20
             )
-            self.assertEqual(failed["state"], "EXECUTING")
-            self.assertTrue(failed.get("retry_history"))
-            self.assertGreaterEqual(submits["n"], 2)
+            self.assertEqual(failed["state"], "FAILED")
+            self.assertEqual(submits["n"], 1)
+            self.assertEqual(failed["budget"]["reserved_usd"], 0.0)
             reloaded = self.mod.resume_job(failed["job_id"], root)
-
-            def harvest_pass(job_id, inbox_root=None):
-                return {
-                    "job_id": job_id,
-                    "state": "COMPLETED",
-                    "selected_worker": "cursor-agent-cli",
-                    "artifact_paths": [
-                        r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
-                    ],
-                    "validation": {
-                        "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0}"
-                    },
-                }
-
-            passed = self.mod.run_until_idle(reloaded, root=root, orch_submit=submit, orch_harvest=harvest_pass)
-            self.assertEqual(passed["state"], "OWNER_REVIEW")
+            again = self.mod.run_until_idle(
+                reloaded, root=root, orch_submit=submit, orch_harvest=harvest_fail_then_wait
+            )
+            self.assertEqual(again["state"], "FAILED")
+            self.assertEqual(submits["n"], 1)
 
     def test_orchestrate_duplicate_and_repo_preflight_route(self):
         choice = self.orch.select_worker("repo_preflight")
@@ -1313,6 +1300,190 @@ class WorkerAuthAndReconcileTests(unittest.TestCase):
             self.assertIsNone(repaired["budget_repair"]["replacement_job"])
             with self.assertRaises(ValueError):
                 self.mod.repair_unstarted_policy_charges(repaired, reason="again")
+
+
+FAILED_ACCEPTANCE_OBJECTIVE = (
+    "Build a new isolated Python standard-library CLI application named "
+    "local_date_summary under "
+    r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary. "
+    "Use the approved cursor-sandbox workspace as the job root and create only the "
+    "local_date_summary project directory. Accept a date in YYYY-MM-DD format and "
+    "print its weekday and whether its year is a leap year. Invalid dates must produce "
+    "a clear stderr error and a nonzero exit code. Include automated tests for valid "
+    "dates, leap years, non-leap years and invalid dates, plus concise usage "
+    "documentation. Delegate implementation to Cursor Agent CLI through the Windows "
+    "worker. Use the actual product test command in local_date_summary, independently "
+    "rerun those product tests in that project directory, verify actual files and "
+    "scoped diff, and produce controller-owned requirement traceability. Keep all work "
+    "isolated to local_date_summary and preserve historical jobs and unrelated "
+    "projects. Stop at OWNER_REVIEW only when implementation, product tests, "
+    "independent rerun and traceability all pass."
+)
+
+
+class ProjectIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_identity", str(AUTO)).load_module()
+        self.ident = self.mod.IDENTITY
+
+    def test_explicit_name_local_date_summary(self):
+        row = self.ident.resolve_project_identity(
+            "Build a helper named local_date_summary with unit tests."
+        )
+        self.assertEqual(row["project_name"], "local_date_summary")
+        self.assertEqual(row["source"], "explicit_name")
+
+    def test_workspace_root_plus_project_name(self):
+        row = self.ident.resolve_project_identity(
+            FAILED_ACCEPTANCE_OBJECTIVE,
+            workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+        )
+        self.assertTrue(row["allowed"])
+        self.assertEqual(row["project_name"], "local_date_summary")
+        self.assertEqual(row["workspace_root"], r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox")
+        self.assertEqual(
+            row["project_path"],
+            r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary",
+        )
+        self.assertNotEqual(row["project_name"], "isolated_python_standard_library")
+
+    def test_descriptive_phrase_is_not_the_project_name(self):
+        row = self.ident.resolve_project_identity(
+            "Build an isolated Python standard-library project with tests."
+        )
+        self.assertNotEqual(row["project_name"], "isolated_python_standard_library")
+        self.assertNotIn("isolated", (row["project_name"] or "").split("_"))
+
+    def test_explicit_name_beats_descriptive_nouns(self):
+        row = self.ident.resolve_project_identity(
+            "Build a new isolated Python standard-library CLI application named local_date_summary."
+        )
+        self.assertEqual(row["project_name"], "local_date_summary")
+        self.assertEqual(row["source"], "explicit_name")
+
+    def test_path_basename_agreement(self):
+        row = self.ident.resolve_project_identity(
+            r"named local_date_summary under C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary"
+        )
+        self.assertTrue(row["allowed"])
+        self.assertTrue(row["normalization"]["agreement"])
+        self.assertEqual(row["project_name"], "local_date_summary")
+
+    def test_project_path_disagreement_fails_planning(self):
+        row = self.ident.resolve_project_identity(
+            r"named alpha under C:\Users\swap2\NEEWA-Personal\cursor-sandbox\beta"
+        )
+        self.assertFalse(row["allowed"])
+        self.assertEqual(row["reason"], "PROJECT_PATH_DISAGREEMENT")
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(
+                r"Build a CLI named alpha under C:\Users\swap2\NEEWA-Personal\cursor-sandbox\beta",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=Path(tmp),
+            )
+            job = self.mod.advance_job(job, root=Path(tmp), stop_before="REQUIREMENTS")
+            job = self.mod.advance_job(job, root=Path(tmp), stop_before="REQUIREMENTS")
+            self.assertIn(job["state"], {"FAILED", "BLOCKED"})
+            self.assertEqual(job.get("failure_class"), "CONFIG_DEFECT")
+            self.assertIn("does not match", job.get("failure_reason") or "")
+
+    def test_generated_name_only_when_neither_supplied(self):
+        row = self.ident.resolve_project_identity(CHANGELOG_OBJECTIVE)
+        self.assertEqual(row["source"], "generated")
+        self.assertEqual(row["project_name"], "markdown_changelog_digest")
+
+    def test_failed_acceptance_objective_identity_and_paths(self):
+        plan = self.mod.replay_plan(
+            FAILED_ACCEPTANCE_OBJECTIVE,
+            workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+        )
+        self.assertEqual(plan["project_name"], "local_date_summary")
+        self.assertEqual(
+            plan["project_path"],
+            r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary",
+        )
+        self.assertTrue(plan["expected_paths"])
+        for rel in plan["expected_paths"]:
+            self.assertFalse(rel.startswith("isolated_python_standard_library"))
+            self.assertNotIn("..", rel)
+        self.assertIn("local_date_summary.py", plan["expected_paths"])
+        self.assertIn("test_local_date_summary.py", plan["expected_paths"])
+        prompt_job = {
+            "parent_objective": FAILED_ACCEPTANCE_OBJECTIVE,
+            "project_identity": {
+                "project_name": plan["project_name"],
+                "project_path": plan["project_path"],
+                "workspace_root": plan["workspace_root"],
+            },
+        }
+        reqs = self.mod.build_requirements(
+            FAILED_ACCEPTANCE_OBJECTIVE,
+            workspace=plan["project_path"],
+        )
+        design = self.mod.initial_design(reqs, FAILED_ACCEPTANCE_OBJECTIVE)
+        prompt = self.mod.build_worker_prompt(prompt_job, reqs, design)
+        self.assertIn("local_date_summary.py", prompt)
+        self.assertNotIn("isolated_python_standard_library", prompt)
+        self.assertEqual(design["components"], plan["expected_paths"])
+
+    def test_failed_child_closes_parent_without_redispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                FAILED_ACCEPTANCE_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            submits = []
+
+            def submit(**kwargs):
+                submits.append(kwargs["job_id"])
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            def harvest(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "FAILED",
+                    "failure_class": "VALIDATION",
+                    "failure_reason": "validation failed; missing expected files: isolated_python_standard_library/isolated_python_standard_library.py",
+                    "cli": r"C:\Users\swap2\AppData\Local\cursor-agent\agent.cmd",
+                    "exit_code": 0,
+                }
+
+            finished = self.mod.run_until_idle(
+                job, root=root, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(finished["state"], "FAILED")
+            self.assertEqual(len(submits), 1)
+            self.assertEqual(finished["budget"]["reserved_usd"], 0.0)
+            self.assertGreater(finished["budget"]["consumed_usd"], 0.0)
+            again = self.mod.reconcile_parent_job(finished, orch_harvest=harvest)
+            self.assertEqual(again["state"], "FAILED")
+            self.assertEqual(again["budget"]["reserved_usd"], 0.0)
+            third = self.mod.run_until_idle(
+                again, root=root, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(len(submits), 1)
+            self.assertEqual(third["state"], "FAILED")
+
+    def test_blocked_child_still_closes_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox", root=root)
+            job["state"] = "EXECUTING"
+            job["active_child_id"] = "JOB-TEST-BLOCK-CC01"
+            job["budget"]["reserved_usd"] = 0.5
+            self.mod.save_job(job)
+            closed = self.mod.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {
+                    "state": "BLOCKED",
+                    "failure_class": "POLICY",
+                    "failure_reason": "owner gate",
+                },
+            )
+            self.assertEqual(closed["state"], "BLOCKED")
+            self.assertEqual(closed["budget"]["reserved_usd"], 0.0)
 
 
 class OrchestrateUsageTests(unittest.TestCase):

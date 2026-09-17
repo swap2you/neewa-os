@@ -130,6 +130,7 @@
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_orchestrate.py`
+- `12_SCRIPTS/neewa_project_identity.py`
 - `12_SCRIPTS/neewa_voice_readiness.sh`
 - `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`

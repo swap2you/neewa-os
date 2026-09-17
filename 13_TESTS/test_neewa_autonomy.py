@@ -461,6 +461,37 @@ class GeneralAutonomyTests(unittest.TestCase):
             any(r["result"] == "FAIL" and r.get("check") == "artifact_or_test" for r in trace["rows"])
         )
 
+    def test_existing_repo_test_file_is_objective_artifact(self):
+        obj = (
+            "In Aarohan CareerOS, add one negative-path test for an existing feature "
+            "and document the expected failure. Do not deploy."
+        )
+        reqs = self.mod.build_requirements(
+            obj,
+            workflow="sdlc",
+            workspace=r"C:\Development\Workspace\aarohan-careeros",
+            project_id="PRJ-AAROHAN",
+        )
+        design = self.mod.initial_design(reqs, obj)
+        self.assertFalse(design.get("create_new_package", True))
+        council = self.mod.run_council(design, reqs)
+        approved = council["approved_design"]
+        approved["create_new_package"] = False
+        trace = self.mod.traceability(
+            reqs,
+            approved,
+            expected_paths=["apps/api/tests/test_opportunity_intake.py"],
+            test_evidence={
+                "passed": True,
+                "source": "TEST_JSON",
+                "stdout": "test_confirm_without_description_raises_value_error ... ok\nOK",
+            },
+            workspace=r"C:\Development\Workspace\aarohan-careeros",
+            independent_rerun="PASS",
+        )
+        self.assertTrue(trace["all_pass"])
+
+
     def test_foreign_lease_skips_active_child(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

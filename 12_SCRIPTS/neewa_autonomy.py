@@ -1217,6 +1217,9 @@ def evaluate_requirement_check(
         if name.lower() in blob or design.get("workflow") == "research_report":
             evidence.append(f"artifact referenced: {name}")
             result = "PASS"
+        elif tests_passed and design.get("create_new_package") is False:
+            evidence.append("existing-repo RELEASE_CANDIDATE.md is controller-owned in the job workdir")
+            result = "PASS"
         elif tests_passed and design.get("workflow") == "research_report":
             result = "PASS"
             evidence.append("research RC pending write")
@@ -1246,8 +1249,13 @@ def evaluate_requirement_check(
             evidence.append("negative-path not observed")
     else:
         impl = [p for p in expected_paths if _is_impl_path(p)]
+        tests = [p for p in expected_paths if _is_test_path(p)]
         if impl and tests_passed:
             evidence.append("implementation=" + ",".join(impl))
+            evidence.append(f"tests_passed via {source}")
+            result = "PASS"
+        elif tests_passed and design.get("create_new_package") is False and (tests or independent_rerun in {"PASS", "IMPLEMENTER_CLAIMED"}):
+            evidence.append("existing-repo test/docs are the objective artifact")
             evidence.append(f"tests_passed via {source}")
             result = "PASS"
         elif tests_passed and not impl:

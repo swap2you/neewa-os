@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "stdout": "test_happy_path_latest_heading_and_bullets (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_happy_path_latest_heading_and_bullets) ... ok\ntest_invalid_changelog_no_heading (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_invalid_changelog_no_heading) ... ok\ntest_missing_input_nonzero_stderr (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_missing_input_nonzero_stderr) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.201s\n\nOK\n",
+  "source": "TEST_JSON"
+}

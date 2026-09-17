@@ -340,6 +340,16 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                 payload = json.loads(path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 payload = {}
+            sidecar = root / folder / f"{job_id}-cursor-call.json"
+            if sidecar.is_file():
+                try:
+                    extra = json.loads(sidecar.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    extra = {}
+                if isinstance(extra, dict):
+                    for key in ("stdout_tail", "usage", "artifact_paths", "status", "reason", "failure_class"):
+                        if extra.get(key) not in (None, "", []):
+                            payload[key] = extra[key]
             return inferred, payload
     return None, None
 

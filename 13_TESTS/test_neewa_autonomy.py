@@ -262,7 +262,16 @@ class GeneralAutonomyTests(unittest.TestCase):
             self.assertEqual(job["state"], "BLOCKED")
             self.assertEqual(called["n"], 0)
 
-    def test_question_and_a2_still_classified(self):
+    def test_parse_test_json_inside_agent_wrapper(self):
+        stdout = json.dumps(
+            {
+                "type": "result",
+                "result": 'done\nTEST_JSON:{"exit_code": 0, "passed": true, "stdout": "OK"}',
+            }
+        )
+        row = self.mod.parse_test_evidence(stdout)
+        self.assertTrue(row["passed"])
+        self.assertEqual(row["source"], "TEST_JSON")
         self.assertEqual(self.mod.classify_intent("what is the status of connected projects")["intent"], "question")
         self.assertEqual(self.mod.classify_intent("publish this article to the public blog")["approval"], "A2")
         self.assertEqual(self.mod.classify_intent("place a live trade for AAPL")["approval"], "A3")

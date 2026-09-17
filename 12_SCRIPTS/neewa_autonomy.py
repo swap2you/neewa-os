@@ -703,25 +703,31 @@ def parse_test_evidence(stdout: str | None, payload: dict | None = None) -> dict
             "stdout": str(row.get("stdout") or "")[-4000:],
             "source": "payload",
         }
-    match = re.search(r"TEST_JSON:(\{.*\})", text)
-    if match:
+    try:
+        wrapped = json.loads(text)
+        if isinstance(wrapped, dict) and wrapped.get("result"):
+            text = str(wrapped["result"])
+    except json.JSONDecodeError:
+        pass
+    idx = text.find("TEST_JSON:")
+    if idx >= 0:
+        raw = text[idx + len("TEST_JSON:") :].strip()
         try:
-            row = json.loads(match.group(1))
+            row = json.JSONDecoder().raw_decode(raw)[0]
             return {
                 "passed": bool(row.get("passed")),
                 "exit_code": row.get("exit_code"),
-                "stdout": str(row.get("stdout") or "")[-4000:],
+                "stdout": str(row.get("stdout") or row.get("stderr") or "")[-4000:],
                 "source": "TEST_JSON",
             }
         except json.JSONDecodeError:
             pass
-    ok = bool(re.search(r"\nOK\b", text) or re.search(r"Ran \d+ tests? in .*s\n\nOK", text))
-    failed = "FAILED (" in text or "errors=" in text.lower()
     ran = re.search(r"Ran (\d+) tests?", text)
+    ok = bool(re.search(r"(?:^|\n|\\n)OK(?:\n|\\n|\b)", text)) and "FAILED (" not in text
     if ran:
         return {
-            "passed": ok and not failed,
-            "exit_code": 0 if ok and not failed else 1,
+            "passed": ok,
+            "exit_code": 0 if ok else 1,
             "stdout": text[-4000:],
             "source": "unittest-stdout",
             "ran": int(ran.group(1)),

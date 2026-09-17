@@ -1,0 +1,31 @@
+{
+  "version": "DES-v1",
+  "product_slug": "markdown_changelog_digest",
+  "summary": "Python CLI `markdown_changelog_digest/markdown_changelog_digest.py` in the approved cursor-sandbox. It implements: Deliver `markdown_changelog_digest` satisfying: build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate; Read the input file named or implied by the objective; do not scan unrelated directories.; Emit the requested output described in the objective (stdout or named artifact).; Treat Markdown structure as data; preserve headings and list items from the source file.",
+  "assumptions": [
+    "Local Python 3 is available on the Windows worker.",
+    "Workspace is the approved personal sandbox unless a connected repo is named."
+  ],
+  "components": [
+    "markdown_changelog_digest/markdown_changelog_digest.py",
+    "markdown_changelog_digest/test_markdown_changelog_digest.py",
+    "markdown_changelog_digest/sample_CHANGELOG.md",
+    "markdown_changelog_digest/test-results.json",
+    "markdown_changelog_digest/RELEASE_CANDIDATE.md"
+  ],
+  "error_handling": "non-zero exit and stderr on missing/unreadable/invalid input",
+  "filesystem_scope": "explicit path argument only; approved workspace",
+  "acceptance": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006",
+    "REQ-007",
+    "REQ-008"
+  ],
+  "created_at": "2026-09-17T16:20:35Z",
+  "corrections": [],
+  "no_material_finding": "Council checklist passed against the written design; no material defect was found."
+}

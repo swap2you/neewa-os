@@ -16,6 +16,7 @@ fi
 echo "$$" > "$AUTONOMY/runner.pid"
 export PYTHONUTF8=1
 while true; do
-  python3 "$ROOT/12_SCRIPTS/neewa_autonomy.py" runner --once --root "$AUTONOMY" --inbox-root "$INBOX" || true
+  sudo -n chown -R ubuntu:ubuntu "$AUTONOMY" 2>/dev/null || true
+  python3 "$ROOT/12_SCRIPTS/neewa_autonomy.py" runner --once --root "$AUTONOMY" --inbox-root "$INBOX" || echo "runner step failed"
   sleep "${NEEWA_AUTONOMY_POLL_SEC:-15}"
 done

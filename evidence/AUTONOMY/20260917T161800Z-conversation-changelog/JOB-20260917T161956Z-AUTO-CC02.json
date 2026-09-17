@@ -1,0 +1,98 @@
+{
+  "schema_version": 1,
+  "job_id": "JOB-20260917T161956Z-AUTO-CC02",
+  "project_id": "PRJ-NEEWA",
+  "objective": "build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate",
+  "required_capability": "code_implementation",
+  "selected_worker": "cursor-agent-cli",
+  "workspace": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "approval_level": "A1",
+  "action": "cursor_call",
+  "state": "COMPLETED",
+  "started_at": "2026-09-17T16:23:52Z",
+  "completed_at": "2026-09-17T16:28:21Z",
+  "artifact_paths": [
+    "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\markdown_changelog_digest.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test_markdown_changelog_digest.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\sample_CHANGELOG.md",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test-results.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\RELEASE_CANDIDATE.md"
+  ],
+  "validation": {
+    "worker_status": "COMPLETED",
+    "failure_class": null,
+    "host": "LAPTOP-HKGLJEE8",
+    "stdout_tail": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":123930,\"duration_api_ms\":123930,\"result\":\"I'll inspect the existing `markdown_changelog_digest` files and failing tests, then fix them and rerun unittest.Running the unittest suite to capture the actual failure.Tests pass locally; I'll recapture full unittest output into `test-results.json` so evidence is complete.Implementation already met REQ-v1; unittest was re-run and `test-results.json` was rewritten from that run.\\n\\n- CLI: `markdown_changelog_digest/markdown_changelog_digest.py` \u0393\u00c7\u00f6 latest `##` heading + bullets on stdout; non-zero + stderr on missing/invalid input\\n- Tests: 3 cases (happy path, missing file, no heading) \u0393\u00c7\u00f6 all OK\\n- Sample + `RELEASE_CANDIDATE.md` with REQ traceability unchanged and consistent with PASS\\n\\nTEST_JSON:{\\\"exit_code\\\":0,\\\"passed\\\":true,\\\"stdout\\\":\\\"\\\",\\\"stderr\\\":\\\"...\\\\n----------------------------------------------------------------------\\\\nRan 3 tests in 0.244s\\\\n\\\\nOK\\\\n\\\"}\",\"session_id\":\"61af2dc3-e381-418e-9273-d5c59b1eeec9\",\"request_id\":\"55c7399f-f003-4ae3-a5a4-954b76ddde30\",\"usage\":{\"inputTokens\":33104,\"outputTokens\":2792,\"cacheReadTokens\":99328,\"cacheWriteTokens\":0}}\n",
+    "result": "PASS"
+  },
+  "failure_reason": null,
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "created_at": "2026-09-17T16:23:52Z",
+  "updated_at": "2026-09-17T16:28:21Z",
+  "history": [
+    {
+      "state": "QUEUED",
+      "at": "2026-09-17T16:23:52Z"
+    },
+    {
+      "state": "DISPATCHED",
+      "at": "2026-09-17T16:23:52Z",
+      "evidence": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T161956Z-AUTO-CC02.json"
+    },
+    {
+      "state": "RUNNING",
+      "at": "2026-09-17T16:24:07Z",
+      "evidence": "windows-jobs/processing"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T16:26:23Z",
+      "evidence": "windows-jobs/done"
+    },
+    {
+      "state": "COMPLETED",
+      "at": "2026-09-17T16:26:23Z",
+      "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T16:27:56Z",
+      "evidence": "windows-jobs/done"
+    },
+    {
+      "state": "COMPLETED",
+      "at": "2026-09-17T16:27:56Z",
+      "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T16:28:12Z",
+      "evidence": "windows-jobs/done"
+    },
+    {
+      "state": "COMPLETED",
+      "at": "2026-09-17T16:28:12Z",
+      "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T16:28:21Z",
+      "evidence": "windows-jobs/done"
+    },
+    {
+      "state": "COMPLETED",
+      "at": "2026-09-17T16:28:21Z",
+      "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json"
+    }
+  ],
+  "inbox_path": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T161956Z-AUTO-CC02.json",
+  "usage": {
+    "inputTokens": 33104,
+    "outputTokens": 2792,
+    "cacheReadTokens": 99328,
+    "cacheWriteTokens": 0
+  },
+  "usage_basis": "worker-reported"
+}

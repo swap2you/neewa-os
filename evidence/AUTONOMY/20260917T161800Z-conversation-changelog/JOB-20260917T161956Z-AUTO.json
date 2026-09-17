@@ -1,0 +1,285 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T161956Z-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate",
+  "project_id": "PRJ-NEEWA",
+  "workspace": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "intent": "software",
+  "workflow": "sdlc",
+  "approval_level": "A1",
+  "requirements_version": "REQ-v1",
+  "design_version": "DES-v1",
+  "scope": "approved personal workspace only",
+  "assigned_worker": "cursor-agent-cli",
+  "execution_worker": "cursor-agent-cli",
+  "child_jobs": [
+    {
+      "job_id": "JOB-20260917T161956Z-AUTO-CC01",
+      "at": "2026-09-17T16:21:29Z",
+      "state": "DISPATCHED"
+    },
+    {
+      "job_id": "JOB-20260917T161956Z-AUTO-CC02",
+      "at": "2026-09-17T16:23:52Z",
+      "state": "DISPATCHED"
+    },
+    {
+      "job_id": "JOB-20260917T161956Z-AUTO-CC03",
+      "at": "2026-09-17T16:26:38Z",
+      "state": "DISPATCHED"
+    }
+  ],
+  "state": "OWNER_REVIEW",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 1.5,
+    "consumed_basis": "conservative_estimate",
+    "actual_usd": null,
+    "estimated_usd": 1.5,
+    "actual_status": "unavailable-until-measured",
+    "invocations": [
+      {
+        "at": "2026-09-17T16:23:37Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "COMPLETED",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      },
+      {
+        "at": "2026-09-17T16:26:23Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "COMPLETED",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      },
+      {
+        "at": "2026-09-17T16:28:54Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "COMPLETED",
+        "input_tokens": 44925,
+        "output_tokens": 1638,
+        "cache_read_tokens": 38528,
+        "cache_write_tokens": 0,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      }
+    ]
+  },
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T161956Z-AUTO/requirements.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC01-cursor-call.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC02-cursor-call.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC03-cursor-call.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\markdown_changelog_digest.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test_markdown_changelog_digest.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\sample_CHANGELOG.md",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test-results.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\RELEASE_CANDIDATE.md",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T161956Z-AUTO/traceability.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T161956Z-AUTO/RELEASE_CANDIDATE.md"
+  ],
+  "expected_paths": [
+    "markdown_changelog_digest/markdown_changelog_digest.py",
+    "markdown_changelog_digest/test_markdown_changelog_digest.py",
+    "markdown_changelog_digest/sample_CHANGELOG.md",
+    "markdown_changelog_digest/test-results.json",
+    "markdown_changelog_digest/RELEASE_CANDIDATE.md"
+  ],
+  "validation": {
+    "council": "PASS",
+    "tests": "PASS",
+    "test_evidence": {
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "test_happy_path_latest_heading_and_bullets (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_happy_path_latest_heading_and_bullets) ... ok\ntest_invalid_changelog_no_heading (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_invalid_changelog_no_heading) ... ok\ntest_missing_input_nonzero_stderr (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_missing_input_nonzero_stderr) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.201s\n\nOK\n",
+      "source": "TEST_JSON"
+    },
+    "traceability": "PASS"
+  },
+  "failure_reason": null,
+  "retry_history": [
+    {
+      "at": "2026-09-17T16:23:52Z",
+      "event": "tests failed; requesting correction"
+    },
+    {
+      "at": "2026-09-17T16:26:38Z",
+      "event": "tests failed; requesting correction"
+    }
+  ],
+  "owner_decision": "pending_review",
+  "checkpoints": [
+    {
+      "name": "requirements",
+      "at": "2026-09-17T16:20:35Z",
+      "payload": {
+        "version": "REQ-v1",
+        "count": 8
+      }
+    },
+    {
+      "name": "council",
+      "at": "2026-09-17T16:20:50Z",
+      "payload": {
+        "material": 0
+      }
+    }
+  ],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T16:19:56Z",
+      "note": "software lifecycle with tests and done-gate"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T16:20:35Z",
+      "note": "software"
+    },
+    {
+      "state": "REQUIREMENTS",
+      "at": "2026-09-17T16:20:35Z"
+    },
+    {
+      "state": "DESIGN",
+      "at": "2026-09-17T16:20:35Z"
+    },
+    {
+      "state": "COUNCIL",
+      "at": "2026-09-17T16:20:35Z"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-17T16:20:50Z",
+      "note": "cursor-agent-cli"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T16:21:05Z",
+      "note": "submit cursor_call"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T16:23:37Z",
+      "note": "JOB-20260917T161956Z-AUTO-CC01"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T16:23:52Z",
+      "note": "automatic correction"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T16:26:23Z",
+      "note": "JOB-20260917T161956Z-AUTO-CC02"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T16:26:38Z",
+      "note": "automatic correction"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T16:28:54Z",
+      "note": "JOB-20260917T161956Z-AUTO-CC03"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T16:29:09Z"
+    },
+    {
+      "state": "RELEASE_CANDIDATE",
+      "at": "2026-09-17T16:29:19Z",
+      "note": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T161956Z-AUTO/RELEASE_CANDIDATE.md"
+    },
+    {
+      "state": "OWNER_REVIEW",
+      "at": "2026-09-17T16:29:19Z",
+      "note": "release candidate ready; no public deploy"
+    }
+  ],
+  "created_at": "2026-09-17T16:19:56Z",
+  "updated_at": "2026-09-17T16:29:19Z",
+  "active_child_id": "JOB-20260917T161956Z-AUTO-CC03",
+  "last_child": {
+    "schema_version": 1,
+    "job_id": "JOB-20260917T161956Z-AUTO-CC03",
+    "project_id": "PRJ-NEEWA",
+    "objective": "build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate",
+    "required_capability": "code_implementation",
+    "selected_worker": "cursor-agent-cli",
+    "workspace": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+    "approval_level": "A1",
+    "action": "cursor_call",
+    "state": "COMPLETED",
+    "started_at": "2026-09-17T16:26:38Z",
+    "completed_at": "2026-09-17T16:28:54Z",
+    "artifact_paths": [
+      "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC03-cursor-call.json",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\markdown_changelog_digest.py",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test_markdown_changelog_digest.py",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\sample_CHANGELOG.md",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\test-results.json",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\markdown_changelog_digest\\RELEASE_CANDIDATE.md"
+    ],
+    "validation": {
+      "worker_status": "COMPLETED",
+      "failure_class": null,
+      "host": "LAPTOP-HKGLJEE8",
+      "stdout_tail": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":101713,\"duration_api_ms\":101713,\"result\":\"I'll inspect the existing changelog digest package and failing tests, then fix implementation and evidence.Running the tests to capture the actual failure.Fixed and re-verified. Prior `test-results.json` had truncated/fake stderr (`\\\"...\\\"`); unittest now passes (3/3) and evidence was rewritten from a fresh `python -m unittest` run.\\n\\nDeliverables under `markdown_changelog_digest/`:\\n- CLI prints latest `##` heading + its bullets\\n- Tests cover success, missing file, and invalid changelog\\n- `RELEASE_CANDIDATE.md` with REQ traceability\\n- `test-results.json` with full captured output\\n\\nTEST_JSON:{\\\"exit_code\\\":0,\\\"passed\\\":true,\\\"stdout\\\":\\\"\\\",\\\"stderr\\\":\\\"test_happy_path_latest_heading_and_bullets (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_happy_path_latest_heading_and_bullets) ... ok\\\\ntest_invalid_changelog_no_heading (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_invalid_changelog_no_heading) ... ok\\\\ntest_missing_input_nonzero_stderr (test_markdown_changelog_digest.MarkdownChangelogDigestTests.test_missing_input_nonzero_stderr) ... ok\\\\n\\\\n----------------------------------------------------------------------\\\\nRan 3 tests in 0.201s\\\\n\\\\nOK\\\\n\\\"}\",\"session_id\":\"ad74b364-6550-4a68-8e1b-cb5572fbb8b5\",\"request_id\":\"dd17373a-1488-4b81-904d-d20e3ca43538\",\"usage\":{\"inputTokens\":44925,\"outputTokens\":1638,\"cacheReadTokens\":38528,\"cacheWriteTokens\":0}}\n",
+      "result": "PASS"
+    },
+    "failure_reason": null,
+    "public_listener": false,
+    "unrestricted_shell": false,
+    "created_at": "2026-09-17T16:26:38Z",
+    "updated_at": "2026-09-17T16:28:54Z",
+    "history": [
+      {
+        "state": "QUEUED",
+        "at": "2026-09-17T16:26:38Z"
+      },
+      {
+        "state": "DISPATCHED",
+        "at": "2026-09-17T16:26:38Z",
+        "evidence": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T161956Z-AUTO-CC03.json"
+      },
+      {
+        "state": "RUNNING",
+        "at": "2026-09-17T16:26:53Z",
+        "evidence": "windows-jobs/processing"
+      },
+      {
+        "state": "VALIDATING",
+        "at": "2026-09-17T16:28:54Z",
+        "evidence": "windows-jobs/done"
+      },
+      {
+        "state": "COMPLETED",
+        "at": "2026-09-17T16:28:54Z",
+        "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T161956Z-AUTO-CC03-cursor-call.json"
+      }
+    ],
+    "inbox_path": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T161956Z-AUTO-CC03.json",
+    "usage": {
+      "inputTokens": 44925,
+      "outputTokens": 1638,
+      "cacheReadTokens": 38528,
+      "cacheWriteTokens": 0
+    },
+    "usage_basis": "worker-reported"
+  }
+}

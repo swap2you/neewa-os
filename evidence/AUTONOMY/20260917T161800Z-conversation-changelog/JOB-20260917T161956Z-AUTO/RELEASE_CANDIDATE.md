@@ -1,0 +1,112 @@
+# Release candidate JOB-20260917T161956Z-AUTO
+
+Objective: build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate
+Requirements: REQ-v1
+Design: DES-v1
+Assigned worker: cursor-agent-cli
+Execution worker: cursor-agent-cli
+Child jobs: [{"job_id": "JOB-20260917T161956Z-AUTO-CC01", "at": "2026-09-17T16:21:29Z", "state": "DISPATCHED"}, {"job_id": "JOB-20260917T161956Z-AUTO-CC02", "at": "2026-09-17T16:23:52Z", "state": "DISPATCHED"}, {"job_id": "JOB-20260917T161956Z-AUTO-CC03", "at": "2026-09-17T16:26:38Z", "state": "DISPATCHED"}]
+
+## Traceability
+[
+  {
+    "requirement": "REQ-001",
+    "text": "Deliver `markdown_changelog_digest` satisfying: build a markdown changelog digest CLI that reads CHANGELOG.md and prints the latest version heading and its bullet list, with tests and a release candidate",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=markdown_changelog_digest/markdown_changelog_digest.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-002",
+    "text": "Read the input file named or implied by the objective; do not scan unrelated directories.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=markdown_changelog_digest/markdown_changelog_digest.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-003",
+    "text": "Emit the requested output described in the objective (stdout or named artifact).",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=markdown_changelog_digest/markdown_changelog_digest.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-004",
+    "text": "Treat Markdown structure as data; preserve headings and list items from the source file.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=markdown_changelog_digest/markdown_changelog_digest.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-005",
+    "text": "Automated tests cover the primary success path and at least one invalid or missing-input path.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "test file present and unittest passed"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-006",
+    "text": "Missing or unreadable input must produce a non-zero exit code and an error on stderr.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=markdown_changelog_digest/markdown_changelog_digest.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-007",
+    "text": "Operate only on an explicit path argument inside the approved workspace; do not access employer trees.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "design.filesystem_scope=explicit path argument only; approved workspace",
+      "workspace=C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-008",
+    "text": "Produce a release-candidate document with requirement traceability after tests pass.",
+    "design": "DES-v1",
+    "implementation": "markdown_changelog_digest/markdown_changelog_digest.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "release artifact referenced"
+    ],
+    "result": "PASS"
+  }
+]
+
+## Limitations
+- Approved sandbox only; not deployed.
+- Cost basis: conservative_estimate.
+
+Owner review is required before any public release.

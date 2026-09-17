@@ -1,0 +1,10 @@
+[
+  {
+    "name": "NEEWA-OS",
+    "status": "healthy"
+  },
+  {
+    "name": "cursor-sandbox",
+    "status": "active"
+  }
+]

@@ -1,0 +1,40 @@
+{
+  "all_pass": true,
+  "rows": [
+    {
+      "requirement": "REQ-001",
+      "design": "DES-v2",
+      "implementation": "status_app.py",
+      "test": "test_status_app.py",
+      "result": "PASS"
+    },
+    {
+      "requirement": "REQ-002",
+      "design": "DES-v2",
+      "implementation": "status_app.py",
+      "test": "test_status_app.py",
+      "result": "PASS"
+    },
+    {
+      "requirement": "REQ-003",
+      "design": "DES-v2",
+      "implementation": "status_app.py",
+      "test": "test_status_app.py",
+      "result": "PASS"
+    },
+    {
+      "requirement": "REQ-004",
+      "design": "DES-v2",
+      "implementation": "status_app.py",
+      "test": "test_status_app.py",
+      "result": "PASS"
+    },
+    {
+      "requirement": "REQ-005",
+      "design": "DES-v2",
+      "implementation": "status_app.py",
+      "test": "policy",
+      "result": "PASS"
+    }
+  ]
+}

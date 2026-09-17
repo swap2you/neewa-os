@@ -1,0 +1,1 @@
+{"job_id":"JOB-20260917-CONV-CC-002","status":"FAILED","reason":"validation failed; missing expected files: sample.json, project_health.py, test_project_health.py, health_report.json","artifact":"C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-002-cursor-call.json","host":"LAPTOP-HKGLJEE8","failure_class":"VALIDATION"}

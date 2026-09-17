@@ -27,6 +27,7 @@ STATES = (
     "QUEUED",
     "DISPATCHED",
     "RUNNING",
+    "WAITING",
     "VALIDATING",
     "COMPLETED",
     "BLOCKED",
@@ -381,6 +382,10 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             "failure_class": payload.get("failure_class"),
             "host": payload.get("host"),
         }
+        usage = payload.get("usage")
+        if isinstance(usage, dict):
+            record["usage"] = usage
+            record["usage_basis"] = "worker-reported"
         if status == "COMPLETED":
             record["validation"]["result"] = "PASS"
             append_state(record, "COMPLETED", payload.get("artifact"))

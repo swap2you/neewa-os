@@ -8,7 +8,8 @@ Exceptional:
 
 Windows Conversation bridge (durable inbox records) uses:
 `QUEUED -> DISPATCHED -> RUNNING -> VALIDATING -> COMPLETED`
-with `BLOCKED`, `FAILED`, `CANCELLED`. See `AI-OPS/delivery/ORCHESTRATION.md`.
+with `BLOCKED`, `FAILED`, `CANCELLED`, and `WAITING`. See `AI-OPS/delivery/ORCHESTRATION.md`.
+Autonomous parent jobs use `12_SCRIPTS/neewa_autonomy.py` states through `OWNER_REVIEW`.
 `COMPLETED` maps to `DONE` for repository job files when evidence is copied.
 
 ## Rules

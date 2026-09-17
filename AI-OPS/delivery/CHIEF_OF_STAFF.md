@@ -13,6 +13,7 @@ a durable job, and reports evidence. The owner does not manage chat sessions.
 | Show connected projects | `neewa_orchestrate.py submit --capability project_inventory` | workspace inventory JSON |
 | Science Quest / KidsProjects status | Read `evidence/PROJECT_PORTFOLIO/PRJ-KIDS` only | Isolated context; child folder is not separately connected |
 | Ask Cursor to fix tests / implement a feature | `neewa_orchestrate.py submit --capability code_implementation` | job record + cursor_call evidence |
+| Build an application / run SDLC | `neewa_autonomy.py run --objective "..."` then optional cursor_call | parent job + requirements/council/tests/RC |
 | What is the team working on / summarize completed work | `neewa_orchestrate.py list` | durable records |
 | Project status | Read `04_MEMORY/PROJECT_REGISTRY.md` + `11_CONFIG/projects.json` | Real IDs or Unavailable |
 | Create a plan / draft a document | A0/A1 draft in repo or memory; no external send | Job record |
@@ -22,7 +23,8 @@ a durable job, and reports evidence. The owner does not manage chat sessions.
 ## Job states
 
 Inbox/orchestration: `QUEUED → DISPATCHED → RUNNING → VALIDATING → COMPLETED`
-with `BLOCKED`, `FAILED`, `CANCELLED`. See `AI-OPS/delivery/ORCHESTRATION.md`.
+with `BLOCKED`, `FAILED`, `CANCELLED`, `WAITING`. See `AI-OPS/delivery/ORCHESTRATION.md`.
+Autonomous parent jobs: `AI-OPS/delivery/AUTONOMOUS_OPERATING_MODEL.md`.
 Repository jobs may still use `NEW → … → DONE`.
 
 ## Approval gates (never skip)

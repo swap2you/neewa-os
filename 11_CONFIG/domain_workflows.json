@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "notes": "Reusable domain modes. Not separate NEEWA installations.",
+  "workflows": {
+    "software_saas": {
+      "projects": ["PRJ-AAROHAN", "PRJ-CHAKRAOPS", "PRJ-CHAKRAOPS-DEV", "PRJ-NEEWA", "PRJ-ZUME"],
+      "lifecycle": "sdlc",
+      "gates": ["requirements", "council", "tests", "traceability", "owner_review"]
+    },
+    "kids_education": {
+      "projects": ["PRJ-KIDS"],
+      "lifecycle": "sdlc",
+      "gates": ["age_appropriate", "instructional_accuracy", "no_child_pii", "no_unnecessary_tracking"]
+    },
+    "bhava_publishing": {
+      "projects": ["PRJ-BHAVA"],
+      "lifecycle": "document",
+      "gates": ["source_fidelity", "copyright", "no_auto_publish"]
+    },
+    "wani_media": {
+      "projects": ["PRJ-WANI"],
+      "lifecycle": "creative_production",
+      "gates": ["exact_source_quotation", "image_identity", "publication_approval"]
+    },
+    "devotional": {
+      "projects": ["PRJ-DEVOTIONAL"],
+      "lifecycle": "research_report",
+      "gates": ["primary_source", "no_invented_verses", "attribution"]
+    },
+    "social_monetization": {
+      "projects": ["PRJ-SOCIAL", "PRJ-REVENUE"],
+      "lifecycle": "research_report",
+      "gates": ["no_promised_revenue", "no_auto_publish", "no_customer_contact"]
+    },
+    "career": {
+      "projects": ["PRJ-MANAN"],
+      "lifecycle": "document",
+      "gates": ["no_fabricated_credentials"]
+    }
+  }
+}

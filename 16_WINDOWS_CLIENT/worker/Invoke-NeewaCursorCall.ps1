@@ -126,6 +126,17 @@ if ($timeoutSec -gt $maxTimeout) { $timeoutSec = $maxTimeout }
 $expected = @()
 if ($Job.expected_paths) { $expected = @($Job.expected_paths) }
 
+function Get-CursorUsage([string]$text) {
+  if (-not $text) { return $null }
+  try {
+    $obj = $text.Trim() | ConvertFrom-Json
+    if ($obj.usage) { return $obj.usage }
+  } catch {
+    return $null
+  }
+  return $null
+}
+
 function New-CursorResult($status, $reason, $artifact, $extra) {
   $obj = [ordered]@{
     job_id = $jobId
@@ -309,6 +320,7 @@ $stdout = if (Test-Path $stdoutFile) { Get-Content -Raw -LiteralPath $stdoutFile
 $stderr = if (Test-Path $stderrFile) { Get-Content -Raw -LiteralPath $stderrFile } else { '' }
 $stdout = Protect-Log $stdout
 $stderr = Protect-Log $stderr
+$usage = Get-CursorUsage $stdout
 $combined = @("exit=$exitCode duration_sec=$duration cli=$cli repo=$repo write=$write", $stdout, $stderr) -join "`n"
 [System.IO.File]::WriteAllText($logPath, $combined, [System.Text.UTF8Encoding]::new($false))
 
@@ -325,6 +337,7 @@ if ($exitCode -ne 0 -or $authFail) {
     log = $logPath
     failure_class = $failureClass
     stdout_tail = if ($stdout) { $stdout.Substring([Math]::Max(0, $stdout.Length - 2000)) } else { '' }
+    usage = $usage
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact
@@ -375,6 +388,7 @@ $r = New-CursorResult 'COMPLETED' $null $artifact @{
   log = $logPath
   artifact_paths = $created
   stdout_tail = if ($stdout) { $stdout.Substring([Math]::Max(0, $stdout.Length - 4000)) } else { '' }
+  usage = $usage
 }
 [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
 $r.artifact = $artifact

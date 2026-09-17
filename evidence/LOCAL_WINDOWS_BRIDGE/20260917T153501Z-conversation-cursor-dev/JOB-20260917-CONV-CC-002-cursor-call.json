@@ -1,0 +1,27 @@
+{
+  "job_id": "JOB-20260917-CONV-CC-002",
+  "action": "cursor_call",
+  "status": "FAILED",
+  "reason": "validation failed; missing expected files: sample.json, project_health.py, test_project_health.py, health_report.json",
+  "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-002-cursor-call.json",
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "selected_worker": "cursor-agent-cli",
+  "git_writer": "Cursor",
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "write": true,
+  "artifact_paths": [],
+  "duration_sec": 5,
+  "exit_code": 0,
+  "cli": "C:\\Users\\swap2\\AppData\\Local\\cursor-agent\\agent.cmd",
+  "repo": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "failure_class": "VALIDATION",
+  "missing_paths": [
+    "sample.json",
+    "project_health.py",
+    "test_project_health.py",
+    "health_report.json"
+  ],
+  "log": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-002-cursor-call.log"
+}

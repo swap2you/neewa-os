@@ -17,6 +17,19 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py submit --capability 
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py wait --job-id JOB-<utc>-WS --timeout-sec 90
 ```
 
+## Software objective (requirements, council, tests, release candidate)
+
+```
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py run \
+  --objective "build a project-status application" \
+  --project-id PRJ-NEEWA \
+  --workdir /workspace/windows-jobs/autonomy/work
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
+```
+
+Do not ask the owner to paste the same prompt into Cursor. Child coding still
+uses `neewa_orchestrate.py` `code_implementation` as below.
+
 ## Delegate coding to Cursor (approved personal repo or cursor-sandbox)
 
 ```

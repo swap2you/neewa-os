@@ -14,7 +14,7 @@
     {
       "id": "windows-worker-bridge",
       "status": "installed-and-verified",
-      "scope": "Conversation orchestration, Windows inbox, cursor_call"
+      "scope": "Conversation orchestration, Windows inbox, cursor_call, autonomy SDLC"
     }
   ]
 }

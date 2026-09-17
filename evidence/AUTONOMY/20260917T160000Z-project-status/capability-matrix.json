@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-09-17T16:03:14Z",
+  "parent_job_id": "JOB-20260917T160243Z-AUTO",
+  "prior_cursor_job_id": "JOB-20260917-CONV-CC-005",
+  "VERIFIED_WORKING": [
+    "Hermes Conversation",
+    "Windows worker outbound poll",
+    "workspace_inventory",
+    "cursor_call A1 on approved repos",
+    "Conversation-to-Cursor JOB-20260917-CONV-CC-005",
+    "local autonomy SDLC controller"
+  ],
+  "IMPLEMENTED_BUT_UNVERIFIED": [
+    "Conversation-hosted parent SDLC (needs core sync + live job)"
+  ],
+  "CONFIGURED_BUT_UNAVAILABLE": [
+    "openai-direct",
+    "openrouter",
+    "litellm",
+    "langfuse",
+    "runpod",
+    "openai-codex"
+  ],
+  "NOT_IMPLEMENTED": [
+    "Claude Code CLI routing",
+    "Codex CLI routing",
+    "Gemini CLI routing",
+    "remote Cua inbox jobs"
+  ],
+  "REQUIRES_OWNER_AUTHORIZATION": [
+    "A2 publish/deploy/spend",
+    "A3 trades and bank transfers",
+    "new paid provider accounts"
+  ],
+  "routable_coding_workers": ["cursor-agent-cli"]
+}

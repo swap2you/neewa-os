@@ -1,0 +1,14 @@
+{
+  "first": {
+    "exit_code": 1,
+    "passed": false,
+    "stdout": "",
+    "stderr": "test_happy_path (test_status_app.StatusAppTests.test_happy_path) ... ok\ntest_malformed_json_fails (test_status_app.StatusAppTests.test_malformed_json_fails) ... FAIL\n\n======================================================================\nFAIL: test_malformed_json_fails (test_status_app.StatusAppTests.test_malformed_json_fails)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"c:\\Development\\Workspace\\NEEWA-OS\\evidence\\AUTONOMY\\20260917T160000Z-project-status\\work\\test_status_app.py\", line 39, in test_malformed_json_fails\n    self.assertNotEqual(completed.returncode, 0)\n    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 0 == 0\n\n----------------------------------------------------------------------\nRan 2 tests in 0.167s\n\nFAILED (failures=1)\n"
+  },
+  "regression": {
+    "exit_code": 0,
+    "passed": true,
+    "stdout": "",
+    "stderr": "test_happy_path (test_status_app.StatusAppTests.test_happy_path) ... ok\ntest_malformed_json_fails (test_status_app.StatusAppTests.test_malformed_json_fails) ... ok\n\n----------------------------------------------------------------------\nRan 2 tests in 0.145s\n\nOK\n"
+  }
+}

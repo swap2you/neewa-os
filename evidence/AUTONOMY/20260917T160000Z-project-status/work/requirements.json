@@ -1,0 +1,41 @@
+{
+  "version": "REQ-v1",
+  "original_objective": "NEEWA, build a project-status application. Research the approach, define the requirements, have the council challenge the design, implement it, test it, correct defects and give me a release candidate.",
+  "clarifications": [],
+  "implementation_decisions": [],
+  "proposed_enhancements": [],
+  "out_of_scope": [
+    "public deployment",
+    "live trading",
+    "employer data"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Accept a JSON file describing project statuses.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-002",
+      "text": "Print a human-readable status report including name and health.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-003",
+      "text": "Reject malformed JSON with a non-zero exit code.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-004",
+      "text": "Automated tests cover happy path and malformed input.",
+      "kind": "quality"
+    },
+    {
+      "id": "REQ-005",
+      "text": "Do not access employer trees or unrestricted filesystem paths.",
+      "kind": "security"
+    }
+  ],
+  "created_at": "2026-09-17T16:02:43Z",
+  "source_class": "INFERENCE"
+}

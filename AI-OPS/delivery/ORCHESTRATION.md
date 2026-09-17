@@ -55,6 +55,11 @@ re-execution. Timeouts kill the Agent CLI process tree (`taskkill /T`).
 Windows offline: jobs remain in inbox until the worker reconnects.
 The server stays up independently.
 
-## Conversation commands
+## Parent autonomous jobs
 
-See `AI-OPS/skills/windows-worker-bridge/SKILL.md`.
+Software objectives also run `12_SCRIPTS/neewa_autonomy.py`, which keeps a
+parent record independent of the chat session. Child Cursor work still uses
+this inbox path.
+
+`WAITING` parks a job when no verified coding worker is routable.
+

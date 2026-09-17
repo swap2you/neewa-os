@@ -1,0 +1,21 @@
+{
+  "version": "DES-v1",
+  "summary": "CLI that reads a JSON array of {name, status} and prints a table.",
+  "assumptions": [
+    "Local Python 3 is available.",
+    "Workspace is the approved sandbox."
+  ],
+  "components": [
+    "status_app.py",
+    "sample_status.json",
+    "test_status_app.py"
+  ],
+  "acceptance": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005"
+  ],
+  "created_at": "2026-09-17T16:02:43Z"
+}

@@ -1,0 +1,27 @@
+{
+  "baseline_id": "AUTONOMY-RFC-v4",
+  "parent_baseline": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "approver_classification": "internal engineering RFC",
+  "owner_approved": false,
+  "independence_class": "deterministic_only",
+  "limitation": "INDEPENDENCE_UNAVAILABLE",
+  "created_at": "2026-09-17T17:59:04Z",
+  "files": {
+    "RFC-v4-CHANGE-PROPOSAL.md": {
+      "sha256": "d6dddec833e3303521fe9a1195c034d45f7b2a0dd5591f598956542222bcdbd8",
+      "bytes": 2104
+    },
+    "IMPLEMENTATION_MATRIX_v4.md": {
+      "sha256": "5ffcc2c88ad8a0ca7faac3c55638dce4fcf60cf4b30c1bc3834b12ee66019d6f",
+      "bytes": 1438
+    },
+    "COUNCIL_REVIEW_V4.md": {
+      "sha256": "4dc2332e2402cce346c5ec812417e90db95414cba33f5e086acaf4649b5c70ab",
+      "bytes": 987
+    },
+    "project_stacks.json": {
+      "sha256": "340ddc5d525a3b0f8536eddafbf7fbace3fd0a881de6b0785109cdacc79127cb",
+      "bytes": 1672
+    }
+  }
+}

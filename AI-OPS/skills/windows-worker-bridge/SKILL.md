@@ -32,9 +32,12 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
 ```
 
-Implementation is a child `cursor_call` through `neewa_orchestrate.py`.
-Do not call `--fixture demo-status` for real owner work.
-Do not wait in the chat for Cursor; report the parent job_id and current state.
+For an existing approved personal repo, set `--project-id` and `--workspace` to that
+repo (for example `C:\\Development\\Workspace\\KidsProjects\\ScienceQuest` with
+`--project-id PRJ-KIDS`). Do not invent a Python CLI if the repo is Node/TypeScript.
+Bhāva and Vāṇī remain DISCOVERED: do not submit A1 writes there. Research that is
+not a Ganesh katha should still be submitted as research; the controller cites the
+matching local corpus (OWNER.md / PROJECT_ACCESS.md) or SOURCE_PENDING.
 
 ## Research or document objective (source-grounded, no software CLI)
 

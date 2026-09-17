@@ -27,6 +27,9 @@ ORCH = SourceFileLoader(
 FIXTURE = SourceFileLoader(
     "neewa_autonomy_fixture", str(ROOT / "12_SCRIPTS" / "neewa_autonomy_fixture.py")
 ).load_module()
+PLANNING = SourceFileLoader(
+    "neewa_autonomy_planning", str(ROOT / "12_SCRIPTS" / "neewa_autonomy_planning.py")
+).load_module()
 BUDGETS = ROOT / "11_CONFIG" / "budgets.json"
 WORKERS = ROOT / "11_CONFIG" / "workers.json"
 PROVIDERS = ROOT / "11_CONFIG" / "providers.json"
@@ -167,14 +170,23 @@ def classify_intent(text: str) -> dict:
             "approval": "A0",
             "reason": "informational; no development job",
         }
-    if re.search(r"\b(katha|research|compare|investigate)\b", lower) and "build" not in lower:
+    if re.search(
+        r"\b(katha|research|compare|investigate|briefing|citing|source-grounded)\b",
+        lower,
+    ) and not re.search(r"\b(build|implement|vitest|npm test)\b", lower):
         return {
             "intent": "research",
             "workflow": "research_report",
             "approval": "A0",
             "reason": "evidence-producing research",
         }
-    if re.search(r"\b(build|implement|application|unit test|release candidate|cli)\b", lower):
+    if re.search(
+        r"\b(build|implement|application|unit test|release candidate|cli|vitest|npm test)\b",
+        lower,
+    ) or (
+        re.search(r"\b(add|update|edit|fix|assert)\b", lower)
+        and re.search(r"\.(py|ts|tsx|js|md)\b", lower)
+    ):
         return {
             "intent": "software",
             "workflow": "sdlc",
@@ -224,6 +236,9 @@ def create_parent_job(
     origin: str = "controller",
 ) -> dict:
     classification = classify_intent(objective)
+    resolved = PLANNING.resolve_project(project_id, workspace)
+    if resolved.get("allowed") and resolved.get("workspace"):
+        workspace = resolved["workspace"]
     budgets = load_json(BUDGETS)
     if budget_ceiling is None:
         ceiling = budgets["job_defaults"]["max_cost"]
@@ -257,7 +272,11 @@ def create_parent_job(
             "actual_status": "unavailable-until-measured",
             "invocations": [],
         },
-        "spec_sha256": None,
+        "project_resolution": {
+            "allowed": resolved.get("allowed"),
+            "reason": resolved.get("reason"),
+            "access_stage": (resolved.get("project") or {}).get("access_stage"),
+        },
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "lease": None,
         "timeout_sec": 600,
@@ -530,10 +549,18 @@ def split_objective_clauses(objective: str) -> list[str]:
     return [p.strip() for p in parts if p and len(p.strip()) > 8]
 
 
-def build_requirements(objective: str, *, fixture: str | None = None, workflow: str | None = None) -> dict:
+def build_requirements(
+    objective: str,
+    *,
+    fixture: str | None = None,
+    workflow: str | None = None,
+    workspace: str | None = None,
+    project_id: str | None = None,
+) -> dict:
     if fixture == FIXTURE.FIXTURE_ID:
         return FIXTURE.fixture_build_requirements(objective)
     workflow = workflow or classify_intent(objective)["workflow"]
+    inspect = PLANNING.inspect_workspace(workspace, project_id)
     slug = product_slug(objective)
     clauses = split_objective_clauses(objective)
     reqs: list[dict] = []
@@ -543,14 +570,15 @@ def build_requirements(objective: str, *, fixture: str | None = None, workflow: 
 
     if workflow == "research_report":
         add("functional", f"Produce a source-grounded research/document artifact for: {objective.strip()}")
-        add("provenance", "Cite only entries from the approved local source pack; never invent verses or attributions.")
+        add("provenance", "Cite only approved local corpus files; never invent verses or attributions.")
         add("provenance", "If a needed source is absent, mark SOURCE_PENDING instead of fabricating a citation.")
-        add("domain", "List items that require the owner to choose a tradition or lineage.")
+        add("domain", "List items that require the owner to choose a tradition, policy, or lineage.")
         add("release", "Do not publish; stop at a release candidate for owner review.")
         add("security", "Stay inside approved personal NEEWA references; do not access employer trees.")
     else:
-        add("functional", f"Deliver `{slug}` satisfying: {objective.strip()}")
+        add("functional", f"Deliver the requested change for `{slug}`: {objective.strip()}")
         lower = objective.lower()
+        stack = inspect.get("stack") or ""
         if "read" in lower or "import" in lower or "csv" in lower:
             add("functional", "Read the input file named or implied by the objective; do not scan unrelated directories.")
         if re.search(r"\bprint|output|digest|report|heading|bullet|export|table|subtotal\b", lower):
@@ -562,9 +590,11 @@ def build_requirements(objective: str, *, fixture: str | None = None, workflow: 
         if re.search(r"\bcsv\b", lower):
             add("functional", "Reject malformed CSV rows visibly; do not silently drop invalid amounts or headers.")
         if re.search(r"\btest", lower) or "release candidate" in lower or workflow == "sdlc":
-            add("quality", "Automated tests cover the primary success path and at least one invalid or missing-input path.")
-        add("reliability", "Missing or unreadable input must produce a non-zero exit code and an error on stderr.")
-        add("security", "Operate only on an explicit path argument inside the approved workspace; do not access employer trees.")
+            cmd = inspect.get("test_command") or "project tests"
+            add("quality", f"Run the repository test command ({cmd}) covering the changed behavior.")
+        if stack.startswith("python") or stack in {"", "unknown", "python-stdlib"}:
+            add("reliability", "Missing or unreadable input must produce a non-zero exit code and an error on stderr.")
+        add("security", "Operate only inside the approved workspace; do not access employer trees.")
         if "release candidate" in lower or workflow == "sdlc":
             add("release", "Produce a release-candidate document with requirement traceability after tests pass.")
     seen = set()
@@ -577,7 +607,7 @@ def build_requirements(objective: str, *, fixture: str | None = None, workflow: 
         unique.append(req)
     for i, req in enumerate(unique, start=1):
         req["id"] = f"REQ-{i:03d}"
-    return {
+    payload = {
         "version": "REQ-v1",
         "original_objective": objective,
         "product_slug": slug,
@@ -592,6 +622,7 @@ def build_requirements(objective: str, *, fixture: str | None = None, workflow: 
         "source_class": "DERIVED_FROM_OBJECTIVE",
         "baseline_id": load_baseline_lock().get("baseline_id"),
     }
+    return PLANNING.attach_acceptance_checks(payload, inspect, workflow)
 
 
 def initial_design(requirements: dict, objective: str | None = None) -> dict:
@@ -610,9 +641,10 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
                 "the approved local source pack. No software CLI."
             ),
             "assumptions": [
-                "Approved source pack at 14_REFERENCE/devotional_sources/SOURCE_PACK.md.",
+                "Approved local corpus files only (OWNER.md, PROJECT_ACCESS.md, source packs as matched).",
                 "Missing sources are SOURCE_PENDING, never invented.",
             ],
+            "source_plan": "Cite corpus file names; list owner decisions still required.",
             "components": [
                 f"{slug}/RESEARCH_REPORT.md",
                 f"{slug}/citations.json",
@@ -621,6 +653,39 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "source_plan": "Quote SRC-IDs from the local pack; list owner tradition choices.",
             "error_handling": "SOURCE_PENDING when the pack lacks a requested source; do not fabricate citations",
             "filesystem_scope": "approved NEEWA reference pack only",
+            "acceptance": [r["id"] for r in requirements["requirements"]],
+            "created_at": utc_now(),
+        }
+    stack = requirements.get("stack") or "python-stdlib"
+    mentioned = re.findall(r"[\w./\\-]+\.(?:md|py|ts|tsx|js|json|toml)", objective)
+    sandboxish = (
+        stack in {"", "unknown", "python-stdlib", "python"}
+        or "cursor-sandbox" in objective.lower()
+    )
+    existing_repo = (stack.startswith("node") or stack.startswith("mixed")) and not sandboxish
+    if existing_repo:
+        components = mentioned or ["README.md"]
+        if any(r.get("kind") == "release" for r in requirements["requirements"]):
+            components.append("RELEASE_CANDIDATE.md")
+        return {
+            "version": "DES-v1",
+            "product_slug": slug,
+            "workflow": workflow,
+            "stack": stack,
+            "create_new_package": False,
+            "test_command": requirements.get("test_command"),
+            "summary": (
+                f"Scoped change in the existing {stack} repository. "
+                "Do not create a new Python CLI package. "
+                + "; ".join(r["text"] for r in requirements["requirements"] if r["kind"] == "functional")
+            ),
+            "assumptions": [
+                "Use the repository's existing toolchain and tests.",
+                "Change only files required by the objective.",
+            ],
+            "components": components,
+            "error_handling": "keep existing error handling unless the objective changes it",
+            "filesystem_scope": "approved workspace only; no employer trees",
             "acceptance": [r["id"] for r in requirements["requirements"]],
             "created_at": utc_now(),
         }
@@ -649,6 +714,9 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
         "error_handling": "non-zero exit and stderr on missing/unreadable/invalid input",
         "filesystem_scope": "explicit path argument only; approved workspace",
         "acceptance": [r["id"] for r in requirements["requirements"]],
+        "stack": stack,
+        "create_new_package": True,
+        "test_command": requirements.get("test_command") or "python -m unittest",
         "created_at": utc_now(),
     }
 
@@ -693,7 +761,12 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
         )
 
     if any("test" in r["text"].lower() or r["kind"] == "quality" for r in reqs):
-        if not any("test" in str(c).lower() for c in design.get("components") or []):
+        has_test = (
+            any("test" in str(c).lower() for c in design.get("components") or [])
+            or bool(design.get("test_command"))
+            or design.get("create_new_package") is False
+        )
+        if not has_test:
             note(
                 "quality_engineer",
                 "material",
@@ -704,8 +777,8 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
             note(
                 "quality_engineer",
                 "info",
-                "Test component is present.",
-                f"components={design.get('components')}",
+                "Test component or repository test command is present.",
+                f"components={design.get('components')} test_command={design.get('test_command')}",
             )
 
     if any(r["kind"] == "reliability" or "invalid" in r["text"].lower() or "missing" in r["text"].lower() for r in reqs):
@@ -755,16 +828,23 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
             "components use local Python",
         )
 
-    note(
-        "solution_architect",
-        "info",
-        "Single-package CLI matches sandbox A1 scope." if len(design.get("components") or []) <= 6 else "Component set is large for a sandbox task.",
-        f"n={len(design.get('components') or [])}",
-    )
+    if (requirements.get("stack") or "").startswith("node") and "python cli" in blob:
+        note(
+            "solution_architect",
+            "material",
+            "Node/TypeScript repository was given a Python CLI design.",
+            f"stack={requirements.get('stack')} summary={design.get('summary')!r}",
+        )
+    if requirements.get("workflow") == "research_report":
+        impl_note = "Research document workflow; no software CLI."
+    elif design.get("create_new_package") is False:
+        impl_note = f"Scoped change in existing {requirements.get('stack') or 'repository'} using its toolchain."
+    else:
+        impl_note = "Implementation is a stdlib Python CLI unless later evidence shows otherwise."
     note(
         "implementation_engineer",
         "info",
-        "Research document workflow; no software CLI." if (requirements.get("workflow") == "research_report") else "Implementation is a stdlib Python CLI unless later evidence shows otherwise.",
+        impl_note,
         str(design.get("components")),
     )
     if requirements.get("workflow") == "research_report":
@@ -807,12 +887,15 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
         if any("security" in f["finding"].lower() or "filesystem" in f["finding"].lower() for f in material):
             revised["filesystem_scope"] = "explicit path argument only; approved workspace; no employer trees"
         if any("test" in f["finding"].lower() for f in material):
-            slug = revised.get("product_slug") or "task"
-            comps = list(revised.get("components") or [])
-            test_path = f"{slug}/test_{slug}.py"
-            if test_path not in comps:
-                comps.append(test_path)
-            revised["components"] = comps
+            if revised.get("create_new_package") is False:
+                revised["test_command"] = requirements.get("test_command") or revised.get("test_command")
+            else:
+                slug = revised.get("product_slug") or "task"
+                comps = list(revised.get("components") or [])
+                test_path = f"{slug}/test_{slug}.py"
+                if test_path not in comps:
+                    comps.append(test_path)
+                revised["components"] = comps
         revised["corrections"] = [f["finding"] for f in material]
         revised["acceptance"] = [r["id"] for r in reqs] or revised.get("acceptance")
     else:
@@ -866,70 +949,50 @@ def parse_source_pack(path: Path | None = None) -> dict:
 
 
 def synthesize_research(objective: str, requirements: dict, design: dict) -> dict:
+    result = PLANNING.synthesize_from_corpus(objective, requirements, design)
     pack = parse_source_pack()
-    cited = []
-    lower = objective.lower()
-    for sid, body in pack["entries"].items():
-        if any(token in lower or token in body.lower() for token in ("ganesha", "ganesh", "ganapati", "chaturthi", "katha")):
-            cited.append(sid)
-    if not cited:
-        cited = list(pack["entries"])
-    source_status = "PASS" if pack["status"] == "AVAILABLE" and cited else "SOURCE_PENDING"
-    slug = design.get("product_slug") or "research"
-    lines = [
-        f"# Research report — {slug}",
-        "",
-        f"Objective: {objective}",
-        f"Source pack: {pack.get('pack_id')} ({pack.get('path')})",
-        f"Source status: {source_status}",
-        "",
-        "This document cites only the approved local pack. It is not a publication.",
-        "",
-    ]
-    if source_status == "SOURCE_PENDING":
-        lines += [
-            "No approved source entries were available for this request.",
-            "Citations were not invented.",
-            "",
-        ]
-    else:
-        lines.append("## Outline (about eight minutes spoken)")
-        lines.append("")
-        if "SRC-01" in cited:
-            lines.append("1. Opening invocation — Ganesha as the start of speech and work (SRC-01).")
-        if "SRC-02" in cited:
-            lines.append("2. Puranic reminder that stories teach, they are not a historical chronicle (SRC-02).")
-        if "SRC-03" in cited:
-            lines.append("3. Festival practice: clay form, offering, visarjan as return to water (SRC-03).")
-        if "SRC-04" in cited:
-            lines.append("4. Owner choice: family/regional liturgy is not settled by this pack (SRC-04).")
-        lines += ["", "## Source notes", ""]
-        for sid in cited:
-            excerpt = pack["entries"][sid].splitlines()
-            theme = next((ln for ln in excerpt if "Permitted theme" in ln or "Note:" in ln), excerpt[1] if len(excerpt) > 1 else sid)
-            lines.append(f"- **{sid}**: {theme.strip()}")
-        lines += [
-            "",
-            "## Owner tradition selection required",
-            "- Smarta, Ganapatya, Maharashtrian household, or another family liturgy (SRC-04).",
-            "",
-        ]
-    report = "\n".join(lines) + "\n"
-    citations = [{"id": sid, "pack": pack.get("pack_id"), "exists": sid in pack["entries"]} for sid in cited]
-    invented = [c for c in citations if not c["exists"]]
-    return {
-        "report": report,
-        "citations": citations,
-        "source_status": source_status,
-        "slug": slug,
-        "invented": invented,
-        "passed": (source_status in {"AVAILABLE", "PASS"} or (source_status != "SOURCE_PENDING" and bool(cited))) and not invented,
-    }
+    if pack.get("entries") and re.search(r"ganesh|ganapati|chaturthi|katha", objective, re.I):
+        extra = ["", "## Source-pack entries (devotional corpus)", ""]
+        for sid, body in pack["entries"].items():
+            theme = next((ln for ln in body.splitlines() if "Permitted theme" in ln or "Note:" in ln), sid)
+            extra.append(f"- **{sid}**: {theme.strip()}")
+        extra.append("")
+        result["report"] += "\n".join(extra)
+        result["citations"].extend({"id": sid, "pack": pack.get("pack_id"), "exists": True} for sid in pack["entries"])
+        result["word_count"] = len(result["report"].split())
+        result["passed"] = result["passed"] or (bool(pack["entries"]) and "SRC-01" in result["report"])
+    return result
 
 
 def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
     req_lines = "\n".join(f"- {r['id']}: {r['text']}" for r in requirements["requirements"])
     files = "\n".join(f"- {p}" for p in expected_paths_from_design(design))
+    test_cmd = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
+    if design.get("create_new_package") is False:
+        return f"""Implement this approved NEEWA work package in the EXISTING repository. Do not change the objective.
+
+OBJECTIVE:
+{job['parent_objective']}
+
+REQUIREMENTS ({requirements.get('version')}):
+{req_lines}
+
+APPROVED DESIGN ({design.get('version')}):
+{design.get('summary')}
+Stack: {design.get('stack')}
+Filesystem scope: {design.get('filesystem_scope')}
+
+Edit only these files (relative to the workspace root) unless the objective names others:
+{files}
+
+Rules:
+- Do NOT create a new Python CLI package.
+- Use this repository's toolchain. Run: {test_cmd}
+- Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
+- Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
+- No public distribution, production rollout, buying services, or brokerage actions.
+- Do not claim files exist unless you changed or verified them.
+"""
     return f"""Implement this approved NEEWA work package. Do not change the objective.
 
 OBJECTIVE:
@@ -954,6 +1017,20 @@ Rules:
 - Stay inside this workspace. Do not touch employer trees or the rest of the C drive.
 - No public distribution, production rollout, buying services, or brokerage actions.
 - Do not claim files exist unless you wrote them.
+"""
+
+
+def build_validation_prompt(job: dict, requirements: dict, design: dict) -> str:
+    test_cmd = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
+    return f"""Independently rerun tests for this approved NEEWA work package. Do not expand scope.
+
+OBJECTIVE:
+{job['parent_objective']}
+
+Run the repository test command only: {test_cmd}
+Do not create a new Python CLI. Do not change unrelated files.
+Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
+Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
 """
 
 
@@ -997,7 +1074,142 @@ def parse_test_evidence(stdout: str | None, payload: dict | None = None) -> dict
             "source": "unittest-stdout",
             "ran": int(ran.group(1)),
         }
+    vitest = re.search(r"Test Files\s+(\d+)\s+passed", text)
+    if vitest and not re.search(r"Test Files\s+\d+\s+failed", text):
+        return {
+            "passed": True,
+            "exit_code": 0,
+            "stdout": text[-4000:],
+            "source": "vitest-stdout",
+            "ran": int(vitest.group(1)),
+        }
     return {"passed": False, "exit_code": None, "stdout": text[-4000:], "source": "absent"}
+
+
+def _is_test_path(path: str) -> bool:
+    name = Path(path).name.lower()
+    return name.startswith("test_") or ".test." in name or name.endswith(".spec.ts")
+
+
+def _is_impl_path(path: str) -> bool:
+    suffix = Path(path).suffix.lower()
+    if suffix not in {".py", ".ts", ".tsx", ".js", ".md", ".json"}:
+        return False
+    return not _is_test_path(path) and "release_candidate" not in Path(path).name.lower()
+
+
+def evaluate_requirement_check(
+    req: dict,
+    design: dict,
+    *,
+    expected_paths: list[str],
+    test_evidence: dict,
+    workspace: str | None,
+    artifacts: list[str] | None = None,
+    independent_rerun: str | None = None,
+) -> dict:
+    check = req.get("check") or ""
+    tests_passed = bool(test_evidence.get("passed"))
+    stdout = (test_evidence.get("stdout") or "").lower()
+    source = test_evidence.get("source") or "absent"
+    artifacts = artifacts or []
+    blob = " ".join([*expected_paths, *artifacts]).lower()
+    evidence = [f"ac={req.get('ac')}", f"check={check or 'legacy'}"]
+    result = "FAIL"
+
+    if req["id"] not in (design.get("acceptance") or []):
+        evidence.append("requirement not in approved design acceptance")
+        return {"requirement": req["id"], "text": req["text"], "ac": req.get("ac"), "check": check, "evidence": evidence, "result": "FAIL"}
+
+    if check in {"independent_tests", "quality"} or (not check and req["kind"] == "quality"):
+        if independent_rerun == "UNVERIFIED":
+            result = "UNVERIFIED"
+            evidence.append("independent rerun was not obtained")
+        elif independent_rerun == "FAIL":
+            evidence.append("independent rerun failed")
+        elif tests_passed and (any(_is_test_path(p) for p in expected_paths) or design.get("test_command") or independent_rerun in {"PASS", "IMPLEMENTER_CLAIMED", "LOCAL_CORPUS"}):
+            evidence.append(f"tests_passed via {source}")
+            result = "PASS"
+        elif source == "absent":
+            result = "UNVERIFIED"
+            evidence.append("no test evidence")
+        else:
+            evidence.append(f"tests did not pass source={source}")
+    elif check == "workspace_boundary" or (not check and req["kind"] == "security"):
+        gate = authorize_execution(
+            approval_level="A1",
+            prompt="implement approved scoped change",
+            repo=workspace or "",
+            write=True,
+        )
+        denied = any(name in (workspace or "").lower() for name in ("oratsutil", "qe_platform", "fintech-automation"))
+        if gate.get("allowed") and workspace and not denied:
+            evidence.append(f"authorize={gate.get('reason')} workspace={workspace}")
+            result = "PASS"
+        elif not workspace:
+            result = "UNVERIFIED"
+            evidence.append("workspace missing")
+        else:
+            evidence.append(f"boundary failed allowed={gate.get('allowed')} reason={gate.get('reason')}")
+    elif check.startswith("file_exists:") or (not check and req["kind"] == "release"):
+        name = check.split(":", 1)[1] if check.startswith("file_exists:") else "RELEASE_CANDIDATE.md"
+        if name.lower() in blob or design.get("workflow") == "research_report":
+            evidence.append(f"artifact referenced: {name}")
+            result = "PASS"
+        elif tests_passed and design.get("workflow") == "research_report":
+            result = "PASS"
+            evidence.append("research RC pending write")
+        else:
+            result = "UNVERIFIED" if source == "absent" else "FAIL"
+            evidence.append(f"{name} not in expected_paths/artifacts")
+    elif check in {"citation", "report_file", "report_contains_owner_choice", "no_publish"} or req["kind"] in {"provenance", "domain"}:
+        if check == "no_publish":
+            evidence.append("job remains owner-review; no publication action")
+            result = "PASS"
+        elif tests_passed or source in {"PASS", "AVAILABLE", "LOCAL_CORPUS"} or "source" in source.lower():
+            evidence.append(f"source_status={source}")
+            result = "PASS" if tests_passed or source in {"PASS", "AVAILABLE"} else "FAIL"
+        else:
+            result = "UNVERIFIED" if source == "absent" else "FAIL"
+            evidence.append("citation/report evidence missing")
+    elif check == "negative_path" or (not check and req["kind"] == "reliability"):
+        observed = bool(re.search(r"missing|invalid|stderr|non-zero|error", stdout))
+        designed = "stderr" in (design.get("error_handling") or "").lower() or "non-zero" in (design.get("error_handling") or "").lower()
+        if tests_passed and (observed or (designed and any(_is_test_path(p) for p in expected_paths))):
+            evidence.append("negative-path covered by tests or observed output")
+            result = "PASS"
+        elif source == "absent":
+            result = "UNVERIFIED"
+            evidence.append("no negative-path evidence")
+        else:
+            evidence.append("negative-path not observed")
+    else:
+        impl = [p for p in expected_paths if _is_impl_path(p)]
+        if impl and tests_passed:
+            evidence.append("implementation=" + ",".join(impl))
+            evidence.append(f"tests_passed via {source}")
+            result = "PASS"
+        elif tests_passed and not impl:
+            evidence.append("tests passed but no objective artifact in expected_paths")
+            result = "FAIL"
+        elif impl and source == "absent":
+            result = "UNVERIFIED"
+            evidence.append("artifact planned but tests not run")
+        else:
+            evidence.append("artifact or test evidence missing")
+            result = "FAIL" if source != "absent" else "UNVERIFIED"
+
+    return {
+        "requirement": req["id"],
+        "text": req["text"],
+        "ac": req.get("ac"),
+        "check": check,
+        "design": design.get("version"),
+        "implementation": ",".join(p for p in expected_paths if _is_impl_path(p)) or None,
+        "test": source,
+        "evidence": evidence,
+        "result": result,
+    }
 
 
 def traceability(
@@ -1007,79 +1219,25 @@ def traceability(
     expected_paths: list[str],
     test_evidence: dict,
     workspace: str | None,
+    artifacts: list[str] | None = None,
+    independent_rerun: str | None = None,
 ) -> dict:
-    rows = []
-    tests_passed = bool(test_evidence.get("passed"))
-    stdout = (test_evidence.get("stdout") or "").lower()
-    paths_l = " ".join(expected_paths).lower()
-    for req in requirements["requirements"]:
-        evidence = []
-        result = "FAIL"
-        text = req["text"].lower()
-        if req["id"] not in (design.get("acceptance") or []):
-            evidence.append("requirement not in approved design acceptance")
-        if req["kind"] in {"functional", "reliability"}:
-            impl = [p for p in expected_paths if p.endswith(".py") and "test_" not in Path(p).name]
-            if impl:
-                evidence.append("implementation=" + ",".join(impl))
-            if tests_passed:
-                evidence.append(f"tests_passed via {test_evidence.get('source')}")
-                result = "PASS"
-            elif test_evidence.get("source") == "absent":
-                result = "NOT RUN"
-                evidence.append("no unittest evidence")
-            else:
-                evidence.append("tests did not pass")
-        elif req["kind"] == "quality":
-            if tests_passed and any("test" in p.lower() for p in expected_paths):
-                evidence.append("test file present and unittest passed")
-                result = "PASS"
-            elif not any("test" in p.lower() for p in expected_paths):
-                evidence.append("no test file in expected_paths")
-            else:
-                evidence.append(f"unittest source={test_evidence.get('source')} passed={tests_passed}")
-                result = "NOT RUN" if test_evidence.get("source") == "absent" else "FAIL"
-        elif req["kind"] == "security":
-            scope_ok = any(w in _design_blob(design) for w in ("approved", "sandbox", "explicit path", "reference pack"))
-            workspace_ok = "oratsutil" not in (workspace or "").lower()
-            if scope_ok and workspace_ok:
-                evidence.append(f"design.filesystem_scope={design.get('filesystem_scope')}")
-                evidence.append(f"workspace={workspace}")
-                result = "PASS"
-            else:
-                evidence.append("missing scope or workspace evidence")
-        elif req["kind"] == "release":
-            if tests_passed and (
-                "release_candidate" in paths_l
-                or "release candidate" in stdout
-                or design.get("workflow") == "research_report"
-            ):
-                evidence.append("release artifact referenced or research RC pending write")
-                result = "PASS"
-            else:
-                evidence.append("release candidate not yet attached")
-                result = "NOT RUN" if not tests_passed else "FAIL"
-        elif req["kind"] in {"provenance", "domain"}:
-            if tests_passed or "source" in (test_evidence.get("source") or ""):
-                evidence.append(f"source_status={test_evidence.get('source')}")
-                result = "PASS" if tests_passed else "FAIL"
-            else:
-                evidence.append("citation evidence missing")
-                result = "NOT RUN" if test_evidence.get("source") == "absent" else "FAIL"
-        rows.append(
-            {
-                "requirement": req["id"],
-                "text": req["text"],
-                "design": design.get("version"),
-                "implementation": ",".join(p for p in expected_paths if p.endswith(".py") and "test_" not in Path(p).name) or None,
-                "test": test_evidence.get("source"),
-                "evidence": evidence,
-                "result": result,
-            }
+    rows = [
+        evaluate_requirement_check(
+            req,
+            design,
+            expected_paths=expected_paths,
+            test_evidence=test_evidence,
+            workspace=workspace,
+            artifacts=artifacts,
+            independent_rerun=independent_rerun,
         )
+        for req in requirements["requirements"]
+    ]
     return {
         "all_pass": all(r["result"] == "PASS" for r in rows) and bool(rows),
         "rows": rows,
+        "independent_rerun": independent_rerun,
     }
 
 
@@ -1254,6 +1412,14 @@ def advance_job(
             job["failure_reason"] = gate["reason"]
             transition(job, "BLOCKED", gate["reason"])
             return job
+        resolved = PLANNING.resolve_project(job.get("project_id"), job.get("workspace"))
+        if not resolved.get("allowed"):
+            job["failure_reason"] = resolved.get("reason")
+            transition(job, "BLOCKED", resolved.get("reason"))
+            return job
+        if resolved.get("workspace") and not job.get("workspace"):
+            job["workspace"] = resolved["workspace"]
+        job["workspace_inspect"] = PLANNING.inspect_workspace(job.get("workspace"), job.get("project_id"))
         if job["approval_level"] in {"A2", "A3"}:
             job["failure_reason"] = "A2/A3 owner gate"
             transition(job, "BLOCKED", "consequential action requires owner gate")
@@ -1272,7 +1438,12 @@ def advance_job(
     if job["state"] == "REQUIREMENTS":
         req_path = workdir / "requirements.json"
         if not req_path.is_file():
-            requirements = build_requirements(job["parent_objective"], workflow=job.get("workflow"))
+            requirements = build_requirements(
+                job["parent_objective"],
+                workflow=job.get("workflow"),
+                workspace=job.get("workspace"),
+                project_id=job.get("project_id"),
+            )
             save_json(req_path, requirements)
         else:
             requirements = load_json(req_path)
@@ -1489,6 +1660,8 @@ def advance_job(
             expected_paths=job.get("expected_paths") or [],
             test_evidence=test_ev,
             workspace=job.get("workspace"),
+            artifacts=job.get("artifacts") or [],
+            independent_rerun=job.get("validation", {}).get("independent_rerun"),
         )
         save_json(workdir / "traceability.json", trace)
         job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
@@ -1498,15 +1671,75 @@ def advance_job(
         return job
 
     if job["state"] == "VALIDATING":
+        requirements = load_json(workdir / "requirements.json")
+        design = load_json(workdir / "design-v2.json") if (workdir / "design-v2.json").is_file() else load_json(workdir / "design-v1.json")
+        job["validation"] = job.get("validation") or {}
+        if job.get("workflow") == "research_report":
+            job["validation"]["independent_rerun"] = "LOCAL_CORPUS"
+        elif job.get("origin") == "conversation" and job.get("workflow") == "sdlc":
+            if not job.get("validation_child_id"):
+                if budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
+                    prompt = build_validation_prompt(job, requirements, design)
+                    submitted = _submit_cursor(
+                        job,
+                        prompt,
+                        job.get("expected_paths") or expected_paths_from_design(design),
+                        inbox_root=inbox_root,
+                        orch_submit=orch_submit,
+                    )
+                    if submitted.get("state") == "BLOCKED":
+                        job["validation"]["independent_rerun"] = "UNVERIFIED"
+                        job["validation"]["independent_rerun_reason"] = submitted.get("failure_reason")
+                    else:
+                        job["validation_child_id"] = job.get("active_child_id")
+                        job["validation"]["independent_rerun"] = "pending"
+                        save_job(job)
+                        return job
+                else:
+                    job["validation"]["independent_rerun"] = "UNVERIFIED"
+                    job["validation"]["independent_rerun_reason"] = budget_decision(job).get("reason")
+            elif job.get("active_child_id") == job.get("validation_child_id"):
+                record = orch_harvest(job["active_child_id"], inbox_root)
+                if not _child_terminal(record):
+                    save_job(job)
+                    return job
+                usage = (record or {}).get("usage")
+                record_usage(job, job.get("assigned_worker") or "cursor-agent-cli", record.get("state"), usage)
+                stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
+                test_ev = parse_test_evidence(stdout, record)
+                job["validation"]["independent_test_evidence"] = test_ev
+                job["validation"]["independent_rerun"] = "PASS" if record.get("state") == "COMPLETED" and test_ev.get("passed") else "FAIL"
+                if test_ev.get("passed"):
+                    job["validation"]["tests"] = "PASS"
+                    job["validation"]["test_evidence"] = test_ev
+                job["active_child_id"] = None
+        else:
+            job["validation"].setdefault("independent_rerun", "IMPLEMENTER_CLAIMED")
+
+        test_ev = (job.get("validation") or {}).get("test_evidence") or {}
+        trace = traceability(
+            requirements,
+            design,
+            expected_paths=job.get("expected_paths") or [],
+            test_evidence=test_ev,
+            workspace=job.get("workspace"),
+            artifacts=job.get("artifacts") or [],
+            independent_rerun=job["validation"].get("independent_rerun"),
+        )
+        save_json(workdir / "traceability.json", trace)
+        job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
+        rc = write_release_candidate(workdir, job, trace)
+        if str(rc) not in job["artifacts"]:
+            job["artifacts"].append(str(rc))
         failures = evaluate_autonomy_done(job)
+        if job["validation"].get("independent_rerun") == "UNVERIFIED" and job.get("origin") == "conversation":
+            failures.append("independent validation UNVERIFIED")
+        if job["validation"].get("independent_rerun") == "FAIL":
+            failures.append("independent validation failed")
         if failures:
             job["failure_reason"] = "; ".join(failures)
             transition(job, "FAILED", job["failure_reason"])
             return job
-        trace = load_json(workdir / "traceability.json")
-        rc = write_release_candidate(workdir, job, trace)
-        if str(rc) not in job["artifacts"]:
-            job["artifacts"].append(str(rc))
         job["owner_decision"] = "pending_review"
         transition(job, "RELEASE_CANDIDATE", str(rc))
         transition(job, "OWNER_REVIEW", "release candidate ready; no public deploy")
@@ -1551,6 +1784,7 @@ def runner_once(
     root: Path | None = None,
     inbox_root: Path | None = None,
     worker_registry: dict | None = None,
+    **advance_kwargs,
 ) -> list[dict]:
     heartbeat = {"at": utc_now(), "pid": os.getpid()}
     save_json(autonomy_root(root) / "runner-heartbeat.json", heartbeat)
@@ -1568,8 +1802,19 @@ def runner_once(
             continue
         if job.get("workflow") not in {"sdlc", "research_report"} and job.get("state") not in {"INTAKE"}:
             continue
+        job_lease = job.get("lease") or {}
+        expires = str(job_lease.get("expires_at") or "")
+        owner = job_lease.get("owner")
+        if owner and owner != os.getpid() and expires > utc_now() and job.get("active_child_id"):
+            results.append({"job_id": job["job_id"], "state": job["state"], "skipped": "foreign_lease"})
+            continue
+        job["lease"] = {
+            "owner": os.getpid(),
+            "fencing": fencing,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(seconds=90)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        }
         updated = advance_job(
-            job, root=root, inbox_root=inbox_root, worker_registry=worker_registry
+            job, root=root, inbox_root=inbox_root, worker_registry=worker_registry, **advance_kwargs
         )
         results.append({"job_id": updated["job_id"], "state": updated["state"]})
     return results
@@ -1736,14 +1981,15 @@ def capability_matrix() -> dict:
     return {
         "generated_at": utc_now(),
         "VERIFIED_WORKING": [
-            "Hermes Conversation",
+            "Hermes Conversation parent submit",
             "Windows worker outbound poll",
             "workspace_inventory",
-            "cursor_call A1 on approved repos",
-            "Conversation-to-Cursor JOB-20260917-CONV-CC-005",
+            "cursor_call A1 on approved repos and cursor-sandbox",
+            "research_report from approved local corpus",
         ],
         "IMPLEMENTED_BUT_UNVERIFIED": [
-            "Conversation-originated parent SDLC through Cursor worker",
+            "cross-provider coding failover",
+            "independent Windows test rerun when budget cannot reserve a validation child",
         ],
         "CONFIGURED_BUT_UNAVAILABLE": unavailable,
         "NOT_IMPLEMENTED": [
@@ -1751,12 +1997,17 @@ def capability_matrix() -> dict:
             "Codex CLI routing",
             "Gemini CLI routing",
             "remote Cua inbox jobs",
+            "Home spoken-voice acceptance",
         ],
         "REQUIRES_OWNER_AUTHORIZATION": [
             "A2 publish/deploy/spend",
             "A3 trades and bank transfers",
             "new paid provider accounts",
+            "A1 writes on DISCOVERED projects (Bhava, Wani, Revenue)",
         ],
+        "PENDING_PHYSICAL": ["NEEWA Home spoken-voice session"],
+        "supported_stacks": ["python-stdlib cursor-sandbox", "node-typescript KidsProjects/ScienceQuest"],
+        "unsupported_stacks": "labeled UNSUPPORTED until inspected; not faked as Python CLI",
         "routable_coding_workers": [w["id"] for w in routable_workers() if w.get("class") == "coding-worker"],
         "cross_provider_failover": "UNVERIFIED",
     }

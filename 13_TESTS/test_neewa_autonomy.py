@@ -94,7 +94,7 @@ class GeneralAutonomyTests(unittest.TestCase):
             workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
         )
         self.assertFalse(trace["all_pass"])
-        self.assertTrue(any(r["result"] in {"FAIL", "NOT RUN"} for r in trace["rows"]))
+        self.assertTrue(any(r["result"] in {"FAIL", "NOT RUN", "UNVERIFIED"} for r in trace["rows"]))
 
     def test_budget_blocks_unknown_and_exhausted(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -343,7 +343,8 @@ class GeneralAutonomyTests(unittest.TestCase):
             report = next(p for p in job["artifacts"] if p.endswith("RESEARCH_REPORT.md"))
             text = Path(report).read_text(encoding="utf-8")
             self.assertIn("SRC-01", text)
-            self.assertNotIn("invented verse", text.lower())
+            citations = json.loads(Path(report).with_name("citations.json").read_text(encoding="utf-8"))
+            self.assertFalse(citations.get("invented"))
 
     def test_positive_remaining_budget_blocks_second_reservation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -375,6 +376,150 @@ class GeneralAutonomyTests(unittest.TestCase):
             job = self.mod.create_parent_job("build a helper", root=Path(tmp))
             with self.assertRaises(ValueError):
                 self.mod.transition(job, "DONE")
+
+    def test_discovered_project_cannot_a1(self):
+        gate = self.mod.PLANNING.resolve_project("PRJ-WANI", r"C:\Development\Workspace")
+        self.assertFalse(gate["allowed"])
+        self.assertEqual(gate["reason"], "PROJECT_NOT_CONNECTED")
+        blocked = self.mod.PLANNING.resolve_project("PRJ-BHAVA")
+        self.assertFalse(blocked["allowed"])
+
+    def test_sciencequest_design_is_not_python_cli(self):
+        obj = (
+            "In KidsProjects/ScienceQuest, add one sentence to docs/KNOWN_LIMITATIONS.md "
+            "that npm test is the independent unit-test command, and add a vitest assertion "
+            "in src/progress/storage.test.ts that local progress records contain no account identifiers."
+        )
+        self.assertEqual(self.mod.classify_intent(obj)["workflow"], "sdlc")
+        reqs = self.mod.build_requirements(
+            obj,
+            workflow="sdlc",
+            workspace=r"C:\Development\Workspace\KidsProjects\ScienceQuest",
+            project_id="PRJ-KIDS",
+        )
+        self.assertEqual(reqs.get("stack"), "node-typescript")
+        design = self.mod.initial_design(reqs, obj)
+        self.assertFalse(design.get("create_new_package", True))
+        self.assertNotIn(".py", " ".join(str(c) for c in design["components"] if str(c).endswith(".py")))
+        self.assertIn("KNOWN_LIMITATIONS.md", " ".join(design["components"]))
+        prompt = self.mod.build_worker_prompt(
+            {"parent_objective": obj}, reqs, design
+        )
+        self.assertIn("Do NOT create a new Python CLI", prompt)
+        council = self.mod.run_council(design, reqs)
+        self.assertFalse(any(str(c).endswith(".py") for c in council["approved_design"]["components"]))
+
+    def test_access_stage_research_uses_owner_docs_not_ganesh_only(self):
+        obj = (
+            "Write a briefing on NEEWA personal project access stages citing OWNER.md "
+            "and PROJECT_ACCESS.md. Do not publish."
+        )
+        self.assertEqual(self.mod.classify_intent(obj)["workflow"], "research_report")
+        reqs = self.mod.build_requirements(obj)
+        design = self.mod.initial_design(reqs, obj)
+        result = self.mod.synthesize_research(obj, reqs, design)
+        self.assertIn("PROJECT_ACCESS.md", result["report"])
+        self.assertIn("OWNER.md", result["report"])
+        self.assertNotIn("SRC-01", result["report"])
+        self.assertGreater(result["word_count"], 80)
+        self.assertTrue(result["passed"])
+
+    def test_discovered_job_blocks_before_cursor(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            called = {"n": 0}
+
+            def submit(**kwargs):
+                called["n"] += 1
+                return {"job_id": "x", "state": "DISPATCHED"}
+
+            job = self.mod.create_parent_job(
+                "add a helper function",
+                project_id="PRJ-WANI",
+                workspace=r"C:\Development\Workspace",
+                root=root,
+            )
+            job = self.mod.run_until_idle(job, root=root, orch_submit=submit)
+            self.assertEqual(job["state"], "BLOCKED")
+            self.assertEqual(job["failure_reason"], "PROJECT_NOT_CONNECTED")
+            self.assertEqual(called["n"], 0)
+
+    def test_unrelated_passing_tests_do_not_pass_missing_artifact(self):
+        reqs = self.mod.build_requirements(CHANGELOG_OBJECTIVE)
+        design = self.mod.initial_design(reqs, CHANGELOG_OBJECTIVE)
+        council = self.mod.run_council(design, reqs)
+        approved = council["approved_design"]
+        trace = self.mod.traceability(
+            reqs,
+            approved,
+            expected_paths=["unrelated/test_other.py"],
+            test_evidence={"passed": True, "source": "TEST_JSON", "stdout": "Ran 1 test\nOK"},
+            workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+        )
+        self.assertFalse(trace["all_pass"])
+        self.assertTrue(
+            any(r["result"] == "FAIL" and r.get("check") == "artifact_or_test" for r in trace["rows"])
+        )
+
+    def test_foreign_lease_skips_active_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["active_child_id"] = "JOB-CHILD"
+            job["lease"] = {"owner": 999999, "expires_at": "2099-01-01T00:00:00Z"}
+            self.mod.save_job(job)
+            called = {"n": 0}
+
+            def submit(**kwargs):
+                called["n"] += 1
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            results = self.mod.runner_once(root=root, orch_submit=submit, orch_harvest=lambda *a, **k: {"state": "RUNNING"})
+            self.assertTrue(any(r.get("skipped") == "foreign_lease" for r in results))
+            self.assertEqual(called["n"], 0)
+
+    def test_conversation_origin_submits_validation_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            inbox = Path(tmp) / "inboxroot"
+            calls = {"submit": 0}
+
+            def submit(**kwargs):
+                calls["submit"] += 1
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": [
+                        r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
+                    ],
+                    "validation": {
+                        "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0, \"stdout\": \"missing file stderr\\nOK\"}"
+                    },
+                }
+
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                origin="conversation",
+            )
+            job = self.mod.run_until_idle(
+                job, root=root, inbox_root=inbox, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertGreaterEqual(calls["submit"], 2)
+            self.assertEqual(job["validation"].get("independent_rerun"), "PASS")
+            self.assertEqual(job["state"], "OWNER_REVIEW")
 
 
 class OrchestrateUsageTests(unittest.TestCase):

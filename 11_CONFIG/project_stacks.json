@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "notes": "Cached stack inventory for planner when the core host cannot see Windows paths. Live inspect_workspace() overrides this when the path exists.",
+  "projects": {
+    "PRJ-NEEWA": {
+      "workspace_path": "C:\\Development\\Workspace\\NEEWA-OS",
+      "stack": "python-docs",
+      "test_command": "python -m unittest 13_TESTS.test_neewa_autonomy -q",
+      "access_stage": "CONNECTED"
+    },
+    "PRJ-KIDS": {
+      "workspace_path": "C:\\Development\\Workspace\\KidsProjects",
+      "stack": "node-typescript",
+      "children": {
+        "ScienceQuest": {
+          "path": "C:\\Development\\Workspace\\KidsProjects\\ScienceQuest",
+          "stack": "node-typescript",
+          "test_command": "npm test",
+          "manifest": "package.json"
+        }
+      },
+      "access_stage": "ACCESS_APPROVED"
+    },
+    "PRJ-MANAN": {
+      "workspace_path": "C:\\Development\\Workspace\\manan",
+      "stack": "mixed-next-fastapi",
+      "test_command": null,
+      "access_stage": "ACCESS_APPROVED"
+    },
+    "PRJ-AAROHAN": {
+      "workspace_path": "C:\\Development\\Workspace\\aarohan-careeros",
+      "stack": "mixed",
+      "access_stage": "ACCESS_APPROVED",
+      "notes": "contains credential-named folders; do not target secrets"
+    },
+    "PRJ-WANI": {"access_stage": "DISCOVERED", "a1_development": false},
+    "PRJ-BHAVA": {"access_stage": "DISCOVERED", "a1_development": false},
+    "PRJ-REVENUE": {"access_stage": "DISCOVERED", "a1_development": false}
+  },
+  "sandbox": {
+    "workspace_path": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+    "stack": "python-stdlib",
+    "test_command": "python -m unittest"
+  }
+}

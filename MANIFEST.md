@@ -101,6 +101,7 @@
 - `11_CONFIG/model_router.example.yaml`
 - `11_CONFIG/models.json`
 - `11_CONFIG/niva_policy.example.yaml`
+- `11_CONFIG/project_stacks.json`
 - `11_CONFIG/projects.json`
 - `11_CONFIG/providers.json`
 - `11_CONFIG/resources.json`
@@ -123,6 +124,7 @@
 - `12_SCRIPTS/morning_brief.py`
 - `12_SCRIPTS/neewa_autonomy.py`
 - `12_SCRIPTS/neewa_autonomy_fixture.py`
+- `12_SCRIPTS/neewa_autonomy_planning.py`
 - `12_SCRIPTS/neewa_autonomy_runner.sh`
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
@@ -213,9 +215,13 @@
 - `AI-OPS/delivery/autonomy-baseline/ACCEPTANCE.md`
 - `AI-OPS/delivery/autonomy-baseline/ARCHITECTURE.md`
 - `AI-OPS/delivery/autonomy-baseline/BASELINE_LOCK.json`
+- `AI-OPS/delivery/autonomy-baseline/BASELINE_LOCK_v4.json`
 - `AI-OPS/delivery/autonomy-baseline/COUNCIL_REVIEW.md`
+- `AI-OPS/delivery/autonomy-baseline/COUNCIL_REVIEW_V4.md`
+- `AI-OPS/delivery/autonomy-baseline/IMPLEMENTATION_MATRIX_v4.md`
 - `AI-OPS/delivery/autonomy-baseline/IMPLEMENTATION_PLAN.md`
 - `AI-OPS/delivery/autonomy-baseline/PRODUCT_REQUIREMENTS.md`
+- `AI-OPS/delivery/autonomy-baseline/RFC-v4-CHANGE-PROPOSAL.md`
 - `AI-OPS/delivery/autonomy-baseline/RISK_REGISTER.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
@@ -225,9 +231,7 @@
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`
-- `README_FIRST.md`
 - `START_HERE.md`
-- `START_PROMPT.txt`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/JOB-20260917T160243Z-AUTO.json`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/capability-matrix.json`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/work/RELEASE_CANDIDATE.md`

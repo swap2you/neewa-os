@@ -825,10 +825,10 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
             "cost_operations",
             "info",
             "No extra paid providers in the design.",
-            "components use local Python",
+            "local toolchain only",
         )
 
-    if (requirements.get("stack") or "").startswith("node") and "python cli" in blob:
+    if (requirements.get("stack") or "").startswith("node") and design.get("create_new_package") is not False:
         note(
             "solution_architect",
             "material",

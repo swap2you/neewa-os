@@ -102,6 +102,11 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertFalse(allow["unrestricted_shell"])
         self.assertFalse(allow["public_listener"])
 
+    def test_cursor_call_keeps_approved_child_workspace(self):
+        src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
+        self.assertIn("return $fullRequested", src)
+        self.assertIn("KidsProjects\\ScienceQuest", src)
+
 
 if __name__ == "__main__":
     unittest.main()

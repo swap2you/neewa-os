@@ -84,7 +84,9 @@ function Resolve-ApprovedRepo([string]$requested) {
     if ($isExact -or $isChild) {
       if (Test-ReparseEscape $fullRequested $full) { return $null }
       if (Test-ReparseEscape $full $full) { return $null }
-      return $full
+      # Keep approved child folders (e.g. KidsProjects\ScienceQuest) as the Cursor workspace.
+      # Returning only the parent root made expected files miss and skipped the real stack.
+      return $fullRequested
     }
   }
   return $null

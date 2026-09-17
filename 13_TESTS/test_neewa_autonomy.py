@@ -678,6 +678,15 @@ class PathAndRecoveryTests(unittest.TestCase):
         self.assertEqual(inspect["stack_label"], "FastAPI/Next.js/PostgreSQL")
         self.assertEqual(inspect.get("source"), "catalog")
 
+    def test_sandbox_workspace_does_not_inherit_neewa_test_suite(self):
+        inspect = self.mod.PLANNING.inspect_workspace(
+            r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+            "PRJ-NEEWA",
+        )
+        self.assertEqual(inspect["stack"], "python-stdlib")
+        self.assertEqual(inspect["test_command"], "python -m unittest")
+        self.assertNotIn("13_TESTS", inspect["test_command"] or "")
+
     def test_malformed_expected_paths_fail_parent_not_executing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"

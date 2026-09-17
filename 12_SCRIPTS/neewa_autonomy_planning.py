@@ -128,8 +128,12 @@ def inspect_workspace(workspace: str | None, project_id: str | None = None) -> d
     catalog = _load(STACKS)
     catalog_markers: list[str] = []
     catalog_row = (catalog.get("projects") or {}).get(project_id) if project_id else None
+    sandbox = bool(workspace and "cursor-sandbox" in (workspace or "").lower())
     if stack == "unknown":
-        if catalog_row:
+        if sandbox:
+            stack = "python-stdlib"
+            test_command = "python -m unittest"
+        elif catalog_row:
             stack = catalog_row.get("stack") or "unknown"
             test_command = test_command or catalog_row.get("test_command")
             workspace_l = (workspace or "").replace("/", "\\").lower()
@@ -137,11 +141,8 @@ def inspect_workspace(workspace: str | None, project_id: str | None = None) -> d
                 if child.lower() in workspace_l:
                     stack = meta.get("stack") or stack
                     test_command = meta.get("test_command") or test_command
-        elif workspace and "cursor-sandbox" in workspace.lower():
-            stack = "python-stdlib"
-            test_command = "python -m unittest"
     stack_label = stack
-    if catalog_row:
+    if catalog_row and not sandbox:
         stack_label = catalog_row.get("stack_label") or stack_label
         catalog_markers = list(catalog_row.get("markers") or [])
         test_command = test_command or catalog_row.get("test_command")

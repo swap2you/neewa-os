@@ -7,7 +7,8 @@
     "11_CONFIG/projects.json remains the canonical NEEWA project registry.",
     "path is the in-repo 08_PROJECTS charter used by repository validation.",
     "workspace_path is the inventoried personal tree under C:\\Development\\Workspace, if any.",
-    "Denied and unclassified workspace folders are recorded in skipped and are not projects."
+    "Denied employer/client/trading workspace folders are recorded in skipped and are not projects.",
+    "Unregistered personal folders under the workspace root are in-scope without a registry row."
   ],
   "projects": [
     {
@@ -197,11 +198,6 @@
       "name": "ChakraOptionsWatch",
       "classification": "denied",
       "reason": "trading tree excluded by workspace-inventory-policy; not recursed"
-    },
-    {
-      "name": "Udemy-Yutube-repos",
-      "classification": "unclassified",
-      "reason": "not on the personal allowlist; not inventoried"
     }
   ]
 }

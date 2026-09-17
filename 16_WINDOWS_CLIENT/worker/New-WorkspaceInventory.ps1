@@ -23,8 +23,7 @@ function Get-Classification([string]$name) {
   foreach ($frag in $deniedContains) {
     if ($frag -and $name.ToLowerInvariant().Contains($frag.ToLowerInvariant())) { return 'denied' }
   }
-  if ($personal -contains $name) { return 'personal' }
-  return 'unclassified'
+  return 'personal'
 }
 
 $entries = @()
@@ -57,13 +56,11 @@ Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction Stop | ForEach-O
     $row.status_doc = $statusDoc
     $row.top_level = $children
     $row.inventoried = $true
+    $row.catalogued = $personal -contains $name
     if ($children -contains '.git') { throw 'inventory leaked .git internals' }
   }
   elseif ($cls -eq 'denied') {
     $row.reason = 'employer, financial, or trading tree excluded'
-  }
-  else {
-    $row.reason = 'not on the personal allowlist; not inventoried'
   }
   $entries += [pscustomobject]$row
 }
@@ -86,6 +83,7 @@ $report = [pscustomobject]@{
   mode = 'read_only_metadata'
   workspace_root = $root
   personal_allowlist = $personal
+  authorization_mode = 'personal_roots_except_denied'
   denied_equals = $deniedEquals
   write_access = $false
   unrestricted_desktop = $false

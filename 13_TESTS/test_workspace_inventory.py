@@ -47,6 +47,9 @@ class WorkspaceInventoryTests(unittest.TestCase):
         self.assertEqual(by_name["api-fintech-automation-platform"]["classification"], "denied")
         self.assertFalse(by_name["api-fintech-automation-platform"]["inventoried"])
         self.assertNotIn("top_level", by_name["api-fintech-automation-platform"])
+        if "Udemy-Yutube-repos" in by_name:
+            self.assertEqual(by_name["Udemy-Yutube-repos"]["classification"], "personal")
+            self.assertTrue(by_name["Udemy-Yutube-repos"]["inventoried"])
         self.assertNotIn(".git", by_name["NEEWA-OS"]["top_level"])
         blob = json.dumps(data)
         self.assertNotIn("BEGIN PRIVATE KEY", blob)

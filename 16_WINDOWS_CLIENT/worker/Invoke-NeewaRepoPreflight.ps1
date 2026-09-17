@@ -13,52 +13,7 @@ if (-not $PolicyFile) { $PolicyFile = Join-Path $here 'cursor-call-policy.json' 
 $Job = Get-Content -Raw -LiteralPath $JobFile | ConvertFrom-Json
 $policy = Get-Content -Raw -LiteralPath $PolicyFile | ConvertFrom-Json
 
-function Expand-UserPath([string]$value) {
-  if (-not $value) { return $value }
-  return [Environment]::ExpandEnvironmentVariables($value)
-}
-
-function Test-ReparseEscape([string]$path, [string]$approvedRoot) {
-  if (-not (Test-Path -LiteralPath $path)) { return $false }
-  $item = Get-Item -LiteralPath $path -Force
-  if (-not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
-  $targets = @($item.Target)
-  foreach ($t in $targets) {
-    if (-not $t) { continue }
-    $fullTarget = [System.IO.Path]::GetFullPath($t)
-    $root = $approvedRoot.TrimEnd('\') + '\'
-    if (-not $fullTarget.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase) -and
-        -not $fullTarget.Equals($approvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-      return $true
-    }
-  }
-  return $false
-}
-
-function Resolve-ApprovedRepo([string]$requested) {
-  if (-not $requested) { return $null }
-  if ($requested -match '\.\.') { return $null }
-  $workspaceRoot = [string]$policy.workspace_root
-  $sandbox = Expand-UserPath ([string]$policy.sandbox_repo)
-  $candidates = @()
-  if ($sandbox) { $candidates += $sandbox }
-  foreach ($name in @($policy.approved_repo_names)) {
-    $candidates += (Join-Path $workspaceRoot $name)
-  }
-  $fullRequested = [System.IO.Path]::GetFullPath($requested)
-  foreach ($c in $candidates) {
-    $full = [System.IO.Path]::GetFullPath($c)
-    $prefix = $full.TrimEnd('\') + '\'
-    $isExact = $fullRequested.Equals($full, [System.StringComparison]::OrdinalIgnoreCase)
-    $isChild = $fullRequested.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
-    if ($isExact -or $isChild) {
-      if (Test-ReparseEscape $fullRequested $full) { return $null }
-      if (Test-ReparseEscape $full $full) { return $null }
-      return $fullRequested
-    }
-  }
-  return $null
-}
+. (Join-Path $here 'NeewaPersonalWorkspace.ps1')
 
 $jobId = [string]$Job.job_id
 $requestedRepo = [string]$Job.repo

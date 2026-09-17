@@ -1,4 +1,5 @@
 import json
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -17,7 +18,7 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn(r"C:\Development\Workspace", data["approved_roots"])
         self.assertEqual(
             data["approved_root_modes"][r"C:\Development\Workspace"],
-            "inventory_readonly_cursor_a1_approved_repos_only",
+            "personal_a1_except_denied",
         )
         self.assertIn("workspace_inventory", data["actions"])
         self.assertEqual(data["actions"]["workspace_inventory"], "A0")
@@ -43,6 +44,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "cursor-call-policy.json",
             "Invoke-NeewaCursorCall.ps1",
             "Invoke-NeewaRepoPreflight.ps1",
+            "NeewaPersonalWorkspace.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
 
@@ -108,8 +110,10 @@ class WindowsWorkerTests(unittest.TestCase):
 
     def test_cursor_call_keeps_approved_child_workspace(self):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
-        self.assertIn("return $fullRequested", src)
+        shared = (WORKER / "NeewaPersonalWorkspace.ps1").read_text(encoding="utf-8")
+        self.assertIn("NeewaPersonalWorkspace.ps1", src)
         self.assertIn("KidsProjects\\ScienceQuest", src)
+        self.assertIn("return $fullRequested", shared)
 
     def test_cursor_call_rejects_stack_label_expected_path(self):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
@@ -158,6 +162,30 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertTrue(result["preflight"]["identity_ok"])
         self.assertTrue(result["preflight"]["exists"])
         self.assertTrue(result["preflight"]["git_ok"])
+
+    def test_personal_workspace_resolver_allows_unlisted_and_denies_employer(self):
+        command = (
+            "$here = '%s'; "
+            "$policy = Get-Content -Raw -LiteralPath (Join-Path $here 'cursor-call-policy.json') | ConvertFrom-Json; "
+            ". (Join-Path $here 'NeewaPersonalWorkspace.ps1'); "
+            "$ok = Resolve-ApprovedRepo 'C:\\Development\\Workspace\\BrandNewPersonalApp'; "
+            "$denied = Resolve-ApprovedRepo 'C:\\Development\\Workspace\\OratsUtil'; "
+            "$root = Resolve-ApprovedRepo 'C:\\Development\\Workspace'; "
+            "[pscustomobject]@{ ok = $ok; denied = $denied; root = $root } | ConvertTo-Json"
+            % str(WORKER).replace("'", "''")
+        )
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertTrue(completed.stdout.strip(), completed.stderr)
+        data = json.loads(completed.stdout)
+        self.assertTrue(data["ok"])
+        self.assertIn("BrandNewPersonalApp", data["ok"])
+        self.assertFalse(data["denied"])
+        self.assertFalse(data["root"])
 
 
 if __name__ == "__main__":

@@ -40,13 +40,12 @@ class ProjectPortfolioTests(unittest.TestCase):
             paths.append(rel)
         self.assertEqual(len(paths), len(set(paths)))
 
-    def test_skipped_denied_and_unclassified_are_recorded(self):
+    def test_skipped_denied_are_recorded(self):
         skipped = {row["name"]: row for row in self.registry["skipped"]}
         for name in self.policy["denied_name_equals"]:
             self.assertEqual(skipped[name]["classification"], "denied")
             self.assertIn("not recursed", skipped[name]["reason"])
-        self.assertEqual(skipped["Udemy-Yutube-repos"]["classification"], "unclassified")
-        self.assertIn("not inventoried", skipped["Udemy-Yutube-repos"]["reason"])
+        self.assertNotIn("Udemy-Yutube-repos", skipped)
 
     def test_no_denied_name_is_a_workspace_project(self):
         names = {row.get("workspace_name") for row in self.projects}

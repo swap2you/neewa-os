@@ -1,0 +1,100 @@
+{
+  "inventory_path": "C:\\Users\\swap2\\NEEWA-Personal\\inventory\\workspace-inventory.json",
+  "authorization_mode": "personal_roots_except_denied",
+  "personal": [
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "NEEWA-OS",
+    "SocialMediaManager",
+    "Udemy-Yutube-repos",
+    "Zume"
+  ],
+  "denied": [
+    "api-fintech-automation-platform",
+    "ChakraOptionsWatch",
+    "OratsUtil",
+    "perf-fintech-testing-platform",
+    "QE_Platform_lead_Repos",
+    "ui-fintech-automation-platform"
+  ],
+  "unclassified": [],
+  "preflight": {
+    "C:\\Development\\Workspace\\Zume": {
+      "status": "COMPLETED",
+      "reason": "",
+      "identity_ok": true,
+      "exists": true
+    },
+    "C:\\Development\\Workspace\\KidsProjects": {
+      "status": "FAILED",
+      "reason": "repository identity could not be established (no .git): C:\\Development\\Workspace\\KidsProjects",
+      "identity_ok": false,
+      "exists": true
+    },
+    "C:\\Development\\Workspace\\BrandNewPersonalApp": {
+      "status": "FAILED",
+      "reason": "approved repo path is missing on Windows: C:\\Development\\Workspace\\BrandNewPersonalApp",
+      "identity_ok": false,
+      "exists": false
+    },
+    "C:\\Development\\Workspace\\OratsUtil": {
+      "status": "BLOCKED",
+      "reason": "repo is on the denied list",
+      "identity_ok": false,
+      "exists": false
+    },
+    "C:\\Development\\Workspace\\Udemy-Yutube-repos": {
+      "status": "FAILED",
+      "reason": "repository identity could not be established (no .git): C:\\Development\\Workspace\\Udemy-Yutube-repos",
+      "identity_ok": false,
+      "exists": true
+    },
+    "C:\\Development\\Workspace\\NEEWA-OS": {
+      "status": "COMPLETED",
+      "reason": "",
+      "identity_ok": true,
+      "exists": true
+    },
+    "C:\\\\Development\\\\Workspace\\\\KidsProjects\\\\ScienceQuest": {
+      "status": "FAILED",
+      "reason": "repository identity could not be established (no .git)",
+      "identity_ok": false,
+      "exists": true,
+      "approved_path": "C:\\\\Development\\\\Workspace\\\\KidsProjects\\\\ScienceQuest",
+      "unapproved": false,
+      "stack_markers_found": "package.json,src",
+      "test_commands": "npm test"
+    }
+  },
+  "file_op": {
+    "status": "COMPLETED",
+    "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-E2E-FILE-personal-artifact.txt"
+  },
+  "a2_worker": {
+    "status": "FAILED",
+    "reason": "A2/A3 requires owner approval; worker refused"
+  },
+  "dry_run_zume": {
+    "status": "COMPLETED",
+    "reason": "",
+    "repo": "C:\\Development\\Workspace\\Zume",
+    "failure_class": ""
+  },
+  "dry_run_orats": {
+    "status": "BLOCKED",
+    "reason": "repo is on the denied list",
+    "failure_class": "DENIED_REPO"
+  },
+  "independent_sandbox_tests": {
+    "ran": 6,
+    "result": "OK",
+    "packages": [
+      "markdown_changelog_digest",
+      "local_receipt_totals"
+    ]
+  }
+}

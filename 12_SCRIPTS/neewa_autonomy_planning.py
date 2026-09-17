@@ -11,6 +11,12 @@ STACKS = ROOT / "11_CONFIG" / "project_stacks.json"
 POLICY = ROOT / "16_WINDOWS_CLIENT" / "worker" / "cursor-call-policy.json"
 
 WRITE_STAGES = {"ACCESS_APPROVED", "CONNECTED", "BUILD_VERIFIED", "DELEGATION_VERIFIED"}
+PERSONAL_ROOTS = (
+    r"c:\development\workspace",
+    r"c:\users\swap2\neewa-personal",
+)
+SECRET_PARTS = (".ssh", ".aws", ".gnupg")
+DENIED_CONTAINS_DEFAULT = ("fintech", "employer", "brokerage", "trading")
 
 # Technology names / catalog labels. Never treat these as repository files.
 STACK_LABEL_NAMES = {
@@ -178,36 +184,124 @@ def repo_relative_from_artifacts(artifacts: list | None, workspace: str | None) 
     return out
 
 
+def _norm_win(path: str | None) -> str:
+    text = (path or "").replace("/", "\\").strip().lower()
+    while "\\\\" in text:
+        text = text.replace("\\\\", "\\")
+    return text.rstrip("\\")
+
+
+def _path_parts(path: str | None) -> list[str]:
+    return [p for p in _norm_win(path).split("\\") if p]
+
+
+def _policy_denies() -> tuple[list[str], list[str]]:
+    policy = _load(POLICY)
+    equals = [str(x).lower() for x in (policy.get("denied_name_equals") or [])]
+    contains = [str(x).lower() for x in (policy.get("denied_name_contains") or [])]
+    if not contains:
+        contains = list(DENIED_CONTAINS_DEFAULT)
+    return equals, contains
+
+
+def is_denied_workspace(workspace: str | None) -> bool:
+    if not workspace:
+        return False
+    n = _norm_win(workspace)
+    parts = _path_parts(workspace)
+    equals, contains = _policy_denies()
+    if any(part in equals for part in parts):
+        return True
+    if any(frag and frag in n for frag in contains):
+        return True
+    return any(secret in parts for secret in SECRET_PARTS)
+
+
+def is_workspace_root(workspace: str | None) -> bool:
+    return _norm_win(workspace) == r"c:\development\workspace"
+
+
+def is_personal_workspace(workspace: str | None) -> bool:
+    if not workspace or is_denied_workspace(workspace) or is_workspace_root(workspace):
+        return False
+    n = _norm_win(workspace)
+    return any(n == root or n.startswith(root + "\\") for root in PERSONAL_ROOTS)
+
+
+def workspace_authorization(workspace: str | None) -> dict:
+    """Path-shape authorization. Linux cannot see Windows disks; absence is not a deny."""
+    if not workspace:
+        return {"allowed": True, "reason": None}
+    if is_denied_workspace(workspace):
+        return {"allowed": False, "reason": "UNAUTHORIZED_REPO"}
+    if is_workspace_root(workspace):
+        return {"allowed": False, "reason": "WORKSPACE_ROOT_NOT_A_REPO"}
+    if not is_personal_workspace(workspace):
+        return {"allowed": False, "reason": "UNAUTHORIZED_REPO"}
+    return {"allowed": True, "reason": None}
+
+
 def resolve_project(project_id: str | None, workspace: str | None = None) -> dict:
+    """Registry metadata is descriptive. Authorization is personal-root minus deny-list."""
     data = _load(PROJECTS)
     projects = {p["id"]: p for p in data.get("projects") or []}
-    if not project_id:
-        return {"allowed": True, "reason": None, "project": None, "workspace": workspace}
-    row = projects.get(project_id)
-    if not row:
-        return {"allowed": False, "reason": "UNKNOWN_PROJECT", "project": None}
-    stage = row.get("access_stage")
-    if not row.get("a1_development") or stage not in WRITE_STAGES:
+    path_gate = workspace_authorization(workspace)
+    if not path_gate["allowed"]:
         return {
             "allowed": False,
-            "reason": "PROJECT_NOT_CONNECTED",
-            "project": row,
-            "detail": stage,
+            "reason": path_gate["reason"],
+            "project": projects.get(project_id) if project_id else None,
+            "workspace": workspace,
+        }
+    if not project_id:
+        return {
+            "allowed": True,
+            "reason": None,
+            "project": None,
+            "workspace": workspace,
+            "discovered": bool(workspace),
+        }
+    row = projects.get(project_id)
+    if not row:
+        return {
+            "allowed": True,
+            "reason": "UNREGISTERED_PERSONAL",
+            "project": None,
+            "workspace": workspace,
+            "discovered": True,
         }
     canonical = row.get("workspace_path")
     chosen = workspace or canonical
+    if chosen and chosen != workspace:
+        chosen_gate = workspace_authorization(chosen)
+        if not chosen_gate["allowed"]:
+            return {
+                "allowed": False,
+                "reason": chosen_gate["reason"],
+                "project": row,
+                "workspace": chosen,
+            }
     if workspace and canonical:
-        ws = workspace.replace("/", "\\").lower().rstrip("\\")
-        can = canonical.replace("/", "\\").lower().rstrip("\\")
-        if ws != can and not ws.startswith(can + "\\"):
-            sandbox = r"c:\users\swap2\neewa-personal\cursor-sandbox"
-            if sandbox not in ws:
+        ws = _norm_win(workspace)
+        can = _norm_win(canonical)
+        sandbox = r"c:\users\swap2\neewa-personal\cursor-sandbox"
+        if ws != can and not ws.startswith(can + "\\") and sandbox not in ws:
+            # Mismatch is informational when both paths are still personal.
+            if not (is_personal_workspace(workspace) and is_personal_workspace(canonical)):
                 return {
                     "allowed": False,
                     "reason": "WORKSPACE_PROJECT_MISMATCH",
                     "project": row,
                 }
-    return {"allowed": True, "reason": None, "project": row, "workspace": chosen}
+    stage = row.get("access_stage")
+    return {
+        "allowed": True,
+        "reason": None,
+        "project": row,
+        "workspace": chosen,
+        "access_stage": stage,
+        "discovered": stage not in WRITE_STAGES or not row.get("a1_development"),
+    }
 
 
 def attach_acceptance_checks(requirements: dict, inspect: dict, workflow: str) -> dict:

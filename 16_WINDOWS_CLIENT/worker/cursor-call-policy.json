@@ -20,6 +20,22 @@
   "max_timeout_sec": 600,
   "workspace_root": "C:\\Development\\Workspace",
   "sandbox_repo": "%USERPROFILE%\\NEEWA-Personal\\cursor-sandbox",
+  "authorization_mode": "personal_roots_except_denied",
+  "personal_roots": [
+    "C:\\Development\\Workspace",
+    "%USERPROFILE%\\NEEWA-Personal"
+  ],
+  "catalog_repo_names": [
+    "NEEWA-OS",
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "SocialMediaManager",
+    "Zume"
+  ],
   "approved_repo_names": [
     "NEEWA-OS",
     "aarohan-careeros",
@@ -39,6 +55,12 @@
     "OratsUtil",
     "ChakraOptionsWatch"
   ],
+  "denied_name_contains": [
+    "fintech",
+    "employer",
+    "brokerage",
+    "trading"
+  ],
   "blocked_intent_substrings": [
     "git push",
     "force push",
@@ -55,7 +77,10 @@
     "kubectl delete",
     "aws configure",
     "purchase",
-    "deploy to production"
+    "deploy to production",
+    "send email",
+    "disable antivirus",
+    "disable defender"
   ],
   "notes": [
     "cursor.cmd is the IDE launcher, not the agent CLI.",
@@ -63,6 +88,8 @@
     "Do not invoke cmd.exe or powershell with a caller-supplied command string.",
     "--trust is headless workspace trust for an already-approved repo. It is not all-drive access.",
     "--force is used only for authorized A1 writes. Read-only jobs use --mode ask.",
-    "A2/A3 remain owner-gated. Routine A1 development on approved repos does not re-prompt."
+    "A2/A3 remain owner-gated. Routine A1 work under personal roots does not re-prompt and does not require a per-repo allowlist entry.",
+    "approved_repo_names and catalog_repo_names are descriptive. Authorization is personal roots minus the deny list.",
+    "The Workspace drive root is not itself a Cursor workspace because it contains excluded trees."
   ]
 }

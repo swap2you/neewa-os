@@ -14,7 +14,7 @@
   ],
   "approved_root_modes": {
     "%USERPROFILE%\\NEEWA-Personal": "read_write_jobs",
-    "C:\\Development\\Workspace": "inventory_readonly_cursor_a1_approved_repos_only"
+    "C:\\Development\\Workspace": "personal_a1_except_denied"
   },
   "denied_roots": [
     "%USERPROFILE%\\.ssh",
@@ -48,6 +48,7 @@
     "sensitive_or_consequential": "blocked pending A2/A3 owner gate"
   },
   "notes": [
+    "A1 on personal roots is standing authorization. New personal folders do not need an allowlist entry.",
     "A2/A3 remain owner-gated and are not executable by this worker.",
     "cua-driver MCP is not registered into Cursor, Claude, or Codex concurrently.",
     "UWP apps share ApplicationFrameHost; the worker does not grant that executable."

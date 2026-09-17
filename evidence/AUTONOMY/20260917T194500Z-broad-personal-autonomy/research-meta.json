@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "word_count": 725,
+  "workflow": {
+    "capabilities": [
+      "research"
+    ],
+    "intent": "research",
+    "workflow": "research_report",
+    "approval": "A0",
+    "reason": "evidence-producing research"
+  }
+}

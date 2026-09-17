@@ -1,4 +1,4 @@
-# Governed Cursor Agent CLI invocation. No raw shell. Approved repos only.
+# Governed Cursor Agent CLI invocation. No raw shell. Personal roots except deny-list.
 # Flags are the official headless set for Agent CLI 2026.09.15-d2fe57e:
 #   --print --output-format json --workspace <approved> --sandbox enabled
 #   --trust (headless workspace trust only; not system-wide)
@@ -16,11 +16,8 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $PolicyPath) { $PolicyPath = Join-Path $here 'cursor-call-policy.json' }
 $policy = Get-Content -Raw -LiteralPath $PolicyPath | ConvertFrom-Json
-
-function Expand-UserPath([string]$value) {
-  if (-not $value) { return $value }
-  return [Environment]::ExpandEnvironmentVariables($value)
-}
+. (Join-Path $here 'NeewaPersonalWorkspace.ps1')
+# Keep approved child folders (e.g. KidsProjects\ScienceQuest) as the Cursor workspace.
 
 function Get-AgentCli {
   if ($CliPathOverride) {
@@ -43,53 +40,15 @@ function Get-AgentCli {
 function Test-BlockedIntent([string]$text) {
   $lower = $text.ToLowerInvariant()
   foreach ($frag in @($policy.blocked_intent_substrings)) {
-    if ($frag -and $lower.Contains($frag.ToLowerInvariant())) { return $true }
+    if (-not $frag) { continue }
+    if (-not $lower.Contains($frag.ToLowerInvariant())) { continue }
+    $token = ($frag.Trim() -split '\s+')[-1]
+    if ($token -and $lower -match ("(?i)\b(?:do not|don't|without|never|no)\b.{0,40}\b" + [regex]::Escape($token) + '\b')) {
+      continue
+    }
+    return $true
   }
   return $false
-}
-
-function Test-ReparseEscape([string]$path, [string]$approvedRoot) {
-  if (-not (Test-Path -LiteralPath $path)) { return $false }
-  $item = Get-Item -LiteralPath $path -Force
-  if (-not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { return $false }
-  $targets = @($item.Target)
-  foreach ($t in $targets) {
-    if (-not $t) { continue }
-    $fullTarget = [System.IO.Path]::GetFullPath($t)
-    $root = $approvedRoot.TrimEnd('\') + '\'
-    if (-not $fullTarget.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase) -and
-        -not $fullTarget.Equals($approvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-      return $true
-    }
-  }
-  return $false
-}
-
-function Resolve-ApprovedRepo([string]$requested) {
-  if (-not $requested) { return $null }
-  if ($requested -match '\.\.') { return $null }
-  $workspaceRoot = [string]$policy.workspace_root
-  $sandbox = Expand-UserPath ([string]$policy.sandbox_repo)
-  $candidates = @()
-  if ($sandbox) { $candidates += $sandbox }
-  foreach ($name in @($policy.approved_repo_names)) {
-    $candidates += (Join-Path $workspaceRoot $name)
-  }
-  $fullRequested = [System.IO.Path]::GetFullPath($requested)
-  foreach ($c in $candidates) {
-    $full = [System.IO.Path]::GetFullPath($c)
-    $prefix = $full.TrimEnd('\') + '\'
-    $isExact = $fullRequested.Equals($full, [System.StringComparison]::OrdinalIgnoreCase)
-    $isChild = $fullRequested.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)
-    if ($isExact -or $isChild) {
-      if (Test-ReparseEscape $fullRequested $full) { return $null }
-      if (Test-ReparseEscape $full $full) { return $null }
-      # Keep approved child folders (e.g. KidsProjects\ScienceQuest) as the Cursor workspace.
-      # Returning only the parent root made expected files miss and skipped the real stack.
-      return $fullRequested
-    }
-  }
-  return $null
 }
 
 function Protect-Log([string]$text) {
@@ -222,7 +181,7 @@ foreach ($denied in @($policy.denied_name_equals)) {
 
 $repo = Resolve-ApprovedRepo $requestedRepo
 if (-not $repo) {
-  $r = New-CursorResult 'BLOCKED' 'repo is not on the approved personal cursor_call list' $null @{ failure_class = 'UNAPPROVED_PATH' }
+  $r = New-CursorResult 'BLOCKED' 'repo is outside the personal workspace roots or is explicitly excluded' $null @{ failure_class = 'UNAPPROVED_PATH' }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact
   return $r

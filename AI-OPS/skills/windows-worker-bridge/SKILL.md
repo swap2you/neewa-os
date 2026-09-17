@@ -4,11 +4,33 @@ When the owner asks from NEEWA Conversation to inventory Windows projects,
 delegate coding, check job status, or summarize work, use this skill.
 Do not say Windows execution is unavailable. Do not open a listener.
 Do not request a raw Windows shell. Do not ask the owner to paste the
-task into Cursor.
+task into Cursor. Do not ask the owner to pick a worker or approve routine A1 steps.
 
 Inside the Hermes Docker sandbox the worker-visible inbox is
 `/workspace/windows-jobs`. `12_SCRIPTS/neewa_orchestrate.py` writes records
 and jobs there automatically.
+
+Standing authorization: ordinary personal work under
+`C:\Development\Workspace\<project>` and `%USERPROFILE%\NEEWA-Personal`
+is already allowed. Do not require a new allowlist entry, project-id
+registration, or owner confirmation for each repository, folder, or stack.
+Discover a new personal folder by using its Windows path. Registry rows
+are descriptive metadata, not gates.
+
+Exclusions that still block work (do not override them):
+- Employer/client/trading trees: api-fintech-automation-platform,
+  perf-fintech-testing-platform, ui-fintech-automation-platform,
+  QE_Platform_lead_Repos, OratsUtil, ChakraOptionsWatch, and names
+  containing fintech/employer/brokerage/trading.
+- Secrets: `.ssh`, `.aws`, `.gnupg`, credential files.
+- The Workspace drive root itself (it contains excluded trees).
+- A2/A3: publish/deploy to production, send messages or make commitments
+  to external recipients, purchases, financial/trading, irreversible
+  deletion, disabling security, disclosing secrets.
+
+Bhāva/Vāṇī and other registry-only rows may be used when the owner gives a
+personal workspace path. Without a personal path, submit nothing that would
+write; report MISSING_WORKSPACE instead of inventing a location.
 
 ## Show connected projects
 
@@ -20,28 +42,37 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py wait --job-id JOB-<u
 ## Software objective (requirements, council, Cursor, tests, release candidate)
 
 Do not run the demo-status fixture. Do not ask the owner to paste into Cursor.
+If the request mentions documentation or review together with tests, debugging,
+or repository inspection, still submit an sdlc parent. Classification selects
+the workflow; it does not prevent execution.
+
 Submit a parent job and return the job_id immediately. The host runner advances it.
 
 ```
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
   --objective "<owner software objective>" \
-  --project-id PRJ-NEEWA \
-  --workspace "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox" \
+  --project-id <known id or omit> \
+  --workspace "<personal Windows repo path>" \
   --origin conversation \
   --unattended
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
 ```
 
-For an existing approved personal repo, set `--project-id` and `--workspace` to that
-repo (for example `C:\\Development\\Workspace\\KidsProjects\\ScienceQuest` with
-`--project-id PRJ-KIDS`, or `C:\\Development\\Workspace\\aarohan-careeros` with
-`--project-id PRJ-AAROHAN`). Do not invent a Python CLI if the repo is Node/TypeScript
-or mixed FastAPI/Next.js. Catalog stack labels are metadata, never expected file paths.
+`--project-id` is optional. Unregistered personal folders are valid when
+`--workspace` is under the personal roots and not excluded.
+
+Examples:
+- `C:\\Development\\Workspace\\KidsProjects\\ScienceQuest` (`PRJ-KIDS` if known)
+- `C:\\Development\\Workspace\\aarohan-careeros` (`PRJ-AAROHAN` if known)
+- `C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox` for throwaway files
+- any other non-denied first-level folder under `C:\\Development\\Workspace`
+
+Do not invent a Python CLI if the repo is Node/TypeScript or mixed FastAPI/Next.js.
+Catalog stack labels are metadata, never expected file paths.
 Existing repos get an A0 `repo_preflight` identity check on the Windows worker before
 Cursor; Linux `exists_here=false` is not proof the Windows path is missing.
-Bhāva and Vāṇī remain DISCOVERED: do not submit A1 writes there. Research that is
-not a Ganesh katha should still be submitted as research; the controller cites the
-matching local corpus (OWNER.md / PROJECT_ACCESS.md) or SOURCE_PENDING.
+Research that is not a Ganesh katha should still be submitted as research; the
+controller cites the matching local corpus (OWNER.md / PROJECT_ACCESS.md) or SOURCE_PENDING.
 
 ## Research or document objective (source-grounded, no software CLI)
 
@@ -58,24 +89,30 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
 ```
 
 Do not turn a research request into a Python CLI. Do not publish.
+If the owner also asks to inspect a repo, add tests, or debug, use the software
+parent instead (multiple capabilities are allowed; sdlc is primary).
 
 ## What NEEWA can do (truthful)
 
-- Submit durable software jobs that Cursor implements on the Windows worker.
+- Plan, inspect personal workspaces, delegate to Cursor, edit files, run tests,
+  repair within budget, and report with evidence without per-step owner approval.
+- Work across personal projects, including folders that are not yet in the registry.
 - Submit durable research/document jobs grounded in the approved local source pack.
 - Report job_id, state, worker, artifacts, tests/citations, and cost basis (measured, conservative estimate, or unknown).
 - Codex/Claude/Gemini CLIs are not installed; failover is UNVERIFIED.
 - Home spoken voice remains PENDING_PHYSICAL and is not this path.
-- A2/A3 (publish, deploy, spend, secrets, trades) stay blocked. Job JSON cannot approve them.
+- This is not full computer autonomy: the worker uses the owner's existing Windows
+  user permissions, has no unrestricted shell, no public listener, and no admin elevation.
+- A2/A3 stay blocked. Job JSON cannot approve them.
 
-## Delegate coding to Cursor (approved personal repo or cursor-sandbox)
+## Delegate coding to Cursor (personal repo or cursor-sandbox)
 
 ```
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py submit \
   --capability code_implementation \
   --job-id JOB-<utc>-CC \
   --objective "<one sentence>" \
-  --repo "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox" \
+  --repo "<personal Windows repo path>" \
   --prompt "<task>" \
   --write \
   --timeout-sec 300 \
@@ -97,8 +134,7 @@ Do not report FAILED or BLOCKED as success.
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py list
 ```
 
-Science Quest lives under KidsProjects (`ACCESS_APPROVED` parent). It is not
-a separately connected production project.
+Science Quest lives under KidsProjects. It does not need a separate allowlist entry.
 
-A0/A1 approved-repo work does not need a new owner confirmation.
-A2/A3 (publish, deploy, spend, secrets, trades) stay blocked.
+A0/A1 personal-workspace work does not need a new owner confirmation.
+A2/A3 (publish, deploy, spend, secrets, trades, external messages) stay blocked.

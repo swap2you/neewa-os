@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "mode": "read_only_metadata",
+  "authorization_mode": "personal_roots_except_denied",
   "workspace_root": "C:\\Development\\Workspace",
   "report_dir": "%USERPROFILE%\\NEEWA-Personal\\inventory",
   "personal_projects": [
@@ -58,9 +59,10 @@
     "msedge"
   ],
   "notes": [
-    "NEEWA may request action workspace_inventory (A1).",
-    "Only personal_projects receive top-level metadata.",
-    "Denied and unclassified folders are named and skipped — no recursion, no file contents.",
+    "NEEWA may request action workspace_inventory (A0/A1).",
+    "personal_projects is a catalog of known registered trees, not an authorization allowlist.",
+    "Non-denied first-level folders under the workspace root are inventoried as personal.",
+    "Denied employer/client/trading folders are named and skipped — no recursion, no file contents.",
     "This is not write access and not unrestricted desktop access."
   ]
 }

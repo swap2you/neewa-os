@@ -1,0 +1,198 @@
+{
+  "classifications": {
+    "mixed_docs_tests": {
+      "capabilities": [
+        "software",
+        "documentation"
+      ],
+      "intent": "software",
+      "workflow": "sdlc",
+      "approval": "A1",
+      "reason": "software lifecycle; documentation or review does not block tests"
+    },
+    "software_sandbox": {
+      "capabilities": [
+        "software"
+      ],
+      "intent": "software",
+      "workflow": "sdlc",
+      "approval": "A1",
+      "reason": "software lifecycle; documentation or review does not block tests"
+    },
+    "research": {
+      "capabilities": [
+        "research"
+      ],
+      "intent": "research",
+      "workflow": "research_report",
+      "approval": "A0",
+      "reason": "evidence-producing research"
+    },
+    "file_op": {
+      "capabilities": [
+        "software",
+        "files"
+      ],
+      "intent": "software",
+      "workflow": "sdlc",
+      "approval": "A1",
+      "reason": "software lifecycle; documentation or review does not block tests"
+    },
+    "a2_publish": {
+      "capabilities": [],
+      "intent": "publication",
+      "workflow": "prepare_then_gate",
+      "approval": "A2",
+      "reason": "consequential publish/spend/deploy"
+    },
+    "a2_email": {
+      "capabilities": [],
+      "intent": "publication",
+      "workflow": "prepare_then_gate",
+      "approval": "A2",
+      "reason": "consequential publish/spend/deploy"
+    },
+    "a3_trade": {
+      "capabilities": [],
+      "intent": "financial_execution",
+      "workflow": "owner_gate",
+      "approval": "A3",
+      "reason": "reserved owner-controlled financial action"
+    },
+    "question": {
+      "capabilities": [],
+      "intent": "question",
+      "workflow": "answer",
+      "approval": "A0",
+      "reason": "informational; no development job"
+    }
+  },
+  "authorization": {
+    "orats": {
+      "allowed": false,
+      "reason": "UNAUTHORIZED_REPO",
+      "needed": "DENIED",
+      "detail": "OratsUtil"
+    },
+    "unlisted_personal": {
+      "allowed": true,
+      "needed": "A1",
+      "reason": null
+    },
+    "zume": {
+      "allowed": true,
+      "needed": "A1",
+      "reason": null
+    },
+    "sciencequest": {
+      "allowed": true,
+      "needed": "A1",
+      "reason": null
+    },
+    "udemy": {
+      "allowed": true,
+      "needed": "A1",
+      "reason": null
+    },
+    "workspace_root": {
+      "allowed": false,
+      "reason": "WORKSPACE_ROOT_NOT_A_REPO",
+      "needed": "DENIED",
+      "detail": "C:\\Development\\Workspace"
+    },
+    "sandbox": {
+      "allowed": true,
+      "needed": "A1",
+      "reason": null
+    },
+    "a2": {
+      "allowed": false,
+      "reason": "BLOCKED_INTENT",
+      "needed": "A2",
+      "detail": "deploy to production"
+    },
+    "a3": {
+      "allowed": false,
+      "reason": "BLOCKED_INTENT",
+      "needed": "A3",
+      "detail": "live trade"
+    }
+  },
+  "resolve": {
+    "wani_root": {
+      "allowed": false,
+      "reason": "WORKSPACE_ROOT_NOT_A_REPO",
+      "project": {
+        "id": "PRJ-WANI",
+        "name": "DAU Digital Media / Wani",
+        "priority": "P1",
+        "path": "08_PROJECTS/WANI",
+        "status": "defined",
+        "kind": "registry_defined_only",
+        "workspace_name": null,
+        "workspace_path": null,
+        "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-WANI",
+        "access_stage": "DISCOVERED",
+        "a1_development": false
+      },
+      "workspace": "C:\\Development\\Workspace"
+    },
+    "unregistered": {
+      "allowed": true,
+      "reason": "UNREGISTERED_PERSONAL",
+      "project": null,
+      "workspace": "C:\\Development\\Workspace\\BrandNewPersonalApp",
+      "discovered": true
+    },
+    "bhava_nopath": {
+      "allowed": true,
+      "reason": null,
+      "project": {
+        "id": "PRJ-BHAVA",
+        "name": "Bhava",
+        "priority": "P2",
+        "path": "08_PROJECTS/BHAVA",
+        "status": "defined",
+        "kind": "registry_defined_only",
+        "workspace_name": null,
+        "workspace_path": null,
+        "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-BHAVA",
+        "access_stage": "DISCOVERED",
+        "a1_development": false
+      },
+      "workspace": null,
+      "access_stage": "DISCOVERED",
+      "discovered": true
+    },
+    "kids": {
+      "allowed": true,
+      "reason": null,
+      "project": {
+        "id": "PRJ-KIDS",
+        "name": "KidsProjects",
+        "priority": "P2",
+        "path": "08_PROJECTS/KIDS",
+        "status": "defined",
+        "kind": "inventoried_personal",
+        "workspace_name": "KidsProjects",
+        "workspace_path": "C:\\Development\\Workspace\\KidsProjects",
+        "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-KIDS",
+        "access_stage": "ACCESS_APPROVED",
+        "a1_development": true
+      },
+      "workspace": "C:\\Development\\Workspace\\KidsProjects\\ScienceQuest",
+      "access_stage": "ACCESS_APPROVED",
+      "discovered": false
+    }
+  },
+  "blocked_jobs": {
+    "a2": {
+      "state": "BLOCKED",
+      "reason": "A2_OWNER_GATE"
+    },
+    "orats": {
+      "state": "BLOCKED",
+      "reason": "UNAUTHORIZED_REPO"
+    }
+  }
+}

@@ -377,12 +377,35 @@ class GeneralAutonomyTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.mod.transition(job, "DONE")
 
-    def test_discovered_project_cannot_a1(self):
-        gate = self.mod.PLANNING.resolve_project("PRJ-WANI", r"C:\Development\Workspace")
-        self.assertFalse(gate["allowed"])
-        self.assertEqual(gate["reason"], "PROJECT_NOT_CONNECTED")
-        blocked = self.mod.PLANNING.resolve_project("PRJ-BHAVA")
-        self.assertFalse(blocked["allowed"])
+    def test_doubled_backslashes_still_match_personal_roots(self):
+        gate = self.mod.PLANNING.workspace_authorization(r"C:\\Development\\Workspace\\Zume")
+        self.assertTrue(gate["allowed"])
+        denied = self.mod.PLANNING.workspace_authorization(r"C:\\Development\\Workspace\\OratsUtil")
+        self.assertFalse(denied["allowed"])
+
+    def test_discovered_project_is_not_blocked_by_registry_stage(self):
+        root = self.mod.PLANNING.resolve_project("PRJ-WANI", r"C:\Development\Workspace")
+        self.assertFalse(root["allowed"])
+        self.assertEqual(root["reason"], "WORKSPACE_ROOT_NOT_A_REPO")
+        missing = self.mod.PLANNING.resolve_project("PRJ-BHAVA")
+        self.assertTrue(missing["allowed"])
+        discovered = self.mod.PLANNING.resolve_project(
+            "PRJ-WANI",
+            r"C:\Development\Workspace\BrandNewPersonalApp",
+        )
+        self.assertTrue(discovered["allowed"])
+        unregistered = self.mod.PLANNING.resolve_project(
+            "PRJ-NEW-PERSONAL",
+            r"C:\Development\Workspace\BrandNewPersonalApp",
+        )
+        self.assertTrue(unregistered["allowed"])
+        self.assertTrue(unregistered.get("discovered"))
+        denied = self.mod.PLANNING.resolve_project(
+            None,
+            r"C:\Development\Workspace\OratsUtil",
+        )
+        self.assertFalse(denied["allowed"])
+        self.assertEqual(denied["reason"], "UNAUTHORIZED_REPO")
 
     def test_sciencequest_design_is_not_python_cli(self):
         obj = (
@@ -424,7 +447,7 @@ class GeneralAutonomyTests(unittest.TestCase):
         self.assertGreater(result["word_count"], 80)
         self.assertTrue(result["passed"])
 
-    def test_discovered_job_blocks_before_cursor(self):
+    def test_workspace_root_blocks_before_cursor(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"
             called = {"n": 0}
@@ -441,8 +464,63 @@ class GeneralAutonomyTests(unittest.TestCase):
             )
             job = self.mod.run_until_idle(job, root=root, orch_submit=submit)
             self.assertEqual(job["state"], "BLOCKED")
-            self.assertEqual(job["failure_reason"], "PROJECT_NOT_CONNECTED")
+            self.assertEqual(job["failure_reason"], "WORKSPACE_ROOT_NOT_A_REPO")
             self.assertEqual(called["n"], 0)
+
+    def test_unregistered_personal_repo_is_not_blocked_at_classify(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            called = {"n": 0}
+
+            def submit(**kwargs):
+                called["n"] += 1
+                return {"job_id": "x", "state": "DISPATCHED"}
+
+            job = self.mod.create_parent_job(
+                "add a helper function in notes.md",
+                project_id="PRJ-NEW-PERSONAL",
+                workspace=r"C:\Development\Workspace\BrandNewPersonalApp",
+                root=root,
+            )
+            job = self.mod.run_until_idle(job, root=root, orch_submit=submit, orch_harvest=lambda *a, **k: None, stop_before="DESIGN")
+            self.assertIn(job["state"], {"REQUIREMENTS", "DESIGN"})
+            self.assertNotEqual(job.get("failure_reason"), "UNKNOWN_PROJECT")
+            self.assertNotEqual(job.get("failure_reason"), "PROJECT_NOT_CONNECTED")
+
+    def test_mixed_docs_and_tests_classifies_sdlc(self):
+        obj = "Review the documentation and add a unit test in tests/test_foo.py"
+        row = self.mod.classify_intent(obj)
+        self.assertEqual(row["workflow"], "sdlc")
+        self.assertIn("software", row["capabilities"])
+        self.assertIn("documentation", row["capabilities"])
+
+    def test_classified_does_not_stall_draft_review_with_tests(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                "Please review this and then add tests/test_foo.py",
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            job["workflow"] = "draft_review"
+            job["intent"] = "document"
+            job = self.mod.run_until_idle(job, root=root, orch_submit=lambda **k: {"job_id": "x", "state": "DISPATCHED"}, orch_harvest=lambda *a, **k: None, stop_before="DESIGN")
+            self.assertNotEqual(job["state"], "CLASSIFIED")
+            self.assertTrue(job.get("reclassification") or job.get("workflow") == "sdlc")
+            self.assertIn(job["state"], {"REQUIREMENTS", "DESIGN"})
+
+    def test_bhava_without_workspace_is_missing_workspace_not_stage_block(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                "add a helper function in notes.md",
+                project_id="PRJ-BHAVA",
+                root=root,
+            )
+            job = self.mod.run_until_idle(job, root=root, orch_submit=lambda **k: {"job_id": "x", "state": "DISPATCHED"})
+            self.assertEqual(job["state"], "BLOCKED")
+            self.assertEqual(job["failure_reason"], "MISSING_WORKSPACE")
 
     def test_unrelated_passing_tests_do_not_pass_missing_artifact(self):
         reqs = self.mod.build_requirements(CHANGELOG_OBJECTIVE)

@@ -93,6 +93,15 @@ A2_HINTS = (
     "buy a",
     "charge the card",
     "change visibility",
+    "send email",
+    "email the client",
+    "message the client",
+    "post publicly",
+    "disable antivirus",
+    "disable defender",
+    "disable security",
+    "format c:",
+    "delete everything",
 )
 A3_HINTS = ("live trade", "place order", "wire transfer", "bank transfer", "send money")
 STOP_WORDS = {
@@ -146,11 +155,59 @@ def action_needed_from_text(blob: str) -> str:
     return "A0"
 
 
+def infer_capabilities(text: str) -> list[str]:
+    lower = (text or "").lower()
+    caps: list[str] = []
+    software = bool(
+        re.search(
+            r"\b(build|implement|application|unit tests?|unittest|pytest|vitest|npm test|"
+            r"debug|refactor|codebase|repository|\brepo\b|cli|typecheck|compile|"
+            r"add tests?|write tests?|test file|software validation)\b",
+            lower,
+        )
+        or (
+            re.search(r"\b(inspect|validate|debug|test|fix)\b", lower)
+            and re.search(r"\b(repo|repository|code|stack|tests?)\b", lower)
+        )
+        or (
+            re.search(r"\b(add|update|edit|fix|assert|create)\b", lower)
+            and re.search(r"\.(py|ts|tsx|js|md)\b", lower)
+        )
+    )
+    research = bool(
+        re.search(
+            r"\b(katha|research|compare|investigate|briefing|citing|source-grounded)\b",
+            lower,
+        )
+    )
+    docs = bool(
+        re.search(r"\b(documentation|document|readme|release notes|review the docs)\b", lower)
+    )
+    files = bool(
+        re.search(
+            r"\b(create a file|move files|organize files|rename the file|write a note)\b",
+            lower,
+        )
+    )
+    if software:
+        caps.append("software")
+    if research:
+        caps.append("research")
+    if docs:
+        caps.append("documentation")
+    if files:
+        caps.append("files")
+    return caps
+
+
 def classify_intent(text: str) -> dict:
     lower = text.lower()
     needed = action_needed_from_text(lower)
+    caps = infer_capabilities(text)
+    base = {"capabilities": caps}
     if needed == "A3":
         return {
+            **base,
             "intent": "financial_execution",
             "workflow": "owner_gate",
             "approval": "A3",
@@ -158,56 +215,98 @@ def classify_intent(text: str) -> dict:
         }
     if needed == "A2":
         return {
+            **base,
             "intent": "publication",
             "workflow": "prepare_then_gate",
             "approval": "A2",
             "reason": "consequential publish/spend/deploy",
         }
-    if re.search(r"\b(what is|how does|explain|status of|show me)\b", lower) and not re.search(
-        r"\b(build|implement|create an app)\b", lower
-    ):
+    question = bool(re.search(r"\b(what is|how does|explain|status of|show me)\b", lower))
+    if "software" in caps:
         return {
+            **base,
+            "intent": "software",
+            "workflow": "sdlc",
+            "approval": "A1",
+            "reason": "software lifecycle; documentation or review does not block tests",
+        }
+    if question and "files" not in caps:
+        return {
+            **base,
             "intent": "question",
             "workflow": "answer",
             "approval": "A0",
             "reason": "informational; no development job",
         }
-    if re.search(
-        r"\b(katha|research|compare|investigate|briefing|citing|source-grounded)\b",
-        lower,
-    ) and not re.search(r"\b(build|implement|vitest|npm test)\b", lower):
+    if "research" in caps:
         return {
+            **base,
             "intent": "research",
             "workflow": "research_report",
             "approval": "A0",
             "reason": "evidence-producing research",
         }
-    if re.search(
-        r"\b(build|implement|application|unit test|release candidate|cli|vitest|npm test)\b",
-        lower,
-    ) or (
-        re.search(r"\b(add|update|edit|fix|assert)\b", lower)
-        and re.search(r"\.(py|ts|tsx|js|md)\b", lower)
-    ):
-        return {
-            "intent": "software",
-            "workflow": "sdlc",
-            "approval": "A1",
-            "reason": "software lifecycle with tests and done-gate",
-        }
     if re.search(r"\binventory|connected projects|ping\b", lower):
         return {
+            **base,
             "intent": "operational",
             "workflow": "known_procedure",
             "approval": "A0",
             "reason": "existing Windows worker procedure",
         }
+    if "documentation" in caps or "files" in caps:
+        return {
+            **base,
+            "intent": "document",
+            "workflow": "sdlc",
+            "approval": "A1",
+            "reason": "personal file or document work",
+        }
     return {
+        **base,
         "intent": "document",
         "workflow": "draft_review",
         "approval": "A1",
         "reason": "default light artifact workflow",
     }
+
+
+def maybe_reclassify(job: dict) -> dict:
+    """Upgrade a parked classification using capabilities before dispatch."""
+    fresh = classify_intent(job.get("parent_objective") or "")
+    current = job.get("workflow")
+    target = fresh.get("workflow")
+    caps = list(fresh.get("capabilities") or [])
+    executable = {"sdlc", "research_report"}
+    gated = {"owner_gate", "prepare_then_gate"}
+    if current not in executable and current not in gated:
+        if "software" in caps or "documentation" in caps or "files" in caps:
+            target = "sdlc"
+            fresh = {
+                **fresh,
+                "intent": "software" if "software" in caps else "document",
+                "approval": "A1",
+                "reason": "reclassified from capabilities before dispatch",
+            }
+        elif "research" in caps:
+            target = "research_report"
+            fresh = {**fresh, "reason": "reclassified from capabilities before dispatch"}
+    if target and target != current:
+        job.setdefault("reclassification", []).append(
+            {
+                "at": utc_now(),
+                "from": current,
+                "to": target,
+                "reason": fresh.get("reason"),
+                "capabilities": caps,
+            }
+        )
+        job["workflow"] = target
+        job["intent"] = fresh.get("intent") or job.get("intent")
+        job["approval_level"] = fresh.get("approval") or job.get("approval_level")
+    if caps:
+        job["capabilities"] = caps
+    return job
 
 
 def new_parent_id() -> str:
@@ -257,6 +356,7 @@ def create_parent_job(
         "intent": classification["intent"],
         "workflow": classification["workflow"],
         "approval_level": classification["approval"],
+        "capabilities": classification.get("capabilities") or [],
         "requirements_version": None,
         "design_version": None,
         "scope": "approved personal workspace only",
@@ -523,8 +623,28 @@ def authorize_execution(
                 "needed": "DENIED",
                 "detail": name,
             }
+    for frag in policy.get("denied_name_contains") or []:
+        if frag and frag.lower() in repo_norm:
+            return {
+                "allowed": False,
+                "reason": "UNAUTHORIZED_REPO",
+                "needed": "DENIED",
+                "detail": frag,
+            }
+    if repo:
+        path_gate = PLANNING.workspace_authorization(repo)
+        if not path_gate["allowed"]:
+            return {
+                "allowed": False,
+                "reason": path_gate["reason"],
+                "needed": "DENIED",
+                "detail": repo,
+            }
     for frag in policy.get("blocked_intent_substrings") or []:
         if frag and frag.lower() in blob:
+            token = frag.split()[-1]
+            if contains_negated(blob, token):
+                continue
             mapped = "A3" if any(h in frag.lower() for h in A3_HINTS) else "A2"
             return {
                 "allowed": False,
@@ -1511,6 +1631,7 @@ def advance_job(
             return job
 
     if job["state"] == "CLASSIFIED":
+        job = maybe_reclassify(job)
         gate = authorize_execution(
             approval_level=job.get("approval_level") or "A1",
             owner_decision=job.get("owner_decision"),
@@ -1534,8 +1655,13 @@ def advance_job(
             job["failure_reason"] = "A2/A3 owner gate"
             transition(job, "BLOCKED", "consequential action requires owner gate")
             return job
+        if job.get("workflow") == "sdlc" and not job.get("workspace"):
+            job["failure_reason"] = "MISSING_WORKSPACE"
+            transition(job, "BLOCKED", "MISSING_WORKSPACE")
+            return job
         if job.get("workflow") not in {"sdlc", "research_report"}:
-            save_job(job)
+            job["failure_reason"] = "NO_EXECUTABLE_WORKFLOW"
+            transition(job, "BLOCKED", "NO_EXECUTABLE_WORKFLOW")
             return job
         if job.get("workflow") == "sdlc" and not budget_allows(job):
             job["failure_reason"] = budget_decision(job)["reason"]
@@ -2027,7 +2153,10 @@ def runner_once(
                 )
                 results.append({"job_id": updated["job_id"], "state": updated["state"], "reconciled": True})
             continue
-        if job.get("workflow") not in {"sdlc", "research_report"} and job.get("state") not in {"INTAKE"}:
+        if job.get("workflow") not in {"sdlc", "research_report"} and job.get("state") not in {
+            "INTAKE",
+            "CLASSIFIED",
+        }:
             continue
         job_lease = job.get("lease") or {}
         expires = str(job_lease.get("expires_at") or "")

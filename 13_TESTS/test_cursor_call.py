@@ -122,6 +122,23 @@ class CursorCallTests(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("sensitive", result["reason"].lower())
 
+    def test_stack_label_expected_path_blocked_before_agent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-FASTAPI-NEXT",
+                    "prompt": "implement a helper",
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                    "expected_paths": ["FastAPI/Next.js"],
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result.get("failure_class"), "MALFORMED_EXPECTED_PATH")
+
 
 if __name__ == "__main__":
     unittest.main()

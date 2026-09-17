@@ -522,6 +522,283 @@ class GeneralAutonomyTests(unittest.TestCase):
             self.assertEqual(job["state"], "OWNER_REVIEW")
 
 
+class PathAndRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_p0", str(AUTO)).load_module()
+        self.orch = SourceFileLoader("neewa_orchestrate_p0", str(ORCH)).load_module()
+        self.aarohan_obj = (
+            "In Aarohan CareerOS at C:\\Development\\Workspace\\aarohan-careeros, "
+            "inspect the real FastAPI/Next.js repository, select one existing feature, "
+            "add a negative-path test and a short documentation note, run the relevant tests, "
+            "and produce a scoped diff. Do not deploy or touch secrets."
+        )
+
+    def test_stack_label_is_not_an_expected_file(self):
+        mentioned = self.mod.PLANNING.extract_mentioned_paths(self.aarohan_obj)
+        self.assertNotIn("FastAPI/Next.js", mentioned)
+        self.assertTrue(self.mod.PLANNING.malformed_expected_paths(["FastAPI/Next.js"]))
+        self.assertFalse(self.mod.PLANNING.is_repo_relative_file("FastAPI/Next.js"))
+        self.assertTrue(self.mod.PLANNING.is_repo_relative_file("apps/api/tests/test_confirm.py"))
+        reqs = self.mod.build_requirements(
+            self.aarohan_obj,
+            workflow="sdlc",
+            workspace=r"C:\Development\Workspace\aarohan-careeros",
+            project_id="PRJ-AAROHAN",
+        )
+        self.assertEqual(reqs.get("stack_label"), "FastAPI/Next.js/PostgreSQL")
+        design = self.mod.initial_design(reqs, self.aarohan_obj)
+        self.assertNotIn("FastAPI/Next.js", design.get("components") or [])
+        self.assertFalse(design.get("create_new_package", True))
+        self.assertFalse(self.mod.PLANNING.malformed_expected_paths(self.mod.expected_paths_from_design(design)))
+
+    def test_linux_missing_path_is_not_windows_disproof(self):
+        inspect = self.mod.PLANNING.inspect_workspace(
+            r"C:\Development\Workspace\aarohan-careeros\definitely-missing-neewa-p0",
+            "PRJ-AAROHAN",
+        )
+        self.assertFalse(inspect["exists_here"])
+        self.assertTrue(inspect["absence_is_not_disproof"])
+        self.assertTrue(inspect["windows_preflight_required"])
+        self.assertEqual(inspect["stack_label"], "FastAPI/Next.js/PostgreSQL")
+        self.assertEqual(inspect.get("source"), "catalog")
+
+    def test_malformed_expected_paths_fail_parent_not_executing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                self.aarohan_obj,
+                project_id="PRJ-AAROHAN",
+                workspace=r"C:\Development\Workspace\aarohan-careeros",
+                root=root,
+            )
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["expected_paths"] = ["FastAPI/Next.js", "RELEASE_CANDIDATE.md"]
+            job["active_child_id"] = f"{job['job_id']}-CC01"
+            job["budget"]["reserved_usd"] = 0.5
+            job["budget"]["consumed_usd"] = 1.0
+            self.mod.save_job(job)
+            submits = []
+
+            def submit(**kwargs):
+                submits.append(kwargs)
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            job = self.mod.run_until_idle(job, root=root, orch_submit=submit, orch_harvest=lambda *a, **k: None)
+            self.assertEqual(job["state"], "FAILED")
+            self.assertEqual(job.get("failure_class"), "CONFIG_DEFECT")
+            self.assertEqual(job["budget"]["reserved_usd"], 0.0)
+            self.assertEqual(job["budget"]["consumed_usd"], 1.0)
+            self.assertIsNone(job.get("active_child_id"))
+            self.assertEqual(submits, [])
+            self.assertNotEqual(job["state"], "EXECUTING")
+            self.assertNotEqual(job["state"], "OWNER_REVIEW")
+
+    def test_config_defect_does_not_retry_three_times(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            submits = []
+
+            def submit(**kwargs):
+                submits.append(list(kwargs.get("expected_paths") or []))
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest_running(job_id, inbox_root=None):
+                return {"job_id": job_id, "state": "RUNNING"}
+
+            running = self.mod.run_until_idle(
+                job, root=root, orch_submit=submit, orch_harvest=harvest_running
+            )
+            self.assertEqual(running["state"], "EXECUTING")
+            running["expected_paths"] = ["FastAPI/Next.js"]
+            self.mod.save_job(running)
+
+            def harvest_failed(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "FAILED",
+                    "failure_reason": "validation failed; missing expected files: FastAPI/Next.js",
+                    "failure_class": "VALIDATION",
+                }
+
+            finished = self.mod.run_until_idle(
+                running, root=root, orch_submit=submit, orch_harvest=harvest_failed
+            )
+            self.assertEqual(finished["state"], "FAILED")
+            self.assertEqual(finished.get("failure_class"), "CONFIG_DEFECT")
+            self.assertLessEqual(len(submits), 1)
+
+    def test_stale_reservation_released_on_terminal_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root)
+            job["state"] = "FAILED"
+            job["failure_reason"] = "historical child FAILED"
+            job["budget"]["reserved_usd"] = 0.5
+            job["budget"]["consumed_usd"] = 1.0
+            self.mod.save_job(job)
+            job = self.mod.reconcile_parent_job(job)
+            self.assertEqual(job["state"], "FAILED")
+            self.assertEqual(job["budget"]["reserved_usd"], 0.0)
+            self.assertEqual(job["budget"]["consumed_usd"], 1.0)
+            self.assertEqual(job["failure_reason"], "historical child FAILED")
+
+    def test_stale_child_times_out_parent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root)
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["timeout_sec"] = 1
+            job["active_child_id"] = "JOB-STALE-CC01"
+            job["child_jobs"] = [{"job_id": "JOB-STALE-CC01", "at": "2020-01-01T00:00:00Z"}]
+            job["budget"]["reserved_usd"] = 0.5
+            self.mod.save_job(job)
+            job = self.mod.reconcile_parent_job(job, orch_harvest=lambda *a, **k: {"state": "RUNNING"})
+            self.assertEqual(job["state"], "FAILED")
+            self.assertEqual(job["failure_reason"], "CHILD_TIMEOUT")
+            self.assertEqual(job["budget"]["reserved_usd"], 0.0)
+
+    def test_duplicate_dispatch_releases_reservation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            job["assigned_worker"] = "cursor-agent-cli"
+            job["workflow"] = "sdlc"
+            self.mod.save_job(job)
+
+            def submit(**kwargs):
+                raise ValueError(f"duplicate job_id {kwargs['job_id']} already exists")
+
+            result = self.mod._submit_cursor(
+                job, "prompt", ["readme.md"], inbox_root=Path(tmp) / "inbox", orch_submit=submit
+            )
+            self.assertEqual(result["state"], "BLOCKED")
+            self.assertTrue(result.get("duplicate"))
+            self.assertEqual(job["budget"]["reserved_usd"], 0.0)
+
+    def test_incorrect_windows_preflight_fails_safely(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                self.aarohan_obj,
+                project_id="PRJ-AAROHAN",
+                workspace=r"C:\Development\Workspace\aarohan-careeros",
+                root=root,
+                origin="conversation",
+            )
+            submits = []
+
+            def submit(**kwargs):
+                submits.append(kwargs.get("capability"))
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            def harvest(job_id, inbox_root=None):
+                if "PF" in job_id:
+                    return {
+                        "job_id": job_id,
+                        "state": "COMPLETED",
+                        "preflight": {"identity_ok": False, "reason": "markers missing"},
+                    }
+                return {"job_id": job_id, "state": "RUNNING"}
+
+            job = self.mod.run_until_idle(job, root=root, orch_submit=submit, orch_harvest=harvest)
+            self.assertEqual(job["state"], "FAILED")
+            blob = json.dumps(job.get("history") or []) + str(job.get("failure_reason") or "")
+            self.assertTrue("REPO_IDENTITY" in blob or "identity" in blob.lower())
+            self.assertIn("repo_preflight", submits)
+            self.assertNotIn("code_implementation", submits)
+
+    def test_passing_and_failing_child_with_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            submits = {"n": 0}
+            harvests = {"n": 0}
+
+            def submit(**kwargs):
+                submits["n"] += 1
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest_fail_then_wait(job_id, inbox_root=None):
+                harvests["n"] += 1
+                if harvests["n"] == 1:
+                    return {
+                        "job_id": job_id,
+                        "state": "FAILED",
+                        "failure_reason": "validation failed; missing expected files: digest.py",
+                        "selected_worker": "cursor-agent-cli",
+                    }
+                return {"job_id": job_id, "state": "RUNNING"}
+
+            failed = self.mod.run_until_idle(
+                job, root=root, orch_submit=submit, orch_harvest=harvest_fail_then_wait, max_steps=20
+            )
+            self.assertEqual(failed["state"], "EXECUTING")
+            self.assertTrue(failed.get("retry_history"))
+            self.assertGreaterEqual(submits["n"], 2)
+            reloaded = self.mod.resume_job(failed["job_id"], root)
+
+            def harvest_pass(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": [
+                        r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
+                    ],
+                    "validation": {
+                        "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0}"
+                    },
+                }
+
+            passed = self.mod.run_until_idle(reloaded, root=root, orch_submit=submit, orch_harvest=harvest_pass)
+            self.assertEqual(passed["state"], "OWNER_REVIEW")
+
+    def test_orchestrate_duplicate_and_repo_preflight_route(self):
+        choice = self.orch.select_worker("repo_preflight")
+        self.assertTrue(choice["available"])
+        self.assertEqual(choice["action"], "repo_preflight")
+        self.assertEqual(choice["approval"], "A0")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rec = self.orch.submit(
+                job_id="JOB-TEST-PF",
+                capability="repo_preflight",
+                objective="preflight",
+                repo=r"C:\Development\Workspace\aarohan-careeros",
+                markers=["apps/api", "apps/web"],
+                inbox_root=root,
+            )
+            self.assertEqual(rec["state"], "DISPATCHED")
+            payload = json.loads((root / "inbox" / "JOB-TEST-PF.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["action"], "repo_preflight")
+            self.assertEqual(payload["markers"], ["apps/api", "apps/web"])
+            with self.assertRaises(ValueError):
+                self.orch.submit(
+                    job_id="JOB-TEST-PF",
+                    capability="repo_preflight",
+                    objective="preflight again",
+                    repo=r"C:\Development\Workspace\aarohan-careeros",
+                    inbox_root=root,
+                )
+
+
 class OrchestrateUsageTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_orchestrate_usage", str(ORCH)).load_module()

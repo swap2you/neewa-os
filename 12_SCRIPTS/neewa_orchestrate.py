@@ -65,6 +65,12 @@ CAPABILITY_ROUTE = {
         "available": False,
         "missing": "remote Cua GUI jobs are not queued through this inbox; local cua-driver is interactive-session only",
     },
+    "repo_preflight": {
+        "worker": "neewa-windows-worker",
+        "action": "repo_preflight",
+        "approval": "A0",
+        "write": False,
+    },
 }
 
 
@@ -250,6 +256,7 @@ def submit(
     project_id: str | None = None,
     approval: str | None = None,
     inbox_root: Path | None = None,
+    markers: list[str] | None = None,
 ) -> dict:
     choice = select_worker(capability)
     if not choice.get("available"):
@@ -315,6 +322,8 @@ def submit(
         extra["timeout_sec"] = timeout_sec
     if expected_paths:
         extra["expected_paths"] = expected_paths
+    if markers:
+        extra["markers"] = markers
     if write or choice.get("write") is True:
         extra["write"] = True
     elif choice.get("write") is False:
@@ -347,7 +356,7 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                 except json.JSONDecodeError:
                     extra = {}
                 if isinstance(extra, dict):
-                    for key in ("stdout_tail", "usage", "artifact_paths", "status", "reason", "failure_class"):
+                    for key in ("stdout_tail", "usage", "artifact_paths", "status", "reason", "failure_class", "preflight"):
                         if extra.get(key) not in (None, "", []):
                             payload[key] = extra[key]
             return inferred, payload
@@ -387,11 +396,16 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
                 artifacts.extend(val)
         record["artifact_paths"] = artifacts
         record["failure_reason"] = reason
+        if payload.get("failure_class"):
+            record["failure_class"] = payload.get("failure_class")
+        if payload.get("preflight"):
+            record["preflight"] = payload.get("preflight")
         record["validation"] = {
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),
             "host": payload.get("host"),
             "stdout_tail": payload.get("stdout_tail"),
+            "preflight": payload.get("preflight"),
         }
         usage = payload.get("usage")
         if isinstance(usage, dict):

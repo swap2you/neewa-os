@@ -34,7 +34,11 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
 
 For an existing approved personal repo, set `--project-id` and `--workspace` to that
 repo (for example `C:\\Development\\Workspace\\KidsProjects\\ScienceQuest` with
-`--project-id PRJ-KIDS`). Do not invent a Python CLI if the repo is Node/TypeScript.
+`--project-id PRJ-KIDS`, or `C:\\Development\\Workspace\\aarohan-careeros` with
+`--project-id PRJ-AAROHAN`). Do not invent a Python CLI if the repo is Node/TypeScript
+or mixed FastAPI/Next.js. Catalog stack labels are metadata, never expected file paths.
+Existing repos get an A0 `repo_preflight` identity check on the Windows worker before
+Cursor; Linux `exists_here=false` is not proof the Windows path is missing.
 Bhāva and Vāṇī remain DISCOVERED: do not submit A1 writes there. Research that is
 not a Ganesh katha should still be submitted as research; the controller cites the
 matching local corpus (OWNER.md / PROJECT_ACCESS.md) or SOURCE_PENDING.

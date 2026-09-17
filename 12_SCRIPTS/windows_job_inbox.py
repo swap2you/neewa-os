@@ -51,6 +51,7 @@ ALLOWED = {
     "portfolio_inventory",
     "workspace_inventory",
     "cursor_call",
+    "repo_preflight",
 }
 
 

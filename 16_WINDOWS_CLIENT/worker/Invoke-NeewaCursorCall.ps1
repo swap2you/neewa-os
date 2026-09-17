@@ -115,6 +115,32 @@ function Test-RelPathInside([string]$repo, [string]$rel) {
   return $full.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)
 }
 
+function Test-MalformedExpectedPath([string]$rel) {
+  # Reject catalog stack labels such as FastAPI/Next.js before invoking the agent.
+  if (-not $rel) { return $true }
+  $norm = $rel.Trim().Replace('\', '/').TrimStart('.')
+  while ($norm.StartsWith('/')) { $norm = $norm.TrimStart('/') }
+  $lower = $norm.ToLowerInvariant()
+  $labels = @(
+    'fastapi/next.js',
+    'fastapi/next.js/postgresql',
+    'next.js/postgresql',
+    'fastapi',
+    'next.js',
+    'postgresql',
+    'postgres',
+    'typescript',
+    'react'
+  )
+  if ($labels -contains $lower) { return $true }
+  $leaf = [System.IO.Path]::GetFileName($norm)
+  if ($leaf -and $labels -contains $leaf.ToLowerInvariant()) { return $true }
+  foreach ($part in $norm.Split('/')) {
+    if ($labels -contains $part.ToLowerInvariant()) { return $true }
+  }
+  return $false
+}
+
 $jobId = [string]$Job.job_id
 $prompt = [string]$Job.prompt
 $requestedRepo = [string]$Job.repo
@@ -209,6 +235,12 @@ if (-not (Test-Path -LiteralPath $repo)) {
 }
 
 foreach ($rel in $expected) {
+  if (Test-MalformedExpectedPath ([string]$rel)) {
+    $r = New-CursorResult 'BLOCKED' "malformed expected path (stack label or non-file): $rel" $null @{ failure_class = 'MALFORMED_EXPECTED_PATH' }
+    [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+    $r.artifact = $artifact
+    return $r
+  }
   if (-not (Test-RelPathInside $repo ([string]$rel))) {
     $r = New-CursorResult 'BLOCKED' "expected path escapes the approved repository: $rel" $null @{ failure_class = 'PATH_ESCAPE' }
     [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
@@ -365,6 +397,20 @@ $created = @()
 foreach ($rel in $expected) {
   $full = [System.IO.Path]::GetFullPath((Join-Path $repo ([string]$rel)))
   if (Test-Path -LiteralPath $full) { $created += $full } else { $missing += [string]$rel }
+}
+if ($write -and $expected.Count -eq 0 -and $gitAvail) {
+  $changed = @()
+  $changed += @(& git -C $repo diff --name-only 2>$null)
+  $changed += @(& git -C $repo diff --name-only --cached 2>$null)
+  $changed += @(& git -C $repo ls-files --others --exclude-standard 2>$null)
+  foreach ($rel in $changed) {
+    if (-not $rel) { continue }
+    if (Test-MalformedExpectedPath ([string]$rel)) { continue }
+    if ($rel -match '(?i)AarohanSecrets|Keys & secrets') { continue }
+    if (-not (Test-RelPathInside $repo ([string]$rel))) { continue }
+    $full = [System.IO.Path]::GetFullPath((Join-Path $repo ([string]$rel)))
+    if ((Test-Path -LiteralPath $full) -and ($created -notcontains $full)) { $created += $full }
+  }
 }
 if ($write -and $expected.Count -gt 0 -and $missing.Count -gt 0) {
   $r = New-CursorResult 'FAILED' ("validation failed; missing expected files: " + ($missing -join ', ')) $artifact @{

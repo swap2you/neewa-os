@@ -32,7 +32,7 @@ try {
 
   function Submit-RemoteResult($jobFile, $result) {
     $name = Split-Path -Leaf $jobFile
-    $payload = $result | ConvertTo-Json -Depth 6 -Compress
+    $payload = $result | ConvertTo-Json -Depth 8 -Compress
     $destDir = if ($result.status -in @('complete', 'COMPLETED')) { 'done' } else { 'failed' }
     $remoteJson = "$RemoteInbox/$destDir/$name"
     $payload | ssh -o BatchMode=yes $RemoteHost "cat > $remoteJson"

@@ -12,6 +12,77 @@ POLICY = ROOT / "16_WINDOWS_CLIENT" / "worker" / "cursor-call-policy.json"
 
 WRITE_STAGES = {"ACCESS_APPROVED", "CONNECTED", "BUILD_VERIFIED", "DELEGATION_VERIFIED"}
 
+# Technology names / catalog labels. Never treat these as repository files.
+STACK_LABEL_NAMES = {
+    "fastapi",
+    "next.js",
+    "nextjs",
+    "node.js",
+    "postgresql",
+    "postgres",
+    "docker-compose",
+    "typescript",
+    "react",
+    "vite",
+    "n8n",
+}
+STACK_LABEL_PATHS = {
+    "fastapi/next.js",
+    "next.js/postgresql",
+    "fastapi/next.js/postgresql",
+}
+ALLOWED_FILE_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".js", ".json", ".toml", ".yml", ".yaml"}
+
+
+def normalize_rel_path(path: str) -> str:
+    text = (path or "").strip().replace("\\", "/")
+    return text.lstrip("./")
+
+
+def is_repo_relative_file(path: str) -> bool:
+    """True only for a repository-relative file path, never a stack label."""
+    text = normalize_rel_path(path)
+    if not text or ".." in Path(text).parts:
+        return False
+    if re.match(r"^[a-zA-Z]:", text) or text.startswith("/"):
+        return False
+    lower = text.lower()
+    if lower in STACK_LABEL_PATHS or lower in STACK_LABEL_NAMES:
+        return False
+    parts = [p.lower() for p in text.split("/") if p]
+    if any(part in STACK_LABEL_NAMES for part in parts):
+        return False
+    suffix = Path(text).suffix.lower()
+    if suffix not in ALLOWED_FILE_SUFFIXES:
+        return False
+    name = Path(text).name.lower()
+    if name in STACK_LABEL_NAMES:
+        return False
+    return True
+
+
+def extract_mentioned_paths(text: str) -> list[str]:
+    raw = re.findall(r"[\w./\\-]+\.(?:md|py|ts|tsx|js|json|toml|yml|yaml)", text or "")
+    out = []
+    seen = set()
+    for item in raw:
+        norm = normalize_rel_path(item)
+        if not is_repo_relative_file(norm) or norm in seen:
+            continue
+        seen.add(norm)
+        out.append(norm)
+    return out
+
+
+def malformed_expected_paths(paths: list[str] | None) -> list[str]:
+    return [p for p in (paths or []) if p and not is_repo_relative_file(p)]
+
+
+def constrain_expected_paths(paths: list[str] | None, workspace: str | None = None) -> list[str]:
+    """Keep only normalized repo-relative files. Do not derive files from stack labels."""
+    del workspace  # containment is enforced on the Windows worker against the approved repo
+    return [normalize_rel_path(p) for p in (paths or []) if is_repo_relative_file(p)]
+
 
 def _load(path: Path) -> dict:
     if not path.is_file():
@@ -49,27 +120,62 @@ def inspect_workspace(workspace: str | None, project_id: str | None = None) -> d
         elif (path / "go.mod").is_file():
             stack = "go"
     catalog = _load(STACKS)
+    catalog_markers: list[str] = []
+    catalog_row = (catalog.get("projects") or {}).get(project_id) if project_id else None
     if stack == "unknown":
-        if project_id and project_id in (catalog.get("projects") or {}):
-            row = catalog["projects"][project_id]
-            stack = row.get("stack") or "unknown"
-            test_command = test_command or row.get("test_command")
+        if catalog_row:
+            stack = catalog_row.get("stack") or "unknown"
+            test_command = test_command or catalog_row.get("test_command")
             workspace_l = (workspace or "").replace("/", "\\").lower()
-            for child, meta in (row.get("children") or {}).items():
+            for child, meta in (catalog_row.get("children") or {}).items():
                 if child.lower() in workspace_l:
                     stack = meta.get("stack") or stack
                     test_command = meta.get("test_command") or test_command
         elif workspace and "cursor-sandbox" in workspace.lower():
             stack = "python-stdlib"
             test_command = "python -m unittest"
+    stack_label = stack
+    if catalog_row:
+        stack_label = catalog_row.get("stack_label") or stack_label
+        catalog_markers = list(catalog_row.get("markers") or [])
+        test_command = test_command or catalog_row.get("test_command")
     return {
         "workspace": workspace,
         "exists_here": exists,
+        "host_can_see_workspace": exists,
+        "absence_is_not_disproof": (not exists) and bool(workspace),
+        "windows_preflight_required": (not exists)
+        and bool(workspace)
+        and ("\\development\\workspace" in (workspace or "").replace("/", "\\").lower()),
         "markers": markers,
+        "catalog_markers": catalog_markers,
         "stack": stack,
+        "stack_label": stack_label,
         "test_command": test_command,
         "source": "filesystem" if exists else "catalog",
     }
+
+
+def repo_relative_from_artifacts(artifacts: list | None, workspace: str | None) -> list[str]:
+    """Convert worker artifact paths to constrained repo-relative files."""
+    ws = (workspace or "").replace("/", "\\").rstrip("\\")
+    out = []
+    seen = set()
+    for art in artifacts or []:
+        text = str(art).replace("/", "\\")
+        rel = None
+        if ws and text.lower().startswith(ws.lower() + "\\"):
+            rel = text[len(ws) + 1 :].replace("\\", "/")
+        else:
+            rel = str(art).replace("\\", "/")
+        rel = normalize_rel_path(rel)
+        if rel.lower() in {"release_candidate.md"} or rel.lower().endswith("/release_candidate.md"):
+            continue
+        if not is_repo_relative_file(rel) or rel in seen:
+            continue
+        seen.add(rel)
+        out.append(rel)
+    return out
 
 
 def resolve_project(project_id: str | None, workspace: str | None = None) -> dict:
@@ -137,6 +243,7 @@ def attach_acceptance_checks(requirements: dict, inspect: dict, workflow: str) -
                 req["ac"] = f"Objective clause is implemented in stack {inspect.get('stack')}"
                 req["check"] = "artifact_or_test"
     requirements["stack"] = inspect.get("stack")
+    requirements["stack_label"] = inspect.get("stack_label")
     requirements["test_command"] = inspect.get("test_command")
     return requirements
 

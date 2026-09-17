@@ -45,6 +45,7 @@ PARENT_STATES = (
     "COUNCIL",
     "BASELINE_LOCKED",
     "PLANNED",
+    "PREFLIGHT",
     "EXECUTING",
     "TESTING",
     "VALIDATING",
@@ -63,12 +64,13 @@ ALLOWED_TRANSITIONS = {
     "DESIGN": {"COUNCIL", "BLOCKED", "CANCELLED"},
     "COUNCIL": {"BASELINE_LOCKED", "PLANNED", "WAITING", "BLOCKED", "CANCELLED"},
     "BASELINE_LOCKED": {"PLANNED", "BLOCKED", "CANCELLED"},
-    "PLANNED": {"EXECUTING", "BLOCKED", "WAITING", "CANCELLED"},
+    "PLANNED": {"PREFLIGHT", "EXECUTING", "BLOCKED", "WAITING", "CANCELLED"},
+    "PREFLIGHT": {"PLANNED", "EXECUTING", "FAILED", "BLOCKED", "WAITING", "CANCELLED"},
     "EXECUTING": {"TESTING", "EXECUTING", "FAILED", "BLOCKED", "WAITING", "CANCELLED"},
     "TESTING": {"VALIDATING", "EXECUTING", "FAILED", "BLOCKED", "CANCELLED"},
     "VALIDATING": {"RELEASE_CANDIDATE", "FAILED", "BLOCKED", "CANCELLED"},
     "RELEASE_CANDIDATE": {"OWNER_REVIEW", "BLOCKED", "CANCELLED"},
-    "OWNER_REVIEW": {"DONE", "CANCELLED"},
+    "OWNER_REVIEW": {"DONE", "CANCELLED", "FAILED"},
     "WAITING": {"PLANNED", "BLOCKED", "CANCELLED"},
     "DONE": set(),
     "BLOCKED": {"CANCELLED"},
@@ -424,6 +426,60 @@ def settle_reservation(job: dict, amount: float | None) -> None:
     job["budget"]["reserved_usd"] = max(0.0, reserved - float(amount))
 
 
+def release_open_reservation(job: dict) -> None:
+    job.setdefault("budget", {})["reserved_usd"] = 0.0
+
+
+def parse_utc(stamp: str | None) -> datetime | None:
+    if not stamp:
+        return None
+    try:
+        return datetime.strptime(str(stamp), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def child_is_stale(job: dict) -> bool:
+    child_id = job.get("active_child_id")
+    if not child_id:
+        return False
+    timeout = int(job.get("timeout_sec") or 600)
+    started = None
+    for row in job.get("child_jobs") or []:
+        if row.get("job_id") == child_id:
+            started = parse_utc(row.get("at"))
+            break
+    started = started or parse_utc(job.get("updated_at"))
+    if not started:
+        return False
+    return datetime.now(timezone.utc) - started > timedelta(seconds=timeout + 30)
+
+
+def is_config_defect(record: dict | None, expected: list[str] | None) -> bool:
+    if PLANNING.malformed_expected_paths(expected):
+        return True
+    cls = str((record or {}).get("failure_class") or "")
+    if cls in {"CONFIG_DEFECT", "MALFORMED_EXPECTED_PATH"}:
+        return True
+    reason = str((record or {}).get("failure_reason") or (record or {}).get("reason") or "").lower()
+    return "malformed expected" in reason or (
+        "missing expected files" in reason and "fastapi/next.js" in reason
+    )
+
+
+def fail_config_defect(job: dict, reason: str) -> dict:
+    job["failure_class"] = "CONFIG_DEFECT"
+    job["failure_reason"] = reason
+    job["active_child_id"] = None
+    release_open_reservation(job)
+    if job.get("state") == "OWNER_REVIEW":
+        transition(job, "FAILED", reason)
+    elif job.get("state") not in TERMINAL:
+        transition(job, "FAILED", reason)
+    save_job(job)
+    return job
+
+
 def budget_allows(job: dict, next_worker: str = "cursor-agent-cli") -> bool:
     return bool(budget_decision(job, next_worker).get("allows"))
 
@@ -657,31 +713,32 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "created_at": utc_now(),
         }
     stack = requirements.get("stack") or "python-stdlib"
-    mentioned = re.findall(r"[\w./\\-]+\.(?:md|py|ts|tsx|js|json|toml)", objective)
+    mentioned = PLANNING.extract_mentioned_paths(objective)
     sandboxish = (
         stack in {"", "unknown", "python-stdlib", "python"}
         or "cursor-sandbox" in objective.lower()
     )
     existing_repo = (stack.startswith("node") or stack.startswith("mixed")) and not sandboxish
     if existing_repo:
-        components = mentioned or ["README.md"]
-        if any(r.get("kind") == "release" for r in requirements["requirements"]):
-            components.append("RELEASE_CANDIDATE.md")
+        components = PLANNING.constrain_expected_paths(mentioned)
         return {
             "version": "DES-v1",
             "product_slug": slug,
             "workflow": workflow,
             "stack": stack,
+            "stack_label": requirements.get("stack_label") or stack,
             "create_new_package": False,
             "test_command": requirements.get("test_command"),
             "summary": (
                 f"Scoped change in the existing {stack} repository. "
                 "Do not create a new Python CLI package. "
+                "Stack label is metadata only and is not a file path. "
                 + "; ".join(r["text"] for r in requirements["requirements"] if r["kind"] == "functional")
             ),
             "assumptions": [
                 "Use the repository's existing toolchain and tests.",
                 "Change only files required by the objective.",
+                "Expected paths are repository-relative files, never stack labels.",
             ],
             "components": components,
             "error_handling": "keep existing error handling unless the objective changes it",
@@ -918,7 +975,7 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
 
 
 def expected_paths_from_design(design: dict) -> list[str]:
-    return [str(c) for c in design.get("components") or []]
+    return PLANNING.constrain_expected_paths(design.get("components") or [])
 
 
 def parse_source_pack(path: Path | None = None) -> dict:
@@ -982,11 +1039,15 @@ APPROVED DESIGN ({design.get('version')}):
 Stack: {design.get('stack')}
 Filesystem scope: {design.get('filesystem_scope')}
 
-Edit only these files (relative to the workspace root) unless the objective names others:
-{files}
+Stack label `{design.get('stack_label') or design.get('stack')}` is descriptive metadata, not a file path. Never create or expect a file named after the stack.
+
+Edit only these repository-relative files (empty means inspect the repo and choose an existing feature; do not invent stack-named paths):
+{files or '- (none predeclared; select a real existing feature path)'}
 
 Rules:
 - Do NOT create a new Python CLI package.
+- Do NOT write FastAPI/Next.js, Next.js, or other stack labels as files.
+- Do NOT write RELEASE_CANDIDATE.md into the product repository; the controller owns that artifact.
 - Use this repository's toolchain. Run: {test_cmd}
 - Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
@@ -1351,21 +1412,28 @@ def _submit_cursor(
     reservation = reserve_budget(job, job.get("assigned_worker") or "cursor-agent-cli")
     if not reservation.get("allows"):
         return {"state": "BLOCKED", "failure_reason": reservation["reason"], "budget": reservation}
+    expected_paths = PLANNING.constrain_expected_paths(expected_paths)
+    job["expected_paths"] = expected_paths
     seq = len(job.get("child_jobs") or []) + 1
     child_id = f"{job['job_id']}-CC{seq:02d}"
-    record = orch_submit(
-        job_id=child_id,
-        capability="code_implementation",
-        objective=job["parent_objective"],
-        repo=job.get("workspace"),
-        prompt=prompt,
-        write=True,
-        timeout_sec=job.get("timeout_sec") or 600,
-        expected_paths=expected_paths,
-        project_id=job.get("project_id"),
-        approval="A1",
-        inbox_root=inbox_root,
-    )
+    try:
+        record = orch_submit(
+            job_id=child_id,
+            capability="code_implementation",
+            objective=job["parent_objective"],
+            repo=job.get("workspace"),
+            prompt=prompt,
+            write=True,
+            timeout_sec=job.get("timeout_sec") or 600,
+            expected_paths=expected_paths,
+            project_id=job.get("project_id"),
+            approval="A1",
+            inbox_root=inbox_root,
+        )
+    except ValueError as exc:
+        settle_reservation(job, reservation.get("this_reservation"))
+        save_job(job)
+        return {"state": "BLOCKED", "failure_reason": str(exc), "duplicate": "duplicate" in str(exc).lower()}
     job.setdefault("child_jobs", []).append(
         {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
     )
@@ -1376,6 +1444,39 @@ def _submit_cursor(
 
 def _child_terminal(record: dict | None) -> bool:
     return bool(record and record.get("state") in {"COMPLETED", "BLOCKED", "FAILED", "CANCELLED"})
+
+
+def reconcile_parent_job(
+    job: dict,
+    *,
+    inbox_root: Path | None = None,
+    orch_harvest=None,
+) -> dict:
+    """A terminal FAILED child must not leave the parent EXECUTING. Config defects do not retry."""
+    if job.get("state") in TERMINAL:
+        if float((job.get("budget") or {}).get("reserved_usd") or 0) and job["state"] in {"FAILED", "BLOCKED", "CANCELLED"}:
+            release_open_reservation(job)
+            save_job(job)
+        return job
+    expected = job.get("expected_paths") or []
+    bad = PLANNING.malformed_expected_paths(expected)
+    if bad:
+        return fail_config_defect(
+            job,
+            "malformed expected_paths treated stack labels as files: " + ", ".join(bad),
+        )
+    child_id = job.get("active_child_id")
+    if job.get("state") in {"EXECUTING", "VALIDATING", "PREFLIGHT"} and child_id and child_is_stale(job):
+        orch_harvest = orch_harvest or ORCH.harvest
+        record = orch_harvest(child_id, inbox_root)
+        if not _child_terminal(record):
+            job["failure_reason"] = "CHILD_TIMEOUT"
+            job["active_child_id"] = None
+            release_open_reservation(job)
+            transition(job, "FAILED", "CHILD_TIMEOUT")
+            save_job(job)
+            return job
+    return job
 
 
 def advance_job(
@@ -1392,6 +1493,7 @@ def advance_job(
     orch_submit = orch_submit or ORCH.submit
     orch_harvest = orch_harvest or ORCH.harvest
     workdir = job_workdir(job, root)
+    job = reconcile_parent_job(job, inbox_root=inbox_root, orch_harvest=orch_harvest)
     if job["state"] in TERMINAL or job["state"] == "OWNER_REVIEW":
         return job
 
@@ -1509,11 +1611,82 @@ def advance_job(
         if stop_before == "EXECUTING":
             save_job(job)
             return job
+        design = {}
+        if (workdir / "design-v2.json").is_file():
+            design = load_json(workdir / "design-v2.json")
+        elif (workdir / "design-v1.json").is_file():
+            design = load_json(workdir / "design-v1.json")
+        if (
+            job.get("workflow") == "sdlc"
+            and design.get("create_new_package") is False
+            and not job.get("windows_preflight")
+        ):
+            transition(job, "PREFLIGHT", "windows repository identity")
+            return job
         if job.get("workflow") == "sdlc" and not budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
             job["failure_reason"] = budget_decision(job)["reason"]
             transition(job, "BLOCKED", job["failure_reason"])
             return job
         transition(job, "EXECUTING", "submit cursor_call" if job.get("workflow") == "sdlc" else "synthesize research")
+        return job
+
+    if job["state"] == "PREFLIGHT":
+        child_id = job.get("preflight_child_id")
+        if not child_id:
+            child_id = f"{job['job_id']}-PF01"
+            inspect = job.get("workspace_inspect") or {}
+            submitted = orch_submit(
+                job_id=child_id,
+                capability="repo_preflight",
+                objective=f"preflight {job.get('workspace')}",
+                repo=job.get("workspace"),
+                write=False,
+                approval="A0",
+                project_id=job.get("project_id"),
+                markers=inspect.get("catalog_markers") or inspect.get("markers") or [],
+                inbox_root=inbox_root,
+            )
+            if submitted.get("state") == "BLOCKED":
+                job["failure_reason"] = submitted.get("failure_reason") or "windows preflight blocked"
+                transition(job, "FAILED", "REPO_IDENTITY")
+                return job
+            job["preflight_child_id"] = child_id
+            job["active_child_id"] = child_id
+            job.setdefault("child_jobs", []).append(
+                {"job_id": child_id, "at": utc_now(), "state": submitted.get("state")}
+            )
+            save_job(job)
+            return job
+        record = orch_harvest(child_id, inbox_root)
+        if not _child_terminal(record):
+            if child_is_stale(job):
+                job["failure_reason"] = "CHILD_TIMEOUT"
+                job["active_child_id"] = None
+                transition(job, "FAILED", "REPO_IDENTITY")
+            save_job(job)
+            return job
+        job["active_child_id"] = None
+        preflight = (record or {}).get("preflight") or ((record or {}).get("validation") or {})
+        identity_ok = preflight.get("identity_ok")
+        if identity_ok is None and record.get("state") == "COMPLETED":
+            identity_ok = True
+        if record.get("state") != "COMPLETED" or not identity_ok:
+            job["failure_reason"] = (record or {}).get("failure_reason") or "windows preflight could not establish repository identity"
+            transition(job, "FAILED", "REPO_IDENTITY")
+            return job
+        job["windows_preflight"] = preflight
+        inspect = job.get("workspace_inspect") or {}
+        inspect["windows_preflight"] = preflight
+        inspect["host_can_see_workspace"] = inspect.get("host_can_see_workspace")
+        inspect["absence_is_not_disproof"] = True
+        if preflight.get("test_command"):
+            inspect["test_command"] = preflight.get("test_command")
+        job["workspace_inspect"] = inspect
+        if job.get("workflow") == "sdlc" and not budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
+            job["failure_reason"] = budget_decision(job)["reason"]
+            transition(job, "BLOCKED", job["failure_reason"])
+            return job
+        transition(job, "EXECUTING", "windows identity established")
         return job
 
     if job["state"] == "EXECUTING" and job.get("workflow") == "research_report":
@@ -1556,12 +1729,22 @@ def advance_job(
         if child_id:
             record = orch_harvest(child_id, inbox_root)
             if not _child_terminal(record):
+                if child_is_stale(job):
+                    job["failure_reason"] = "CHILD_TIMEOUT"
+                    job["active_child_id"] = None
+                    release_open_reservation(job)
+                    transition(job, "FAILED", "CHILD_TIMEOUT")
                 save_job(job)
                 return job
             usage = (record or {}).get("usage")
             record_usage(job, job.get("assigned_worker") or "cursor-agent-cli", record.get("state"), usage)
             job["execution_worker"] = record.get("selected_worker") or job.get("assigned_worker")
             if record.get("state") != "COMPLETED":
+                if is_config_defect(record, expected):
+                    return fail_config_defect(
+                        job,
+                        record.get("failure_reason") or "CONFIG_DEFECT",
+                    )
                 retries = len(job.get("retry_history") or [])
                 max_retries = int(load_json(BUDGETS)["job_defaults"].get("max_retries", 2))
                 job.setdefault("retry_history", []).append(
@@ -1572,8 +1755,17 @@ def advance_job(
                         "reason": record.get("failure_reason"),
                     }
                 )
+                last_reasons = [str(item.get("reason") or "") for item in job.get("retry_history") or []]
+                if len(last_reasons) >= 2 and last_reasons[-1] == last_reasons[-2]:
+                    job["failure_reason"] = "identical child failure; stopping retries"
+                    job["active_child_id"] = None
+                    release_open_reservation(job)
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
                 if retries + 1 > max_retries:
                     job["failure_reason"] = record.get("failure_reason") or "child failed"
+                    job["active_child_id"] = None
+                    release_open_reservation(job)
                     transition(job, "FAILED", job["failure_reason"])
                     return job
                 if not budget_allows(job):
@@ -1603,6 +1795,13 @@ def advance_job(
                 for art in record["artifact_paths"]:
                     if art not in job["artifacts"]:
                         job["artifacts"].append(art)
+                rels = PLANNING.repo_relative_from_artifacts(
+                    record["artifact_paths"], job.get("workspace")
+                )
+                if rels:
+                    job["expected_paths"] = PLANNING.constrain_expected_paths(
+                        (job.get("expected_paths") or []) + rels
+                    )
             save_json(workdir / "test-results.json", test_ev)
             job["active_child_id"] = None
             transition(job, "TESTING", child_id)
@@ -1702,6 +1901,11 @@ def advance_job(
             elif job.get("active_child_id") == job.get("validation_child_id"):
                 record = orch_harvest(job["active_child_id"], inbox_root)
                 if not _child_terminal(record):
+                    if child_is_stale(job):
+                        job["failure_reason"] = "CHILD_TIMEOUT"
+                        job["active_child_id"] = None
+                        release_open_reservation(job)
+                        transition(job, "FAILED", "CHILD_TIMEOUT")
                     save_job(job)
                     return job
                 usage = (record or {}).get("usage")
@@ -1799,7 +2003,21 @@ def runner_once(
     save_json(autonomy_root(root) / "runner-lease.json", lease)
     results = []
     for job in list_parent_jobs(root):
-        if job.get("state") in TERMINAL or job.get("state") == "OWNER_REVIEW":
+        reserved = float((job.get("budget") or {}).get("reserved_usd") or 0)
+        malformed = PLANNING.malformed_expected_paths(job.get("expected_paths") or [])
+        if job.get("state") in TERMINAL:
+            if reserved:
+                updated = reconcile_parent_job(
+                    job, inbox_root=inbox_root, orch_harvest=advance_kwargs.get("orch_harvest")
+                )
+                results.append({"job_id": updated["job_id"], "state": updated["state"], "reconciled": True})
+            continue
+        if job.get("state") == "OWNER_REVIEW":
+            if malformed:
+                updated = reconcile_parent_job(
+                    job, inbox_root=inbox_root, orch_harvest=advance_kwargs.get("orch_harvest")
+                )
+                results.append({"job_id": updated["job_id"], "state": updated["state"], "reconciled": True})
             continue
         if job.get("workflow") not in {"sdlc", "research_report"} and job.get("state") not in {"INTAKE"}:
             continue
@@ -2048,6 +2266,10 @@ def main() -> int:
     runr.add_argument("--poll-sec", type=int, default=15)
     listp = sub.add_parser("list")
     listp.add_argument("--root")
+    recp = sub.add_parser("reconcile")
+    recp.add_argument("--job-id", required=True)
+    recp.add_argument("--root")
+    recp.add_argument("--inbox-root")
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps(capability_matrix(), indent=2))
@@ -2068,6 +2290,14 @@ def main() -> int:
         ]
         print(json.dumps(rows, indent=2))
         return 0
+    if args.command == "reconcile":
+        job = resume_job(args.job_id, Path(args.root) if args.root else None)
+        if not job:
+            raise SystemExit(f"unknown job {args.job_id}")
+        inbox = Path(args.inbox_root) if args.inbox_root else None
+        job = reconcile_parent_job(job, inbox_root=inbox)
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
+        return 0 if job["state"] in TERMINAL else 2
     if args.command == "runner":
         return runner_loop(
             root=Path(args.root) if args.root else None,

@@ -38,7 +38,8 @@
     "personal_artifact": "A1",
     "portfolio_inventory": "A0",
     "workspace_inventory": "A0",
-    "cursor_call": "A1"
+    "cursor_call": "A1",
+    "repo_preflight": "A0"
   },
   "cursor_call": {
     "interface": "agent --print --output-format json --workspace <approved_repo>",

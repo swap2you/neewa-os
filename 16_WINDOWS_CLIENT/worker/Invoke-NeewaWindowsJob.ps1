@@ -86,6 +86,14 @@ switch ($action) {
     if ($status -eq 'complete') { $status = 'COMPLETED' }
     if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
   }
+  'repo_preflight' {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaRepoPreflight.ps1') -JobFile $JobPath -OutDir $jobsDir
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -eq 'complete') { $status = 'COMPLETED' }
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
 }
 $result = [pscustomobject]@{
   job_id = $job.job_id
@@ -94,6 +102,7 @@ $result = [pscustomobject]@{
   artifact = $artifact
   host = $env:COMPUTERNAME
   failure_class = $(if ($cursorResult) { $cursorResult.failure_class } else { $null })
+  preflight = $(if ($cursorResult -and $cursorResult.PSObject.Properties['preflight']) { $cursorResult.preflight } else { $null })
 }
-$result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $stampFile -Encoding utf8
+$result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stampFile -Encoding utf8
 return $result

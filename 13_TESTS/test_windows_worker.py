@@ -23,6 +23,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["actions"]["workspace_inventory"], "A0")
         self.assertIn("cursor_call", data["actions"])
         self.assertEqual(data["actions"]["cursor_call"], "A1")
+        self.assertIn("repo_preflight", data["actions"])
+        self.assertEqual(data["actions"]["repo_preflight"], "A0")
         self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")
         self.assertIn("employer repositories and documents", data["denied_roots"])
         self.assertIn(r"C:\Development\Workspace\api-fintech-automation-platform", data["denied_roots"])
@@ -40,6 +42,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "workspace-inventory-policy.json",
             "cursor-call-policy.json",
             "Invoke-NeewaCursorCall.ps1",
+            "Invoke-NeewaRepoPreflight.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
 
@@ -73,6 +76,7 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn("personal_artifact", src)
         self.assertIn("workspace_inventory", src)
         self.assertIn("cursor_call", src)
+        self.assertIn("repo_preflight", src)
         self.assertNotIn("0.0.0.0", src)
 
     def test_workspace_inventory_is_read_only_and_excludes_employer(self):
@@ -106,6 +110,54 @@ class WindowsWorkerTests(unittest.TestCase):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
         self.assertIn("return $fullRequested", src)
         self.assertIn("KidsProjects\\ScienceQuest", src)
+
+    def test_cursor_call_rejects_stack_label_expected_path(self):
+        src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
+        self.assertIn("Test-MalformedExpectedPath", src)
+        self.assertIn("MALFORMED_EXPECTED_PATH", src)
+        self.assertIn("FastAPI/Next.js", src)
+
+    def test_repo_preflight_does_not_use_linux_exists_here(self):
+        src = (WORKER / "Invoke-NeewaRepoPreflight.ps1").read_text(encoding="utf-8")
+        self.assertNotRegex(src, r"\$exists_here")
+        self.assertIn("identity_ok", src)
+        self.assertIn("A missing path on the Linux core host is not consulted", src)
+        invoke = (WORKER / "Invoke-NeewaWindowsJob.ps1").read_text(encoding="utf-8")
+        self.assertIn("'repo_preflight'", invoke)
+
+    def test_repo_preflight_identifies_neewa_os(self):
+        import json
+        import subprocess
+        import tempfile
+        jobs = Path(tempfile.mkdtemp())
+        job_path = jobs / "job.json"
+        job_path.write_text(
+            json.dumps(
+                {
+                    "job_id": "JOB-TEST-PREFLIGHT-NEEWA",
+                    "action": "repo_preflight",
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "markers": ["12_SCRIPTS", "16_WINDOWS_CLIENT"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        command = (
+            f"& '{WORKER / 'Invoke-NeewaRepoPreflight.ps1'}' "
+            f"-JobFile '{job_path}' -OutDir '{jobs}' | ConvertTo-Json -Depth 8"
+        )
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertTrue(completed.stdout.strip(), completed.stderr)
+        result = json.loads(completed.stdout)
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertTrue(result["preflight"]["identity_ok"])
+        self.assertTrue(result["preflight"]["exists"])
+        self.assertTrue(result["preflight"]["git_ok"])
 
 
 if __name__ == "__main__":

@@ -37,7 +37,7 @@
       "status": "active-local-worker",
       "location": "neewa-edge-01",
       "transport": "outbound Tailscale SSH poll",
-      "operations": ["ping", "capability_inventory", "workspace_inventory", "portfolio_inventory", "personal_artifact", "cursor_call"],
+      "operations": ["ping", "capability_inventory", "workspace_inventory", "portfolio_inventory", "personal_artifact", "cursor_call", "repo_preflight"],
       "public_listener": false
     },
     {

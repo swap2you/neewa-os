@@ -30,6 +30,9 @@
     "PRJ-AAROHAN": {
       "workspace_path": "C:\\Development\\Workspace\\aarohan-careeros",
       "stack": "mixed",
+      "stack_label": "FastAPI/Next.js/PostgreSQL",
+      "test_command": "python -m unittest",
+      "markers": ["apps/api", "apps/web", "docker-compose.yml"],
       "access_stage": "ACCESS_APPROVED",
       "notes": "contains credential-named folders; do not target secrets"
     },

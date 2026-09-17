@@ -205,5 +205,25 @@ class CursorCallHardeningTests(unittest.TestCase):
         self.assertEqual(result["status"], "COMPLETED")
 
 
+    def test_stack_label_expected_path_is_malformed_not_missing_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            result = self._run(
+                {
+                    "job_id": "JOB-TEST-STACK-LABEL",
+                    "prompt": "add a negative-path test",
+                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "write": True,
+                    "expected_paths": ["FastAPI/Next.js"],
+                },
+                jobs,
+                dry_run=True,
+            )
+        self.assertEqual(result["status"], "BLOCKED")
+        self.assertEqual(result.get("failure_class"), "MALFORMED_EXPECTED_PATH")
+        self.assertNotEqual(result["status"], "COMPLETED")
+        self.assertIn("malformed", result["reason"].lower())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -151,6 +151,7 @@
 - `14_REFERENCE/GLOSSARY.md`
 - `14_REFERENCE/NEMOCLAW_MIGRATION_PLAN.md`
 - `14_REFERENCE/SOURCES_AND_ASSUMPTIONS.md`
+- `14_REFERENCE/devotional_sources/SOURCE_PACK.md`
 - `15_BOOTSTRAP/APPROVAL_BOUNDARIES.md`
 - `15_BOOTSTRAP/BACKLOG.md`
 - `15_BOOTSTRAP/BOOTSTRAP_PLAN.md`
@@ -190,6 +191,7 @@
 - `AI-OPS/delivery/AUTONOMOUS_OPERATING_MODEL.md`
 - `AI-OPS/delivery/AUTONOMY_ACCEPTANCE.md`
 - `AI-OPS/delivery/BACKLOG.md`
+- `AI-OPS/delivery/BASELINE_RECONCILIATION.md`
 - `AI-OPS/delivery/CHIEF_OF_STAFF.md`
 - `AI-OPS/delivery/COST_GOVERNANCE.md`
 - `AI-OPS/delivery/DESIGN_COUNCIL.md`
@@ -207,6 +209,13 @@
 - `AI-OPS/delivery/VOICE_PROVIDER_MATRIX.md`
 - `AI-OPS/delivery/WORKER_REGISTRY.md`
 - `AI-OPS/delivery/WORKER_ROUTING.md`
+- `AI-OPS/delivery/autonomy-baseline/ACCEPTANCE.md`
+- `AI-OPS/delivery/autonomy-baseline/ARCHITECTURE.md`
+- `AI-OPS/delivery/autonomy-baseline/BASELINE_LOCK.json`
+- `AI-OPS/delivery/autonomy-baseline/COUNCIL_REVIEW.md`
+- `AI-OPS/delivery/autonomy-baseline/IMPLEMENTATION_PLAN.md`
+- `AI-OPS/delivery/autonomy-baseline/PRODUCT_REQUIREMENTS.md`
+- `AI-OPS/delivery/autonomy-baseline/RISK_REGISTER.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-workspace-inventory.md`
@@ -215,7 +224,9 @@
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`
+- `README_FIRST.md`
 - `START_HERE.md`
+- `START_PROMPT.txt`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/JOB-20260917T160243Z-AUTO.json`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/capability-matrix.json`
 - `evidence/AUTONOMY/20260917T160000Z-project-status/work/RELEASE_CANDIDATE.md`

@@ -36,6 +36,31 @@ Implementation is a child `cursor_call` through `neewa_orchestrate.py`.
 Do not call `--fixture demo-status` for real owner work.
 Do not wait in the chat for Cursor; report the parent job_id and current state.
 
+## Research or document objective (source-grounded, no software CLI)
+
+If the owner asks for a katha, research note, or source-grounded document, submit a parent
+with the same command. Do not invent scripture. The controller uses the approved local
+source pack and records SOURCE_PENDING when a source is missing.
+
+```
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
+  --objective "<owner research or katha request>" \
+  --project-id PRJ-NEEWA \
+  --origin conversation \
+  --unattended
+```
+
+Do not turn a research request into a Python CLI. Do not publish.
+
+## What NEEWA can do (truthful)
+
+- Submit durable software jobs that Cursor implements on the Windows worker.
+- Submit durable research/document jobs grounded in the approved local source pack.
+- Report job_id, state, worker, artifacts, tests/citations, and cost basis (measured, conservative estimate, or unknown).
+- Codex/Claude/Gemini CLIs are not installed; failover is UNVERIFIED.
+- Home spoken voice remains PENDING_PHYSICAL and is not this path.
+- A2/A3 (publish, deploy, spend, secrets, trades) stay blocked. Job JSON cannot approve them.
+
 ## Delegate coding to Cursor (approved personal repo or cursor-sandbox)
 
 ```

@@ -138,7 +138,12 @@ def autonomy_root(explicit: Path | None = None) -> Path:
 
 
 def contains_negated(blob: str, term: str) -> bool:
-    return bool(re.search(rf"\b(?:do not|don't|without|never|no)\b.{{0,40}}\b{re.escape(term)}\b", blob))
+    return bool(
+        re.search(
+            rf"\b(?:do not|does not|don't|without|never|no)\b.{{0,40}}\b{re.escape(term)}\b",
+            blob,
+        )
+    )
 
 
 def action_needed_from_text(blob: str) -> str:

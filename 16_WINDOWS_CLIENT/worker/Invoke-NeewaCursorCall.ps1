@@ -43,7 +43,7 @@ function Test-BlockedIntent([string]$text) {
     if (-not $frag) { continue }
     if (-not $lower.Contains($frag.ToLowerInvariant())) { continue }
     $token = ($frag.Trim() -split '\s+')[-1]
-    if ($token -and $lower -match ("(?i)\b(?:do not|don't|without|never|no)\b.{0,40}\b" + [regex]::Escape($token) + '\b')) {
+    if ($token -and $lower -match ("(?i)\b(?:do not|does not|don't|without|never|no)\b.{0,40}\b" + [regex]::Escape($token) + '\b')) {
       continue
     }
     return $true

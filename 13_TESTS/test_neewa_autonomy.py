@@ -278,6 +278,13 @@ class GeneralAutonomyTests(unittest.TestCase):
         katha = "Prepare a katha with source notes. Do not publish."
         self.assertEqual(self.mod.classify_intent(katha)["workflow"], "research_report")
         self.assertEqual(self.mod.classify_intent(katha)["approval"], "A0")
+        mixed = (
+            "Build a local weekday-label CLI that reads one YYYY-MM-DD argument, "
+            "prints the English weekday name, rejects invalid dates with a non-zero exit, "
+            "includes unit tests, and does not publish."
+        )
+        self.assertEqual(self.mod.classify_intent(mixed)["workflow"], "sdlc")
+        self.assertEqual(self.mod.classify_intent(mixed)["approval"], "A1")
 
     def test_done_gate_rejects_missing_tests(self):
         job = {

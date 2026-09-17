@@ -1,0 +1,12 @@
+You are NEEWA Conversation. Follow the windows-worker-bridge skill.
+
+The owner objective is: build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate.
+
+Run this exact command in the sandbox and print its stdout:
+
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit --objective "build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate" --project-id PRJ-NEEWA --workspace "C:\Users\swap2\NEEWA-Personal\cursor-sandbox" --origin conversation --unattended
+
+Do not use --fixture demo-status.
+Do not wait for Cursor.
+Do not ask the owner to paste anything into Cursor.
+Return the parent job_id and state.

@@ -1,0 +1,73 @@
+{
+  "version": "REQ-v1",
+  "original_objective": "build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate",
+  "product_slug": "local_receipt_totals",
+  "workflow": "sdlc",
+  "clauses": [
+    "build a local receipt-totals CLI that reads a CSV of date",
+    "ignores comment lines starting with hash",
+    "rejects rows with non-numeric amounts",
+    "prints a merchant subtotal table",
+    "writes last-run.json",
+    "includes tests plus a release candidate"
+  ],
+  "clarifications": [],
+  "implementation_decisions": [],
+  "proposed_enhancements": [],
+  "out_of_scope": [
+    "public deployment",
+    "live trading",
+    "employer data",
+    "Home voice work"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Deliver `local_receipt_totals` satisfying: build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-002",
+      "text": "Read the input file named or implied by the objective; do not scan unrelated directories.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-003",
+      "text": "Emit the requested output described in the objective (stdout or named artifact).",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-004",
+      "text": "Honor the JSON input/output contract stated in the objective.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-005",
+      "text": "Reject malformed CSV rows visibly; do not silently drop invalid amounts or headers.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-006",
+      "text": "Automated tests cover the primary success path and at least one invalid or missing-input path.",
+      "kind": "quality"
+    },
+    {
+      "id": "REQ-007",
+      "text": "Missing or unreadable input must produce a non-zero exit code and an error on stderr.",
+      "kind": "reliability"
+    },
+    {
+      "id": "REQ-008",
+      "text": "Operate only on an explicit path argument inside the approved workspace; do not access employer trees.",
+      "kind": "security"
+    },
+    {
+      "id": "REQ-009",
+      "text": "Produce a release-candidate document with requirement traceability after tests pass.",
+      "kind": "release"
+    }
+  ],
+  "created_at": "2026-09-17T17:20:20Z",
+  "source_class": "DERIVED_FROM_OBJECTIVE",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3"
+}

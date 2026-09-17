@@ -1,0 +1,140 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T172150Z-2E88BFE7-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish.",
+  "project_id": "PRJ-NEEWA",
+  "workspace": null,
+  "intent": "research",
+  "workflow": "research_report",
+  "approval_level": "A0",
+  "requirements_version": "REQ-v1",
+  "design_version": "DES-v1",
+  "scope": "approved personal workspace only",
+  "assigned_worker": "local-research-synthesizer",
+  "execution_worker": "local-research-synthesizer",
+  "child_jobs": [],
+  "state": "OWNER_REVIEW",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 0.0,
+    "reserved_usd": 0.0,
+    "consumed_basis": "none",
+    "actual_usd": null,
+    "estimated_usd": 0.0,
+    "actual_status": "unavailable-until-measured",
+    "invocations": []
+  },
+  "spec_sha256": "69337f69fe8caff99728563a6de6a617f88c749bf07171d34af2ff2c1feb7e71",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "lease": null,
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/requirements.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/prepare_concise_8_minute/RESEARCH_REPORT.md",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/prepare_concise_8_minute/citations.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/prepare_concise_8_minute/SOURCE_STATUS.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/traceability.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/RELEASE_CANDIDATE.md"
+  ],
+  "expected_paths": [
+    "prepare_concise_8_minute/RESEARCH_REPORT.md",
+    "prepare_concise_8_minute/citations.json",
+    "prepare_concise_8_minute/SOURCE_STATUS.json"
+  ],
+  "validation": {
+    "council": "PASS",
+    "tests": "PASS",
+    "test_evidence": {
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "PASS",
+      "source": "PASS"
+    },
+    "traceability": "PASS"
+  },
+  "failure_reason": null,
+  "retry_history": [],
+  "owner_decision": "pending_review",
+  "checkpoints": [
+    {
+      "name": "requirements",
+      "at": "2026-09-17T17:21:50Z",
+      "payload": {
+        "version": "REQ-v1",
+        "count": 6
+      }
+    },
+    {
+      "name": "council",
+      "at": "2026-09-17T17:22:21Z",
+      "payload": {
+        "material": 0,
+        "spec_sha256": "69337f69fe8caff99728563a6de6a617f88c749bf07171d34af2ff2c1feb7e71"
+      }
+    }
+  ],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T17:21:50Z",
+      "note": "evidence-producing research"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T17:21:50Z",
+      "note": "research"
+    },
+    {
+      "state": "REQUIREMENTS",
+      "at": "2026-09-17T17:21:50Z"
+    },
+    {
+      "state": "DESIGN",
+      "at": "2026-09-17T17:21:50Z"
+    },
+    {
+      "state": "COUNCIL",
+      "at": "2026-09-17T17:22:05Z"
+    },
+    {
+      "state": "BASELINE_LOCKED",
+      "at": "2026-09-17T17:22:21Z",
+      "note": "research baseline"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-17T17:22:36Z",
+      "note": "local-research-synthesizer"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T17:22:51Z",
+      "note": "synthesize research"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T17:23:06Z",
+      "note": "research citations"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T17:23:21Z"
+    },
+    {
+      "state": "RELEASE_CANDIDATE",
+      "at": "2026-09-17T17:23:36Z",
+      "note": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172150Z-2E88BFE7-AUTO/RELEASE_CANDIDATE.md"
+    },
+    {
+      "state": "OWNER_REVIEW",
+      "at": "2026-09-17T17:23:36Z",
+      "note": "release candidate ready; no public deploy"
+    }
+  ],
+  "created_at": "2026-09-17T17:21:50Z",
+  "updated_at": "2026-09-17T17:23:36Z"
+}

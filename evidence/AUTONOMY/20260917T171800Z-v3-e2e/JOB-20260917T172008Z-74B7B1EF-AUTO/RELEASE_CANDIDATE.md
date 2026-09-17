@@ -1,0 +1,124 @@
+# Release candidate JOB-20260917T172008Z-74B7B1EF-AUTO
+
+Objective: build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate
+Requirements: REQ-v1
+Design: DES-v1
+Assigned worker: cursor-agent-cli
+Execution worker: cursor-agent-cli
+Child jobs: [{"job_id": "JOB-20260917T172008Z-74B7B1EF-AUTO-CC01", "at": "2026-09-17T17:21:35Z", "state": "DISPATCHED"}]
+
+## Traceability
+[
+  {
+    "requirement": "REQ-001",
+    "text": "Deliver `local_receipt_totals` satisfying: build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-002",
+    "text": "Read the input file named or implied by the objective; do not scan unrelated directories.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-003",
+    "text": "Emit the requested output described in the objective (stdout or named artifact).",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-004",
+    "text": "Honor the JSON input/output contract stated in the objective.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-005",
+    "text": "Reject malformed CSV rows visibly; do not silently drop invalid amounts or headers.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-006",
+    "text": "Automated tests cover the primary success path and at least one invalid or missing-input path.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "test file present and unittest passed"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-007",
+    "text": "Missing or unreadable input must produce a non-zero exit code and an error on stderr.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "implementation=local_receipt_totals/local_receipt_totals.py",
+      "tests_passed via TEST_JSON"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-008",
+    "text": "Operate only on an explicit path argument inside the approved workspace; do not access employer trees.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "design.filesystem_scope=explicit path argument only; approved workspace",
+      "workspace=C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox"
+    ],
+    "result": "PASS"
+  },
+  {
+    "requirement": "REQ-009",
+    "text": "Produce a release-candidate document with requirement traceability after tests pass.",
+    "design": "DES-v1",
+    "implementation": "local_receipt_totals/local_receipt_totals.py",
+    "test": "TEST_JSON",
+    "evidence": [
+      "release artifact referenced or research RC pending write"
+    ],
+    "result": "PASS"
+  }
+]
+
+## Limitations
+- Approved sandbox only; not deployed.
+- Cost basis: conservative_estimate.
+
+Owner review is required before any public release.

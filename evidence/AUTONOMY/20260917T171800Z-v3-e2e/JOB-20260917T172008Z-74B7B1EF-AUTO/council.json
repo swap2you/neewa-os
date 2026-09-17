@@ -1,0 +1,92 @@
+{
+  "rounds": 1,
+  "findings": [
+    {
+      "role": "quality_engineer",
+      "severity": "info",
+      "finding": "Every requirement ID is listed in design acceptance.",
+      "evidence": "acceptance=['REQ-001', 'REQ-002', 'REQ-003', 'REQ-004', 'REQ-005', 'REQ-006', 'REQ-007', 'REQ-008', 'REQ-009']"
+    },
+    {
+      "role": "quality_engineer",
+      "severity": "info",
+      "finding": "Test component is present.",
+      "evidence": "components=['local_receipt_totals/local_receipt_totals.py', 'local_receipt_totals/test_local_receipt_totals.py', 'local_receipt_totals/sample.csv', 'local_receipt_totals/test-results.json', 'local_receipt_totals/RELEASE_CANDIDATE.md']"
+    },
+    {
+      "role": "quality_engineer",
+      "severity": "info",
+      "finding": "Error handling is specified.",
+      "evidence": "non-zero exit and stderr on missing/unreadable/invalid input"
+    },
+    {
+      "role": "security_privacy",
+      "severity": "info",
+      "finding": "Filesystem scope is constrained.",
+      "evidence": "explicit path argument only; approved workspace"
+    },
+    {
+      "role": "cost_operations",
+      "severity": "info",
+      "finding": "No extra paid providers in the design.",
+      "evidence": "components use local Python"
+    },
+    {
+      "role": "solution_architect",
+      "severity": "info",
+      "finding": "Single-package CLI matches sandbox A1 scope.",
+      "evidence": "n=5"
+    },
+    {
+      "role": "implementation_engineer",
+      "severity": "info",
+      "finding": "Implementation is a stdlib Python CLI unless later evidence shows otherwise.",
+      "evidence": "['local_receipt_totals/local_receipt_totals.py', 'local_receipt_totals/test_local_receipt_totals.py', 'local_receipt_totals/sample.csv', 'local_receipt_totals/test-results.json', 'local_receipt_totals/RELEASE_CANDIDATE.md']"
+    },
+    {
+      "role": "ux_product",
+      "severity": "info",
+      "finding": "CLI should print usage on missing args.",
+      "evidence": "implicit contract"
+    }
+  ],
+  "material_count": 0,
+  "approved_design": {
+    "version": "DES-v1",
+    "product_slug": "local_receipt_totals",
+    "workflow": "sdlc",
+    "summary": "Python CLI `local_receipt_totals/local_receipt_totals.py` in the approved cursor-sandbox. It implements: Deliver `local_receipt_totals` satisfying: build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate; Read the input file named or implied by the objective; do not scan unrelated directories.; Emit the requested output described in the objective (stdout or named artifact).; Honor the JSON input/output contract stated in the objective.; Reject malformed CSV rows visibly; do not silently drop invalid amounts or headers.",
+    "assumptions": [
+      "Local Python 3 is available on the Windows worker.",
+      "Workspace is the approved personal sandbox unless a connected repo is named."
+    ],
+    "components": [
+      "local_receipt_totals/local_receipt_totals.py",
+      "local_receipt_totals/test_local_receipt_totals.py",
+      "local_receipt_totals/sample.csv",
+      "local_receipt_totals/test-results.json",
+      "local_receipt_totals/RELEASE_CANDIDATE.md"
+    ],
+    "error_handling": "non-zero exit and stderr on missing/unreadable/invalid input",
+    "filesystem_scope": "explicit path argument only; approved workspace",
+    "acceptance": [
+      "REQ-001",
+      "REQ-002",
+      "REQ-003",
+      "REQ-004",
+      "REQ-005",
+      "REQ-006",
+      "REQ-007",
+      "REQ-008",
+      "REQ-009"
+    ],
+    "created_at": "2026-09-17T17:20:35Z",
+    "corrections": [],
+    "no_material_finding": "Council checklist passed against the written design; no material defect was found."
+  },
+  "unresolved_risks": [],
+  "created_at": "2026-09-17T17:20:50Z",
+  "reviewer_identity": "neewa_autonomy.run_council",
+  "independence_class": "deterministic_only",
+  "limitation": "INDEPENDENCE_UNAVAILABLE"
+}

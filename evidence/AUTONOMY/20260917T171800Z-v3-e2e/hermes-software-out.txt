@@ -1,0 +1,4 @@
+Parent job submitted.
+
+job_id: JOB-20260917T172008Z-74B7B1EF-AUTO
+state: INTAKE

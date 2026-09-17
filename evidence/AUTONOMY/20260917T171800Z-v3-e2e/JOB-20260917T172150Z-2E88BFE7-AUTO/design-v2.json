@@ -1,0 +1,29 @@
+{
+  "version": "DES-v1",
+  "product_slug": "prepare_concise_8_minute",
+  "workflow": "research_report",
+  "summary": "Source-grounded research document `prepare_concise_8_minute/RESEARCH_REPORT.md` using only the approved local source pack. No software CLI.",
+  "assumptions": [
+    "Approved source pack at 14_REFERENCE/devotional_sources/SOURCE_PACK.md.",
+    "Missing sources are SOURCE_PENDING, never invented."
+  ],
+  "components": [
+    "prepare_concise_8_minute/RESEARCH_REPORT.md",
+    "prepare_concise_8_minute/citations.json",
+    "prepare_concise_8_minute/SOURCE_STATUS.json"
+  ],
+  "source_plan": "Quote SRC-IDs from the local pack; list owner tradition choices.",
+  "error_handling": "SOURCE_PENDING when the pack lacks a requested source; do not fabricate citations",
+  "filesystem_scope": "approved NEEWA reference pack only",
+  "acceptance": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006"
+  ],
+  "created_at": "2026-09-17T17:22:05Z",
+  "corrections": [],
+  "no_material_finding": "Council checklist passed against the written design; no material defect was found."
+}

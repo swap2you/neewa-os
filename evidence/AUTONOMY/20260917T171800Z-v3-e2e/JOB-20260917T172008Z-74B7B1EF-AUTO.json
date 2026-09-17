@@ -1,0 +1,232 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T172008Z-74B7B1EF-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate",
+  "project_id": "PRJ-NEEWA",
+  "workspace": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "intent": "software",
+  "workflow": "sdlc",
+  "approval_level": "A1",
+  "requirements_version": "REQ-v1",
+  "design_version": "DES-v1",
+  "scope": "approved personal workspace only",
+  "assigned_worker": "cursor-agent-cli",
+  "execution_worker": "cursor-agent-cli",
+  "child_jobs": [
+    {
+      "job_id": "JOB-20260917T172008Z-74B7B1EF-AUTO-CC01",
+      "at": "2026-09-17T17:21:35Z",
+      "state": "DISPATCHED"
+    }
+  ],
+  "state": "OWNER_REVIEW",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 0.5,
+    "reserved_usd": 0.0,
+    "consumed_basis": "conservative_estimate",
+    "actual_usd": null,
+    "estimated_usd": 0.5,
+    "actual_status": "unavailable-until-measured",
+    "invocations": [
+      {
+        "at": "2026-09-17T17:24:21Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "COMPLETED",
+        "input_tokens": 17611,
+        "output_tokens": 4717,
+        "cache_read_tokens": 129536,
+        "cache_write_tokens": 0,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      }
+    ]
+  },
+  "spec_sha256": "1e1eaf3148a1c1530f7692dcecfe7c505b5d35ef62a7f2bb78030aff06bfb759",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "lease": null,
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172008Z-74B7B1EF-AUTO/requirements.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T172008Z-74B7B1EF-AUTO-CC01-cursor-call.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\local_receipt_totals.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\test_local_receipt_totals.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\sample.csv",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\test-results.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\RELEASE_CANDIDATE.md",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172008Z-74B7B1EF-AUTO/traceability.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172008Z-74B7B1EF-AUTO/RELEASE_CANDIDATE.md"
+  ],
+  "expected_paths": [
+    "local_receipt_totals/local_receipt_totals.py",
+    "local_receipt_totals/test_local_receipt_totals.py",
+    "local_receipt_totals/sample.csv",
+    "local_receipt_totals/test-results.json",
+    "local_receipt_totals/RELEASE_CANDIDATE.md"
+  ],
+  "validation": {
+    "council": "PASS",
+    "tests": "PASS",
+    "test_evidence": {
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "test_happy_path_merchant_subtotals_and_last_run (test_local_receipt_totals.LocalReceiptTotalsTests.test_happy_path_merchant_subtotals_and_last_run) ... ok\ntest_missing_input_nonzero_stderr (test_local_receipt_totals.LocalReceiptTotalsTests.test_missing_input_nonzero_stderr) ... ok\ntest_rejects_non_numeric_amount (test_local_receipt_totals.LocalReceiptTotalsTests.test_rejects_non_numeric_amount) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.241s\n\nOK\n",
+      "source": "TEST_JSON"
+    },
+    "traceability": "PASS"
+  },
+  "failure_reason": null,
+  "retry_history": [],
+  "owner_decision": "pending_review",
+  "checkpoints": [
+    {
+      "name": "requirements",
+      "at": "2026-09-17T17:20:20Z",
+      "payload": {
+        "version": "REQ-v1",
+        "count": 9
+      }
+    },
+    {
+      "name": "council",
+      "at": "2026-09-17T17:20:50Z",
+      "payload": {
+        "material": 0,
+        "spec_sha256": "1e1eaf3148a1c1530f7692dcecfe7c505b5d35ef62a7f2bb78030aff06bfb759"
+      }
+    }
+  ],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T17:20:08Z",
+      "note": "software lifecycle with tests and done-gate"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T17:20:20Z",
+      "note": "software"
+    },
+    {
+      "state": "REQUIREMENTS",
+      "at": "2026-09-17T17:20:20Z"
+    },
+    {
+      "state": "DESIGN",
+      "at": "2026-09-17T17:20:20Z"
+    },
+    {
+      "state": "COUNCIL",
+      "at": "2026-09-17T17:20:35Z"
+    },
+    {
+      "state": "BASELINE_LOCKED",
+      "at": "2026-09-17T17:20:50Z",
+      "note": "cursor-agent-cli"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-17T17:21:05Z",
+      "note": "cursor-agent-cli"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T17:21:20Z",
+      "note": "submit cursor_call"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T17:24:21Z",
+      "note": "JOB-20260917T172008Z-74B7B1EF-AUTO-CC01"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T17:24:36Z"
+    },
+    {
+      "state": "RELEASE_CANDIDATE",
+      "at": "2026-09-17T17:24:52Z",
+      "note": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T172008Z-74B7B1EF-AUTO/RELEASE_CANDIDATE.md"
+    },
+    {
+      "state": "OWNER_REVIEW",
+      "at": "2026-09-17T17:24:52Z",
+      "note": "release candidate ready; no public deploy"
+    }
+  ],
+  "created_at": "2026-09-17T17:20:08Z",
+  "updated_at": "2026-09-17T17:24:52Z",
+  "active_child_id": "JOB-20260917T172008Z-74B7B1EF-AUTO-CC01",
+  "last_child": {
+    "schema_version": 1,
+    "job_id": "JOB-20260917T172008Z-74B7B1EF-AUTO-CC01",
+    "project_id": "PRJ-NEEWA",
+    "objective": "build a local receipt-totals CLI that reads a CSV of date,merchant,amount, ignores comment lines starting with hash, rejects rows with non-numeric amounts, prints a merchant subtotal table, writes last-run.json, and includes tests plus a release candidate",
+    "required_capability": "code_implementation",
+    "selected_worker": "cursor-agent-cli",
+    "workspace": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+    "approval_level": "A1",
+    "action": "cursor_call",
+    "state": "COMPLETED",
+    "started_at": "2026-09-17T17:21:35Z",
+    "completed_at": "2026-09-17T17:24:21Z",
+    "artifact_paths": [
+      "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T172008Z-74B7B1EF-AUTO-CC01-cursor-call.json",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\local_receipt_totals.py",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\test_local_receipt_totals.py",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\sample.csv",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\test-results.json",
+      "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\local_receipt_totals\\RELEASE_CANDIDATE.md"
+    ],
+    "validation": {
+      "worker_status": "COMPLETED",
+      "failure_class": null,
+      "host": "LAPTOP-HKGLJEE8",
+      "stdout_tail": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":134007,\"duration_api_ms\":134007,\"result\":\"I'll implement the receipt-totals CLI, tests, sample CSV, test-results artifact, and release-candidate doc in the approved workspace.I'll mirror the prior sandbox package structure for consistency.Creating the CLI, sample CSV, and tests next.Running the unit tests and capturing results.Delivered `local_receipt_totals` in the sandbox: CLI reads an explicit CSV path, skips `#` comments, rejects bad amounts/headers on stderr with non-zero exit, prints merchant subtotals, writes `last-run.json`. Three unittest cases passed; `RELEASE_CANDIDATE.md` traces REQ-001\u0393\u00c7\u00f4REQ-009.\\n\\nTEST_JSON:{\\\"exit_code\\\":0,\\\"passed\\\":true,\\\"stdout\\\":\\\"\\\",\\\"stderr\\\":\\\"test_happy_path_merchant_subtotals_and_last_run (test_local_receipt_totals.LocalReceiptTotalsTests.test_happy_path_merchant_subtotals_and_last_run) ... ok\\\\ntest_missing_input_nonzero_stderr (test_local_receipt_totals.LocalReceiptTotalsTests.test_missing_input_nonzero_stderr) ... ok\\\\ntest_rejects_non_numeric_amount (test_local_receipt_totals.LocalReceiptTotalsTests.test_rejects_non_numeric_amount) ... ok\\\\n\\\\n----------------------------------------------------------------------\\\\nRan 3 tests in 0.241s\\\\n\\\\nOK\\\\n\\\"}\",\"session_id\":\"4c12f9b9-17ed-49ed-8556-9450d99d8a40\",\"request_id\":\"e4a170cf-ff03-4b09-b509-f5342e261349\",\"usage\":{\"inputTokens\":17611,\"outputTokens\":4717,\"cacheReadTokens\":129536,\"cacheWriteTokens\":0}}\n",
+      "result": "PASS"
+    },
+    "failure_reason": null,
+    "public_listener": false,
+    "unrestricted_shell": false,
+    "created_at": "2026-09-17T17:21:35Z",
+    "updated_at": "2026-09-17T17:24:21Z",
+    "history": [
+      {
+        "state": "QUEUED",
+        "at": "2026-09-17T17:21:35Z"
+      },
+      {
+        "state": "DISPATCHED",
+        "at": "2026-09-17T17:21:35Z",
+        "evidence": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T172008Z-74B7B1EF-AUTO-CC01.json"
+      },
+      {
+        "state": "RUNNING",
+        "at": "2026-09-17T17:21:50Z",
+        "evidence": "windows-jobs/processing"
+      },
+      {
+        "state": "VALIDATING",
+        "at": "2026-09-17T17:24:21Z",
+        "evidence": "windows-jobs/done"
+      },
+      {
+        "state": "COMPLETED",
+        "at": "2026-09-17T17:24:21Z",
+        "evidence": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917T172008Z-74B7B1EF-AUTO-CC01-cursor-call.json"
+      }
+    ],
+    "inbox_path": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917T172008Z-74B7B1EF-AUTO-CC01.json",
+    "usage": {
+      "inputTokens": 17611,
+      "outputTokens": 4717,
+      "cacheReadTokens": 129536,
+      "cacheWriteTokens": 0
+    },
+    "usage_basis": "worker-reported"
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T172035Z-F4A46AE1-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish.",
+  "project_id": "PRJ-NEEWA",
+  "workspace": null,
+  "intent": "publication",
+  "workflow": "prepare_then_gate",
+  "approval_level": "A2",
+  "requirements_version": null,
+  "design_version": null,
+  "scope": "approved personal workspace only",
+  "assigned_worker": null,
+  "execution_worker": null,
+  "child_jobs": [],
+  "state": "BLOCKED",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 0.0,
+    "reserved_usd": 0.0,
+    "consumed_basis": "none",
+    "actual_usd": null,
+    "estimated_usd": 0.0,
+    "actual_status": "unavailable-until-measured",
+    "invocations": []
+  },
+  "spec_sha256": null,
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "lease": null,
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [],
+  "expected_paths": [],
+  "validation": null,
+  "failure_reason": "A2_OWNER_GATE",
+  "retry_history": [],
+  "owner_decision": null,
+  "checkpoints": [],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T17:20:35Z",
+      "note": "consequential publish/spend/deploy"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T17:20:35Z",
+      "note": "publication"
+    },
+    {
+      "state": "BLOCKED",
+      "at": "2026-09-17T17:20:35Z",
+      "note": "A2_OWNER_GATE"
+    }
+  ],
+  "created_at": "2026-09-17T17:20:35Z",
+  "updated_at": "2026-09-17T17:20:35Z"
+}

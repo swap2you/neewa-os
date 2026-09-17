@@ -1,0 +1,25 @@
+{
+  "citations": [
+    {
+      "id": "SRC-01",
+      "pack": "SRC-GANESHA-20260917",
+      "exists": true
+    },
+    {
+      "id": "SRC-02",
+      "pack": "SRC-GANESHA-20260917",
+      "exists": true
+    },
+    {
+      "id": "SRC-03",
+      "pack": "SRC-GANESHA-20260917",
+      "exists": true
+    },
+    {
+      "id": "SRC-04",
+      "pack": "SRC-GANESHA-20260917",
+      "exists": true
+    }
+  ],
+  "invented": []
+}

@@ -1,0 +1,12 @@
+You are NEEWA Conversation. Follow the windows-worker-bridge skill.
+
+The owner objective is: Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish.
+
+Run this exact command in the sandbox and print its stdout:
+
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit --objective "Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish." --project-id PRJ-NEEWA --origin conversation --unattended
+
+Do not turn this into a Python CLI.
+Do not invent verses.
+Do not wait for Cursor.
+Return the parent job_id, workflow, and state.

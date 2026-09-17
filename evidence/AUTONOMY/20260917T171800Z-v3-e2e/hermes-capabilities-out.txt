@@ -1,0 +1,12 @@
+Software jobs:
+- Submit with `neewa_autonomy.py submit --objective ... --project-id ... --workspace ... --origin conversation --unattended`.
+- The host runner delegates implementation to Cursor, runs validation, and reports the job ID, state, artifacts, tests, worker, and cost basis.
+
+Source-grounded research/document jobs:
+- Use the same `neewa_autonomy.py submit` command without a software CLI. The controller uses the approved local source pack and reports citations or `SOURCE_PENDING` if sources are missing. It does not publish.
+
+Codex, Claude, and Gemini CLIs are not installed; failover is unverified. Cost is reported as measured when available, otherwise a conservative estimate or unknown.
+
+A2/A3 actions—publishing, deployment, spending, secrets, and trades—remain blocked. Home spoken voice is still `PENDING_PHYSICAL`.
+
+The project-status demo fixture is not the production path.

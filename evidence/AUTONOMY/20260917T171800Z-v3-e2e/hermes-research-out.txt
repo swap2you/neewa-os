@@ -1,0 +1,7 @@
+Parent job submitted.
+
+job_id: JOB-20260917T172035Z-F4A46AE1-AUTO
+workflow: prepare_then_gate
+state: INTAKE
+
+No publication was performed.

@@ -1,0 +1,56 @@
+{
+  "version": "REQ-v1",
+  "original_objective": "Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish.",
+  "product_slug": "prepare_concise_8_minute",
+  "workflow": "research_report",
+  "clauses": [
+    "Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural",
+    "traditional source notes",
+    "clearly identify anything that requires owner selection of tradition",
+    "Do not publish"
+  ],
+  "clarifications": [],
+  "implementation_decisions": [],
+  "proposed_enhancements": [],
+  "out_of_scope": [
+    "public deployment",
+    "live trading",
+    "employer data",
+    "Home voice work"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Produce a source-grounded research/document artifact for: Prepare a concise 8-minute Ganesh Chaturthi katha with verified scriptural and traditional source notes; clearly identify anything that requires owner selection of tradition. Do not publish.",
+      "kind": "functional"
+    },
+    {
+      "id": "REQ-002",
+      "text": "Cite only entries from the approved local source pack; never invent verses or attributions.",
+      "kind": "provenance"
+    },
+    {
+      "id": "REQ-003",
+      "text": "If a needed source is absent, mark SOURCE_PENDING instead of fabricating a citation.",
+      "kind": "provenance"
+    },
+    {
+      "id": "REQ-004",
+      "text": "List items that require the owner to choose a tradition or lineage.",
+      "kind": "domain"
+    },
+    {
+      "id": "REQ-005",
+      "text": "Do not publish; stop at a release candidate for owner review.",
+      "kind": "release"
+    },
+    {
+      "id": "REQ-006",
+      "text": "Stay inside approved personal NEEWA references; do not access employer trees.",
+      "kind": "security"
+    }
+  ],
+  "created_at": "2026-09-17T17:21:50Z",
+  "source_class": "DERIVED_FROM_OBJECTIVE",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3"
+}

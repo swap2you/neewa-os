@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "stdout": "test_happy_path_merchant_subtotals_and_last_run (test_local_receipt_totals.LocalReceiptTotalsTests.test_happy_path_merchant_subtotals_and_last_run) ... ok\ntest_missing_input_nonzero_stderr (test_local_receipt_totals.LocalReceiptTotalsTests.test_missing_input_nonzero_stderr) ... ok\ntest_rejects_non_numeric_amount (test_local_receipt_totals.LocalReceiptTotalsTests.test_rejects_non_numeric_amount) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 0.241s\n\nOK\n",
+  "source": "TEST_JSON"
+}

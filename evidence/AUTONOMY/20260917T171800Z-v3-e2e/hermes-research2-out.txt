@@ -1,0 +1,1 @@
+{"schema_version":3,"job_id":"JOB-20260917T172150Z-2E88BFE7-AUTO","workflow":"research_report","state":"INTAKE"}

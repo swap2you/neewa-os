@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "interface": "Cursor Agent CLI noninteractive print mode",
+  "cli_names": ["agent", "agent.cmd", "cursor-agent", "cursor-agent.cmd"],
+  "cli_rel_paths": [
+    "%LOCALAPPDATA%\\cursor-agent\\agent.cmd",
+    "%LOCALAPPDATA%\\cursor-agent\\cursor-agent.cmd",
+    "%USERPROFILE%\\.local\\bin\\agent.exe",
+    "%USERPROFILE%\\.local\\bin\\agent.cmd",
+    "%LOCALAPPDATA%\\cursor-agent\\agent.exe"
+  ],
+  "print_flag": "--print",
+  "output_format": "json",
+  "sandbox": "enabled",
+  "default_timeout_sec": 180,
+  "max_timeout_sec": 300,
+  "workspace_root": "C:\\Development\\Workspace",
+  "sandbox_repo": "%USERPROFILE%\\NEEWA-Personal\\cursor-sandbox",
+  "approved_repo_names": [
+    "NEEWA-OS",
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "SocialMediaManager",
+    "Zume"
+  ],
+  "denied_name_equals": [
+    "api-fintech-automation-platform",
+    "perf-fintech-testing-platform",
+    "ui-fintech-automation-platform",
+    "QE_Platform_lead_Repos",
+    "OratsUtil",
+    "ChakraOptionsWatch"
+  ],
+  "sensitive_prompt_substrings": [
+    "git push",
+    "force push",
+    "gh secret",
+    "drop database",
+    "format c:",
+    "rm -rf /",
+    "id_rsa",
+    "BEGIN PRIVATE KEY",
+    "live trade",
+    "place order"
+  ],
+  "notes": [
+    "cursor.cmd is the IDE launcher, not the agent CLI.",
+    "Missing or unauthenticated agent CLI must return BLOCKED, never complete.",
+    "Do not invoke cmd.exe or powershell with a caller-supplied command string.",
+    "A2/A3 remain owner-gated. Routine A1 development on approved repos does not re-prompt."
+  ]
+}

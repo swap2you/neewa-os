@@ -37,6 +37,8 @@ if (Test-Path -LiteralPath $stampFile) {
 }
 
 $artifact = $null
+$status = 'complete'
+$reason = $null
 switch ($action) {
   'ping' {
     $artifact = Join-Path $jobsDir "$($job.job_id)-ping.txt"
@@ -75,11 +77,18 @@ switch ($action) {
     $artifact = Join-Path $jobsDir "$($job.job_id)-workspace-inventory.json"
     Copy-Item -LiteralPath $src -Destination $artifact -Force
   }
+  'cursor_call' {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaCursorCall.ps1') -Job $job -JobsDir $jobsDir
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -notin @('complete', 'FAILED', 'BLOCKED')) { $status = 'FAILED' }
+  }
 }
 $result = [pscustomobject]@{
   job_id = $job.job_id
-  status = 'complete'
-  reason = $null
+  status = $status
+  reason = $reason
   artifact = $artifact
   host = $env:COMPUTERNAME
 }

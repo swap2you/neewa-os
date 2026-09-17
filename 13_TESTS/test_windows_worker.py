@@ -18,6 +18,9 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["approved_root_modes"][r"C:\Development\Workspace"], "read_only_personal_inventory")
         self.assertIn("workspace_inventory", data["actions"])
         self.assertEqual(data["actions"]["workspace_inventory"], "A1")
+        self.assertIn("cursor_call", data["actions"])
+        self.assertEqual(data["actions"]["cursor_call"], "A1")
+        self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")
         self.assertIn("employer repositories and documents", data["denied_roots"])
         self.assertIn(r"C:\Development\Workspace\api-fintech-automation-platform", data["denied_roots"])
 
@@ -32,6 +35,8 @@ class WindowsWorkerTests(unittest.TestCase):
             "allowlist.json",
             "New-WorkspaceInventory.ps1",
             "workspace-inventory-policy.json",
+            "cursor-call-policy.json",
+            "Invoke-NeewaCursorCall.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
 
@@ -64,6 +69,7 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn("A2/A3", src)
         self.assertIn("personal_artifact", src)
         self.assertIn("workspace_inventory", src)
+        self.assertIn("cursor_call", src)
         self.assertNotIn("0.0.0.0", src)
 
     def test_workspace_inventory_is_read_only_and_excludes_employer(self):

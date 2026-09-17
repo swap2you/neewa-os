@@ -1,0 +1,53 @@
+{
+  "step": 5,
+  "title": "Promote project portfolio registry to origin and neewa-core-01",
+  "checked_at": "2026-09-17T14:52:00Z",
+  "result": "PASS",
+  "commit": "9a1bd3b98f5ac2304c39796dd49107b08e8299da",
+  "force_push": false,
+  "source_code_modified": false,
+  "denied_trees_accessed": false,
+  "historical_evidence_deleted": false,
+  "checks": [
+    {
+      "id": "push-origin-main-ff",
+      "result": "PASS",
+      "detail": "git push origin main: 17a22d1..9a1bd3b main -> main"
+    },
+    {
+      "id": "server-clean-before-pull",
+      "result": "PASS",
+      "detail": "/opt/neewa/neewa-os porcelain empty; HEAD was 17a22d195a08e7c7829bf35730d3884abf35492b"
+    },
+    {
+      "id": "server-pull-ff-only",
+      "result": "PASS",
+      "detail": "git pull --ff-only origin main; HEAD 9a1bd3b98f5ac2304c39796dd49107b08e8299da"
+    },
+    {
+      "id": "projects-json-present",
+      "result": "PASS",
+      "detail": "11_CONFIG/projects.json; 12 registry projects; 9 inventoried personal; 7 skipped"
+    },
+    {
+      "id": "project-portfolio-present",
+      "result": "PASS",
+      "detail": "evidence/PROJECT_PORTFOLIO/ with 12 isolated IDs plus README.md"
+    },
+    {
+      "id": "project-registry-tests",
+      "result": "PASS",
+      "detail": "python3 -m unittest 13_TESTS.test_project_portfolio -v; 7 ran, 0 failed"
+    },
+    {
+      "id": "json-validation",
+      "result": "PASS",
+      "detail": "projects.json and all evidence/PROJECT_PORTFOLIO/*/record.json parsed"
+    },
+    {
+      "id": "git-diff-check",
+      "result": "PASS",
+      "detail": "git diff --check exit 0 on neewa-core-01"
+    }
+  ]
+}

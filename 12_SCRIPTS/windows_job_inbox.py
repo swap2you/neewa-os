@@ -23,6 +23,7 @@ ALLOWED = {
     "personal_artifact",
     "portfolio_inventory",
     "workspace_inventory",
+    "cursor_call",
 }
 
 
@@ -35,7 +36,13 @@ def ensure_dirs(root: Path) -> None:
         (root / name).mkdir(parents=True, exist_ok=True)
 
 
-def enqueue(job_id: str, action: str, approval: str = "A1", root: Path = DEFAULT_ROOT) -> Path:
+def enqueue(
+    job_id: str,
+    action: str,
+    approval: str = "A1",
+    root: Path = DEFAULT_ROOT,
+    extra: dict | None = None,
+) -> Path:
     if action not in ALLOWED:
         raise ValueError(f"action {action} is not allowlisted")
     if approval in {"A2", "A3"}:
@@ -51,6 +58,11 @@ def enqueue(job_id: str, action: str, approval: str = "A1", root: Path = DEFAULT
         "target": "neewa-edge-01",
         "public_listener": False,
     }
+    if extra:
+        for key, value in extra.items():
+            if key in payload:
+                continue
+            payload[key] = value
     path = root / "inbox" / f"{job_id}.json"
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path
@@ -63,13 +75,26 @@ def main() -> int:
     parser.add_argument("--action", default="personal_artifact")
     parser.add_argument("--approval", default="A1")
     parser.add_argument("--root", default=str(DEFAULT_ROOT))
+    parser.add_argument("--repo")
+    parser.add_argument("--prompt")
+    parser.add_argument("--timeout-sec", type=int)
+    parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
     root = Path(args.root)
     ensure_dirs(root)
     if args.command == "enqueue":
         if not args.job_id:
             raise SystemExit("--job-id is required")
-        path = enqueue(args.job_id, args.action, args.approval, root)
+        extra = {}
+        if args.repo:
+            extra["repo"] = args.repo
+        if args.prompt:
+            extra["prompt"] = args.prompt
+        if args.timeout_sec:
+            extra["timeout_sec"] = args.timeout_sec
+        if args.write:
+            extra["write"] = True
+        path = enqueue(args.job_id, args.action, args.approval, root, extra or None)
         print(path)
         return 0
     for folder in ("inbox", "processing", "done", "failed"):

@@ -1,7 +1,7 @@
 # NEEWA OS Status
 
 State: A0/A1 OPERATIONAL — A2/A3 INTEGRATIONS PENDING
-Last verified: 2026-09-17 (isolated personal project portfolio registry; nine inventoried workspace trees)
+Last verified: 2026-09-17 (governed cursor_call added; Agent CLI present but not authenticated)
 
 Verified baseline:
 - repository integrity, governance, canonical registries, job lifecycle, budget and Done Gate controls;

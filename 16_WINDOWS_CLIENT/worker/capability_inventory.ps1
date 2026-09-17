@@ -27,8 +27,25 @@ if ($git) {
 $cursor = Find-Cmd @('cursor', 'cursor.cmd')
 if ($cursor) {
   $ver = (& $cursor.Source --version) 2>$null | Select-Object -First 1
-  Add-Cap 'Cursor CLI' 'AVAILABLE' "$($cursor.Source) $ver"
-} else { Add-Cap 'Cursor CLI' 'NOT INSTALLED' 'Desktop app may exist without CLI on PATH' }
+  Add-Cap 'Cursor IDE CLI' 'AVAILABLE' "$($cursor.Source) $ver"
+} else { Add-Cap 'Cursor IDE CLI' 'NOT INSTALLED' 'Desktop app may exist without CLI on PATH' }
+
+$agent = Find-Cmd @('agent', 'agent.cmd', 'cursor-agent')
+if (-not $agent) {
+  foreach ($p in @(
+      (Join-Path $env:USERPROFILE '.local\bin\agent.exe'),
+      (Join-Path $env:USERPROFILE '.local\bin\agent.cmd')
+    )) {
+    if (Test-Path $p) { $agent = Get-Item $p; break }
+  }
+}
+if ($agent) {
+  $src = if ($agent.Source) { $agent.Source } else { $agent.FullName }
+  $ver = (& $src --version) 2>$null | Select-Object -First 1
+  Add-Cap 'Cursor Agent CLI' 'AVAILABLE' "$src $ver"
+} else {
+  Add-Cap 'Cursor Agent CLI' 'NOT INSTALLED' 'required for cursor_call (agent --print); cursor.cmd is not this interface'
+}
 
 $codex = Find-Cmd @('codex', 'codex.cmd')
 if ($codex) {
@@ -59,6 +76,7 @@ else { Add-Cap 'Personal workspace' 'PERMISSION REQUIRED' "create $personal for 
 $workspace = 'C:\Development\Workspace'
 if (Test-Path -LiteralPath $workspace) {
   Add-Cap 'Workspace inventory' 'AVAILABLE' 'read-only personal allowlist via workspace_inventory'
+  Add-Cap 'cursor_call' 'AVAILABLE' 'A1 agent --print on approved personal repos; missing CLI is BLOCKED'
 } else {
   Add-Cap 'Workspace inventory' 'PERMISSION REQUIRED' $workspace
 }

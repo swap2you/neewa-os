@@ -29,6 +29,12 @@ one installed on `neewa-edge-01`.
   allowlisted personal projects under `C:\Development\Workspace`. Employer,
   fintech, and trading trees are named and skipped. No file contents, no write
   access to Workspace, no unrestricted desktop.
+- `cursor_call` — invokes the **Cursor Agent CLI** (`agent --print --output-format json
+  --workspace <approved_repo>`), not `cursor.cmd` (that is the IDE launcher).
+  Restricted to approved personal repositories. Routine A1 development does not
+  re-prompt. Sensitive prompts (`git push`, live trade, secrets) return
+  `BLOCKED`. Missing or unauthenticated CLI returns `BLOCKED`, never `complete`.
+  Timeout cancels the process. No caller-supplied shell string is executed.
 
 A2/A3 jobs are refused. Unknown actions return `FAILED`.
 

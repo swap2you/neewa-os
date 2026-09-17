@@ -130,6 +130,7 @@
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
+- `13_TESTS/test_cursor_call.py`
 - `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_home_plugin.py`
 - `13_TESTS/test_neewa_ops.py`
@@ -159,6 +160,7 @@
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/Apply-NeewaDesktopPatch.ps1`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/New-WorkspaceInventory.ps1`
@@ -170,6 +172,7 @@
 - `16_WINDOWS_CLIENT/worker/capability-manifest.yaml`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.json`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
+- `16_WINDOWS_CLIENT/worker/cursor-call-policy.json`
 - `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
 - `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
 - `16_WINDOWS_CLIENT/worker/workspace-inventory-policy.json`
@@ -187,6 +190,8 @@
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-workspace-inventory.md`
+- `AI-OPS/delivery/work-orders/WO-20260917-cursor-call.md`
+- `AI-OPS/skills/windows-worker-bridge/SKILL.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`
@@ -216,6 +221,9 @@
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-4-project-registry/README.md`
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-4-project-registry/acceptance.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-4-project-registry/validation.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-5-registry-deployment/README.md`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-5-registry-deployment/acceptance.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-5-registry-deployment/git.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/docker-sandbox.txt`
 - `evidence/NEEWA_OS/JOB-20260916-001/done-gate.json`

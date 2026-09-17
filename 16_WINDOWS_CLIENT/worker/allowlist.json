@@ -37,7 +37,14 @@
     "capability_inventory": "A0",
     "personal_artifact": "A1",
     "portfolio_inventory": "A1",
-    "workspace_inventory": "A1"
+    "workspace_inventory": "A1",
+    "cursor_call": "A1"
+  },
+  "cursor_call": {
+    "interface": "agent --print --output-format json --workspace <approved_repo>",
+    "ide_launcher_is_not_this": "cursor.cmd",
+    "routine_approval": "A1",
+    "sensitive_or_consequential": "blocked pending A2/A3 owner gate"
   },
   "notes": [
     "A2/A3 remain owner-gated and are not executable by this worker.",

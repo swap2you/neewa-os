@@ -18,8 +18,13 @@ class RepositoryValidationTests(unittest.TestCase):
         self.assertTrue(result["passed"], result)
 
     def test_manifest_matches_complete_working_tree(self):
-        expected = sorted(p.relative_to(ops.ROOT).as_posix() for p in ops.repo_files())
+        expected = sorted(p.relative_to(ops.ROOT).as_posix() for p in ops.manifest_source_files())
         self.assertEqual(expected, ops.manifest_entries())
+        self.assertFalse(any(entry.startswith("evidence/") for entry in expected))
+        self.assertFalse(any(entry.startswith("evidence/") for entry in ops.manifest_entries()))
+        evidence = [p for p in ops.repo_files() if "evidence" in p.relative_to(ops.ROOT).parts]
+        self.assertTrue(evidence, "valuable evidence must remain in the working tree")
+        self.assertIsInstance(ops.scan_secrets(), list)
 
     def test_no_secret_signatures_in_repository(self):
         self.assertEqual([], ops.scan_secrets())

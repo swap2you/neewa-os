@@ -51,6 +51,9 @@ SECRET_PATTERNS = {
     ),
 }
 SKIP_DIRS = {".git", "__pycache__", ".venv", "venv", "node_modules", ".pytest_cache"}
+# Operational evidence is a generated ledger. It stays in git for history and
+# remains in the secret scan, but it is not a MANIFEST source-tree obligation.
+GENERATED_LEDGER_PREFIXES = ("evidence/",)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -104,6 +107,20 @@ def tracked_files(root: Path = ROOT) -> list[str]:
         ["git", "ls-files"], cwd=root, text=True, capture_output=True, check=True
     )
     return sorted(line for line in result.stdout.splitlines() if line)
+
+
+def is_generated_ledger(relative: str) -> bool:
+    posix = (relative or "").replace("\\", "/").lstrip("./")
+    return any(posix == prefix.rstrip("/") or posix.startswith(prefix) for prefix in GENERATED_LEDGER_PREFIXES)
+
+
+def manifest_source_files(root: Path = ROOT) -> list[Path]:
+    """Durable source files that MANIFEST must list.
+
+    evidence/ is generated operational output. Listing it in MANIFEST makes the
+    completeness test fail every time a new evidence file is committed.
+    """
+    return [path for path in repo_files(root) if not is_generated_ledger(path.relative_to(root).as_posix())]
 
 
 def manifest_entries(root: Path = ROOT) -> list[str]:
@@ -208,7 +225,7 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
     checks.append(check("security:secret_scan", not findings, f"{len(findings)} finding(s)"))
 
     if require_manifest:
-        expected = sorted(p.relative_to(root).as_posix() for p in repo_files(root))
+        expected = sorted(p.relative_to(root).as_posix() for p in manifest_source_files(root))
         actual = manifest_entries(root)
         checks.append(check("repository:manifest", expected == actual, f"expected={len(expected)} actual={len(actual)}"))
 
@@ -217,8 +234,13 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
 
 
 def generate_manifest(root: Path = ROOT) -> None:
-    entries = sorted(p.relative_to(root).as_posix() for p in repo_files(root))
-    body = "# File Manifest\n\n" + "\n".join(f"- `{entry}`" for entry in entries) + "\n"
+    entries = sorted(p.relative_to(root).as_posix() for p in manifest_source_files(root))
+    body = (
+        "# File Manifest\n\n"
+        "Durable repository source only. Generated `evidence/` is excluded.\n\n"
+        + "\n".join(f"- `{entry}`" for entry in entries)
+        + "\n"
+    )
     (root / "MANIFEST.md").write_text(body, encoding="utf-8")
 
 

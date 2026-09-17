@@ -2543,6 +2543,7 @@ def advance_job(
         job["owner_decision"] = "pending_review"
         transition(job, "RELEASE_CANDIDATE", str(rc))
         transition(job, "OWNER_REVIEW", "release candidate ready; no public deploy")
+        finalize_budget(job)
         save_job(job)
     return job
 

@@ -20,3 +20,6 @@ Every opportunity must include:
 - confidence.
 
 NEEWA must reject unrealistic targets rather than manufacture optimism.
+
+No inventoried personal workspace tree was attached in JOB-20260917-WORKSPACE-001.
+Isolated context: `evidence/PROJECT_PORTFOLIO/PRJ-REVENUE/`.

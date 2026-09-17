@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-ZUME",
+  "name": "Zume",
+  "local_path": "C:\\Development\\Workspace\\Zume",
+  "workspace_name": "Zume",
+  "registry_path": "08_PROJECTS/ZUME",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-ZUME",
+  "git": {
+    "present": true,
+    "branch": "release/zume-1.0",
+    "head": "b4ee172",
+    "summary": "clean vs origin/release/zume-1.0"
+  },
+  "language_framework_markers": [
+    "python",
+    "local CLI"
+  ],
+  "documentation_files": [
+    "README.md",
+    "CURSOR_START_HERE.md",
+    "docs",
+    "AGENTS.md"
+  ],
+  "maturity_status": "Zume 1.0 local-first hiring CLI / study workspace",
+  "domain": "local hiring preparation (not Aarohan CareerOS)",
+  "blockers": [
+    "candidate data must stay local",
+    "do not mix with PRJ-AAROHAN"
+  ],
+  "recommended_next_review": "Cursor-driven local use only; no upload of resumes to third parties without owner gate",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

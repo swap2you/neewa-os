@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-NEEWA",
+  "name": "NEEWA OS",
+  "local_path": "C:\\Development\\Workspace\\NEEWA-OS",
+  "workspace_name": "NEEWA-OS",
+  "registry_path": "08_PROJECTS/NEEWA_OS",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-NEEWA",
+  "git": {
+    "present": true,
+    "branch": "main",
+    "remote": "origin (neewa-os)",
+    "summary": "canonical NEEWA-OS git repository"
+  },
+  "language_framework_markers": [
+    "python",
+    "powershell",
+    "json-registries"
+  ],
+  "documentation_files": [
+    "README.md",
+    "START_HERE.md",
+    "08_PROJECTS/NEEWA_OS/PROJECT.md",
+    "08_PROJECTS/NEEWA_OS/STATUS.md"
+  ],
+  "maturity_status": "A0/A1 operational; A2/A3 pending; physical Home voice still owner-gated",
+  "domain": "governed personal chief-agent operating system",
+  "blockers": [
+    "physical spoken Home acceptance still pending from prior work"
+  ],
+  "recommended_next_review": "Keep Windows-worker jobs A0/A1; do not mix other project contexts into NEEWA-OS sessions",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

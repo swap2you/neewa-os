@@ -1,0 +1,39 @@
+{
+  "step": 2,
+  "title": "NEEWA Windows orchestration bridge — transport test",
+  "checked_at": "2026-09-17T14:28:00Z",
+  "result": "PASS",
+  "job_id": "JOB-20260917-TRANSPORT-001",
+  "action": "ping",
+  "approval": "A0",
+  "status": "complete",
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "no_workspace_inventory": true,
+  "no_project_file_modifications": true,
+  "no_historical_job_deletion": true,
+  "no_commit": true,
+  "no_push": true,
+  "checks": [
+    {
+      "id": "enqueue-a0-ping",
+      "result": "PASS",
+      "detail": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917-TRANSPORT-001.json"
+    },
+    {
+      "id": "worker-once",
+      "result": "PASS",
+      "detail": "Start-NeewaWindowsWorker.ps1 -Once returned status=complete"
+    },
+    {
+      "id": "moved-to-done",
+      "result": "PASS",
+      "detail": "inbox=0 processing=0; done includes JOB-20260917-TRANSPORT-001.json; not in inbox or processing"
+    },
+    {
+      "id": "result-host-worker",
+      "result": "PASS",
+      "detail": "pong host=LAPTOP-HKGLJEE8 worker=neewa-windows-worker"
+    }
+  ]
+}

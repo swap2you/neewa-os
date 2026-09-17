@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-REVENUE",
+  "name": "Revenue Research",
+  "local_path": null,
+  "workspace_name": null,
+  "registry_path": "08_PROJECTS/REVENUE_RESEARCH",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-REVENUE",
+  "git": {
+    "present": false,
+    "summary": "no inventoried personal workspace tree"
+  },
+  "language_framework_markers": [],
+  "documentation_files": [
+    "08_PROJECTS/REVENUE_RESEARCH/PROJECT.md"
+  ],
+  "maturity_status": "defined in NEEWA registry only",
+  "domain": "monetization research",
+  "blockers": [
+    "no C:\\Development\\Workspace tree attached in JOB-20260917-WORKSPACE-001"
+  ],
+  "recommended_next_review": "Keep as research charter until owner attaches a workspace path",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

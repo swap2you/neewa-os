@@ -1,0 +1,12 @@
+{
+  "python_unittest": {
+    "command": "python -m unittest discover -s 13_TESTS -v",
+    "tests": 78,
+    "failures": 0,
+    "skipped": 1,
+    "result": "OK"
+  },
+  "one_record_per_inventoried_project": "PASS",
+  "one_evidence_location_per_registry_project": "PASS",
+  "skipped_recorded": "PASS"
+}

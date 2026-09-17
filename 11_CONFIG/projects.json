@@ -1,47 +1,183 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "workspace_root": "C:\\Development\\Workspace",
+  "evidence_root": "evidence/PROJECT_PORTFOLIO",
+  "isolation": "Agents must load exactly one evidence/PROJECT_PORTFOLIO/<id> context per session. Do not mix projects.",
+  "notes": [
+    "11_CONFIG/projects.json remains the canonical NEEWA project registry.",
+    "path is the in-repo 08_PROJECTS charter used by repository validation.",
+    "workspace_path is the inventoried personal tree under C:\\Development\\Workspace, if any.",
+    "Denied and unclassified workspace folders are recorded in skipped and are not projects."
+  ],
   "projects": [
     {
       "id": "PRJ-NEEWA",
       "name": "NEEWA OS",
       "priority": "P0",
       "path": "08_PROJECTS/NEEWA_OS",
-      "status": "active"
+      "status": "active",
+      "kind": "inventoried_personal",
+      "workspace_name": "NEEWA-OS",
+      "workspace_path": "C:\\Development\\Workspace\\NEEWA-OS",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-NEEWA"
     },
     {
       "id": "PRJ-WANI",
       "name": "DAU Digital Media / Wani",
       "priority": "P1",
       "path": "08_PROJECTS/WANI",
-      "status": "defined"
+      "status": "defined",
+      "kind": "registry_defined_only",
+      "workspace_name": null,
+      "workspace_path": null,
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-WANI"
     },
     {
       "id": "PRJ-AAROHAN",
       "name": "Aarohan CareerOS",
       "priority": "P1",
       "path": "08_PROJECTS/AAROHAN",
-      "status": "defined"
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "aarohan-careeros",
+      "workspace_path": "C:\\Development\\Workspace\\aarohan-careeros",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-AAROHAN"
     },
     {
       "id": "PRJ-REVENUE",
       "name": "Revenue Research",
       "priority": "P1",
       "path": "08_PROJECTS/REVENUE_RESEARCH",
-      "status": "defined"
+      "status": "defined",
+      "kind": "registry_defined_only",
+      "workspace_name": null,
+      "workspace_path": null,
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-REVENUE"
     },
     {
       "id": "PRJ-BHAVA",
       "name": "Bhava",
       "priority": "P2",
       "path": "08_PROJECTS/BHAVA",
-      "status": "defined"
+      "status": "defined",
+      "kind": "registry_defined_only",
+      "workspace_name": null,
+      "workspace_path": null,
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-BHAVA"
     },
     {
       "id": "PRJ-CHAKRAOPS",
       "name": "ChakraOps",
       "priority": "P2",
       "path": "08_PROJECTS/CHAKRAOPS",
-      "status": "defined"
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "ChakraOps",
+      "workspace_path": "C:\\Development\\Workspace\\ChakraOps",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS"
+    },
+    {
+      "id": "PRJ-CHAKRAOPS-DEV",
+      "name": "ChakraOps-dev",
+      "priority": "P2",
+      "path": "08_PROJECTS/CHAKRAOPS_DEV",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "ChakraOps-dev",
+      "workspace_path": "C:\\Development\\Workspace\\ChakraOps-dev",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS-DEV"
+    },
+    {
+      "id": "PRJ-DEVOTIONAL",
+      "name": "DevotionalRepo",
+      "priority": "P2",
+      "path": "08_PROJECTS/DEVOTIONAL",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "DevotionalRepo",
+      "workspace_path": "C:\\Development\\Workspace\\DevotionalRepo",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-DEVOTIONAL"
+    },
+    {
+      "id": "PRJ-KIDS",
+      "name": "KidsProjects",
+      "priority": "P2",
+      "path": "08_PROJECTS/KIDS",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "KidsProjects",
+      "workspace_path": "C:\\Development\\Workspace\\KidsProjects",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-KIDS"
+    },
+    {
+      "id": "PRJ-MANAN",
+      "name": "Manan",
+      "priority": "P2",
+      "path": "08_PROJECTS/MANAN",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "manan",
+      "workspace_path": "C:\\Development\\Workspace\\manan",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-MANAN"
+    },
+    {
+      "id": "PRJ-SOCIAL",
+      "name": "SocialMediaManager",
+      "priority": "P2",
+      "path": "08_PROJECTS/SOCIAL_MEDIA",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "SocialMediaManager",
+      "workspace_path": "C:\\Development\\Workspace\\SocialMediaManager",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-SOCIAL"
+    },
+    {
+      "id": "PRJ-ZUME",
+      "name": "Zume",
+      "priority": "P1",
+      "path": "08_PROJECTS/ZUME",
+      "status": "defined",
+      "kind": "inventoried_personal",
+      "workspace_name": "Zume",
+      "workspace_path": "C:\\Development\\Workspace\\Zume",
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-ZUME"
+    }
+  ],
+  "skipped": [
+    {
+      "name": "api-fintech-automation-platform",
+      "classification": "denied",
+      "reason": "employer/fintech tree excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "perf-fintech-testing-platform",
+      "classification": "denied",
+      "reason": "employer/fintech tree excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "ui-fintech-automation-platform",
+      "classification": "denied",
+      "reason": "employer/fintech tree excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "QE_Platform_lead_Repos",
+      "classification": "denied",
+      "reason": "employer/QE lead tree excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "OratsUtil",
+      "classification": "denied",
+      "reason": "trading utility excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "ChakraOptionsWatch",
+      "classification": "denied",
+      "reason": "trading tree excluded by workspace-inventory-policy; not recursed"
+    },
+    {
+      "name": "Udemy-Yutube-repos",
+      "classification": "unclassified",
+      "reason": "not on the personal allowlist; not inventoried"
     }
   ]
 }

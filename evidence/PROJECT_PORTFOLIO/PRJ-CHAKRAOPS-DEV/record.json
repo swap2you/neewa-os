@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-CHAKRAOPS-DEV",
+  "name": "ChakraOps-dev",
+  "local_path": "C:\\Development\\Workspace\\ChakraOps-dev",
+  "workspace_name": "ChakraOps-dev",
+  "registry_path": "08_PROJECTS/CHAKRAOPS_DEV",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS-DEV",
+  "git": {
+    "present": false,
+    "summary": "not a git repository"
+  },
+  "language_framework_markers": [
+    "program-library/docs"
+  ],
+  "documentation_files": [
+    "ChakraOps_R31-R35_Program_Summary.md"
+  ],
+  "maturity_status": "non-git working/dev package library (R31\u2013R35 summary observed)",
+  "domain": "trading research working copy (not live capital)",
+  "blockers": [
+    "not git-backed",
+    "must not share a session with PRJ-CHAKRAOPS",
+    "denied trading trees remain out of scope"
+  ],
+  "recommended_next_review": "Owner decides whether to reconcile with PRJ-CHAKRAOPS in a dedicated session",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

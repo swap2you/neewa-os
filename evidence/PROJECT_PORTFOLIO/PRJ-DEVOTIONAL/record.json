@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-DEVOTIONAL",
+  "name": "DevotionalRepo",
+  "local_path": "C:\\Development\\Workspace\\DevotionalRepo",
+  "workspace_name": "DevotionalRepo",
+  "registry_path": "08_PROJECTS/DEVOTIONAL",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-DEVOTIONAL",
+  "git": {
+    "present": false,
+    "summary": "not a git repository"
+  },
+  "language_framework_markers": [
+    "multi-product workspace"
+  ],
+  "documentation_files": [],
+  "maturity_status": "workspace container with multiple top-level product folders; not a single git product",
+  "domain": "devotional / family content workspace",
+  "blockers": [
+    "credential-named folder present and unread",
+    "do not mix with PRJ-BHAVA charter in the same session"
+  ],
+  "recommended_next_review": "Owner may later split child products into their own IDs; until then treat this as one isolated workspace",
+  "secret_named_paths_not_read": [
+    "Keys Certs & Accesses"
+  ],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

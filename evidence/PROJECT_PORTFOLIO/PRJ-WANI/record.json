@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-WANI",
+  "name": "DAU Digital Media / Wani",
+  "local_path": null,
+  "workspace_name": null,
+  "registry_path": "08_PROJECTS/WANI",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-WANI",
+  "git": {
+    "present": false,
+    "summary": "no inventoried personal workspace tree"
+  },
+  "language_framework_markers": [],
+  "documentation_files": [
+    "08_PROJECTS/WANI/PROJECT.md"
+  ],
+  "maturity_status": "defined in NEEWA registry only; not on the workspace personal allowlist inventory",
+  "domain": "Hindi digital media production",
+  "blockers": [
+    "no C:\\Development\\Workspace tree attached in JOB-20260917-WORKSPACE-001"
+  ],
+  "recommended_next_review": "Owner must point to a personal workspace path before implementation work",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

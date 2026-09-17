@@ -1,0 +1,13 @@
+{
+  "job_id": "JOB-20260917-TRANSPORT-001",
+  "status": "complete",
+  "reason": null,
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-TRANSPORT-001-ping.txt",
+  "artifact_text": "pong host=LAPTOP-HKGLJEE8 worker=neewa-windows-worker",
+  "remote_done_json": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/done/JOB-20260917-TRANSPORT-001.json",
+  "remote_done_artifact": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/done/JOB-20260917-TRANSPORT-001-ping.txt",
+  "still_in_inbox": false,
+  "still_in_processing": false
+}

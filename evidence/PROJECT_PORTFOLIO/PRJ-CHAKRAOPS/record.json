@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-CHAKRAOPS",
+  "name": "ChakraOps",
+  "local_path": "C:\\Development\\Workspace\\ChakraOps",
+  "workspace_name": "ChakraOps",
+  "registry_path": "08_PROJECTS/CHAKRAOPS",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS",
+  "git": {
+    "present": true,
+    "branch": "main",
+    "head": "2c1393f",
+    "summary": "behind origin/main; local tracked modifications present"
+  },
+  "language_framework_markers": [
+    "python",
+    "node/frontend",
+    "docker-compose"
+  ],
+  "documentation_files": [
+    "CHANGELOG.md",
+    "docs",
+    "AGENTS.md",
+    "BASELINE_BOOKMARK.md",
+    "RUNBOOK_EXECUTION.md"
+  ],
+  "maturity_status": "baseline 0.1.0 documented; paper/research system; no broker integration in baseline docs",
+  "domain": "trading research / decision-support (not live capital)",
+  "blockers": [
+    "no autonomous live trades",
+    "do not open denied OratsUtil or ChakraOptionsWatch",
+    "do not mix with PRJ-CHAKRAOPS-DEV"
+  ],
+  "recommended_next_review": "Validation and paper research only; owner gate for any broker discussion",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

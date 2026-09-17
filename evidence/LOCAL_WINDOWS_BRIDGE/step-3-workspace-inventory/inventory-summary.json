@@ -1,0 +1,35 @@
+{
+  "workspace_root": "C:\\Development\\Workspace",
+  "mode": "read_only_metadata",
+  "write_access": false,
+  "file_contents_read": false,
+  "unrestricted_desktop": false,
+  "project_count": 16,
+  "personal_count": 9,
+  "denied_count": 6,
+  "unclassified_count": 1,
+  "personal_inventoried": [
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "NEEWA-OS",
+    "SocialMediaManager",
+    "Zume"
+  ],
+  "denied_skipped": [
+    "api-fintech-automation-platform",
+    "ChakraOptionsWatch",
+    "OratsUtil",
+    "perf-fintech-testing-platform",
+    "QE_Platform_lead_Repos",
+    "ui-fintech-automation-platform"
+  ],
+  "unclassified_skipped": ["Udemy-Yutube-repos"],
+  "denied_not_recursed": true,
+  "git_internals_absent": true,
+  "secrets_absent": true,
+  "raw_artifact_committed": false
+}

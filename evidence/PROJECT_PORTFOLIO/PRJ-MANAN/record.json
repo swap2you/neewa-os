@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-MANAN",
+  "name": "Manan",
+  "local_path": "C:\\Development\\Workspace\\manan",
+  "workspace_name": "manan",
+  "registry_path": "08_PROJECTS/MANAN",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-MANAN",
+  "git": {
+    "present": true,
+    "branch": "main",
+    "head": "04fd1a7",
+    "summary": "ahead of origin; local modifications present"
+  },
+  "language_framework_markers": [
+    "Next.js/TypeScript",
+    "FastAPI",
+    "Celery",
+    "docker-compose"
+  ],
+  "documentation_files": [
+    "README.md",
+    "docs"
+  ],
+  "maturity_status": "private invite-only Swadhyay workspace; media not in git",
+  "domain": "private spiritual study / Guru-vani library",
+  "blockers": [
+    "working tree dirty",
+    "media/data stay local"
+  ],
+  "recommended_next_review": "Local setup/docs only; do not ingest credentials; isolated from PRJ-DEVOTIONAL",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

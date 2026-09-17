@@ -1,0 +1,12 @@
+{
+  "job_id": "JOB-20260917-WORKSPACE-001",
+  "status": "complete",
+  "reason": null,
+  "host": "LAPTOP-HKGLJEE8",
+  "artifact_windows": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-WORKSPACE-001-workspace-inventory.json",
+  "remote_result": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/done/JOB-20260917-WORKSPACE-001.json",
+  "remote_artifact": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/done/JOB-20260917-WORKSPACE-001-workspace-inventory.json",
+  "still_in_inbox": false,
+  "still_in_processing": false,
+  "in_failed": false
+}

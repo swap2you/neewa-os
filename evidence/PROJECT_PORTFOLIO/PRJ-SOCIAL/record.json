@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-SOCIAL",
+  "name": "SocialMediaManager",
+  "local_path": "C:\\Development\\Workspace\\SocialMediaManager",
+  "workspace_name": "SocialMediaManager",
+  "registry_path": "08_PROJECTS/SOCIAL_MEDIA",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-SOCIAL",
+  "git": {
+    "present": false,
+    "summary": "not a git repository (gitignore present)"
+  },
+  "language_framework_markers": [
+    "python",
+    "LangGraph",
+    "FastAPI"
+  ],
+  "documentation_files": [
+    "README.md",
+    "docs",
+    "pyproject.toml"
+  ],
+  "maturity_status": "local multi-agent content system documented; not git-backed here",
+  "domain": "personal social content drafting/scheduling",
+  "blockers": [
+    ".env not read",
+    "publisher tokens out of scope",
+    "outbound posts owner-gated"
+  ],
+  "recommended_next_review": "Do not mix with PRJ-WANI media production; no account login from this registry",
+  "secret_named_paths_not_read": [
+    ".env.example (not read)"
+  ],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

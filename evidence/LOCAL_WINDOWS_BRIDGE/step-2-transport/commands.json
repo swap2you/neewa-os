@@ -1,0 +1,41 @@
+{
+  "commands": [
+    {
+      "where": "windows",
+      "cmd": "Stop-Process -Id 5784",
+      "why": "existing hidden Start-NeewaWindowsWorker held Local\\NEEWA-WindowsWorker mutex; -Once would no-op"
+    },
+    {
+      "where": "windows->neewa-core-01",
+      "cmd": "ssh ubuntu@neewa-core-01 \"python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py enqueue --job-id JOB-20260917-TRANSPORT-001 --action ping --approval A0\"",
+      "output": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917-TRANSPORT-001.json"
+    },
+    {
+      "where": "windows",
+      "cmd": "pwsh -File C:\\Development\\Workspace\\NEEWA-OS\\16_WINDOWS_CLIENT\\worker\\Start-NeewaWindowsWorker.ps1 -Once",
+      "output": "{\"job_id\":\"JOB-20260917-TRANSPORT-001\",\"status\":\"complete\",\"reason\":null,\"artifact\":\"C:\\\\Users\\\\swap2\\\\NEEWA-Personal\\\\jobs\\\\JOB-20260917-TRANSPORT-001-ping.txt\",\"host\":\"LAPTOP-HKGLJEE8\"}"
+    },
+    {
+      "where": "windows->neewa-core-01",
+      "cmd": "ssh ubuntu@neewa-core-01 \"python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py status\"",
+      "output": [
+        "inbox: 0",
+        "processing: 0",
+        "done: 4",
+        "  JOB-20260916-004.json",
+        "  JOB-20260916-005-portfolio-inventory.json",
+        "  JOB-20260916-005.json",
+        "  JOB-20260917-TRANSPORT-001.json",
+        "failed: 2",
+        "  JOB-20260916-004-deny-a3.json",
+        "  JOB-20260916-004-deny-shell.json"
+      ]
+    },
+    {
+      "where": "windows",
+      "cmd": "Start-Process pwsh -File Start-NeewaWindowsWorker.ps1 -WindowStyle Hidden",
+      "why": "restore outbound poller after the one-shot test",
+      "output": "RUNNING pid=35488"
+    }
+  ]
+}

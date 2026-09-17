@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-AAROHAN",
+  "name": "Aarohan CareerOS",
+  "local_path": "C:\\Development\\Workspace\\aarohan-careeros",
+  "workspace_name": "aarohan-careeros",
+  "registry_path": "08_PROJECTS/AAROHAN",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-AAROHAN",
+  "git": {
+    "present": true,
+    "branch": "main",
+    "head": "e9edd18",
+    "summary": "clean vs origin/main"
+  },
+  "language_framework_markers": [
+    "python/FastAPI",
+    "Next.js",
+    "PostgreSQL",
+    "docker-compose",
+    "n8n-optional"
+  ],
+  "documentation_files": [
+    "README.md",
+    "START_HERE.md",
+    "PROJECT_CHARTER.md",
+    "AGENTS.md",
+    "docs"
+  ],
+  "maturity_status": "local-first supervised career OS with dashboard; not treated as fully deployed",
+  "domain": "career operations / job search assistance",
+  "blockers": [
+    "secret-named top-level paths present; unread; do not open them",
+    "external outreach remains owner-gated"
+  ],
+  "recommended_next_review": "A1 local workflow only; never mix with Zume hiring packages",
+  "secret_named_paths_not_read": [
+    "AarohanSecrets",
+    "Aarohan - Keys & secrets.txt"
+  ],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

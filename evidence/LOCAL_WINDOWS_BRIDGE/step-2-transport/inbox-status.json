@@ -1,0 +1,9 @@
+{
+  "inbox": 0,
+  "processing": 0,
+  "done": 4,
+  "failed": 2,
+  "historical_jobs_preserved": true,
+  "target_job": "JOB-20260917-TRANSPORT-001",
+  "target_folder": "done"
+}

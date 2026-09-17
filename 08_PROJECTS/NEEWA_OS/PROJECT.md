@@ -21,3 +21,5 @@ Out of scope without owner approval:
 - destructive security changes.
 
 Acceptance evidence: `15_BOOTSTRAP/VALIDATION_REPORT.md` and `evidence/NEEWA_OS/`.
+Workspace tree: `C:\Development\Workspace\NEEWA-OS`.
+Isolated context: `evidence/PROJECT_PORTFOLIO/PRJ-NEEWA/`.

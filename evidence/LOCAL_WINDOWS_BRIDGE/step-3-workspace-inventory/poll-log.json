@@ -1,0 +1,25 @@
+{
+  "interval_seconds": 10,
+  "max_minutes": 3,
+  "polls_until_done": 2,
+  "first_poll": {
+    "t": "14:31:25Z",
+    "inbox": ["JOB-20260917-WORKSPACE-001.json"],
+    "done_has_target": false
+  },
+  "second_poll": {
+    "t": "14:31:35Z",
+    "inbox": 0,
+    "processing": 0,
+    "done_has_target": true,
+    "failed_has_target": false
+  },
+  "final_counts": {
+    "inbox": 0,
+    "processing": 0,
+    "done": 6,
+    "failed": 2
+  },
+  "historical_jobs_preserved": true,
+  "worker_stopped": false
+}

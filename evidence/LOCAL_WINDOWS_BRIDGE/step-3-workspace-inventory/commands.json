@@ -1,0 +1,6 @@
+{
+  "enqueue": "ssh ubuntu@neewa-core-01 \"python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py enqueue --job-id JOB-20260917-WORKSPACE-001 --action workspace_inventory --approval A1\"",
+  "enqueue_output": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/inbox/JOB-20260917-WORKSPACE-001.json",
+  "status_command": "ssh ubuntu@neewa-core-01 \"python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py status\"",
+  "worker_command_not_run": "persistent worker pid 35488 left running; no -Once; not stopped"
+}

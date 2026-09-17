@@ -17,3 +17,7 @@ NEEWA may not autonomously:
 - bypass broker/security controls.
 
 Financial logic requires stronger validation and explicit evidence.
+
+Workspace tree: `C:\Development\Workspace\ChakraOps`.
+Isolated context: `evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS/`.
+Do not mix with `PRJ-CHAKRAOPS-DEV` or denied trading trees.

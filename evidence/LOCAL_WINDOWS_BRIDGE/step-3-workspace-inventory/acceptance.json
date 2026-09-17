@@ -1,0 +1,21 @@
+{
+  "step": 3,
+  "title": "NEEWA Windows orchestration bridge — read-only workspace inventory",
+  "checked_at": "2026-09-17T14:34:40Z",
+  "result": "PASS",
+  "job_id": "JOB-20260917-WORKSPACE-001",
+  "action": "workspace_inventory",
+  "approval": "A1",
+  "status": "complete",
+  "host": "LAPTOP-HKGLJEE8",
+  "worker_left_running": true,
+  "worker_pid": 35488,
+  "checks": [
+    {"id": "enqueued", "result": "PASS", "detail": "inbox/JOB-20260917-WORKSPACE-001.json created"},
+    {"id": "moved-to-done-not-failed", "result": "PASS", "detail": "visible in done on poll 2 (~10s); never in failed"},
+    {"id": "workspace-root", "result": "PASS", "detail": "C:\\Development\\Workspace"},
+    {"id": "read-only", "result": "PASS", "detail": "mode=read_only_metadata write_access=false file_contents_read=false unrestricted_desktop=false"},
+    {"id": "no-file-contents-or-secrets", "result": "PASS", "detail": "no private-key/sk-token signatures; .git not in top_level"},
+    {"id": "denied-skipped-recorded", "result": "PASS", "detail": "6 denied not recursed; 1 unclassified skipped"}
+  ]
+}

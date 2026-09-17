@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "id": "PRJ-BHAVA",
+  "name": "Bhava",
+  "local_path": null,
+  "workspace_name": null,
+  "registry_path": "08_PROJECTS/BHAVA",
+  "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-BHAVA",
+  "git": {
+    "present": false,
+    "summary": "charter only; on-disk trees belong to PRJ-DEVOTIONAL"
+  },
+  "language_framework_markers": [],
+  "documentation_files": [
+    "08_PROJECTS/BHAVA/PROJECT.md"
+  ],
+  "maturity_status": "defined NEEWA charter; not the DevotionalRepo workspace record",
+  "domain": "devotional content/product platform (charter)",
+  "blockers": [
+    "do not use this context to browse DevotionalRepo"
+  ],
+  "recommended_next_review": "Implementation work uses PRJ-DEVOTIONAL in a separate session if the owner directs it",
+  "secret_named_paths_not_read": [],
+  "file_contents_not_copied": true,
+  "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"
+}

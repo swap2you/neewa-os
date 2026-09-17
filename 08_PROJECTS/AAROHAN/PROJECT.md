@@ -14,3 +14,7 @@ NEEWA responsibilities:
 - evidence-based opportunity scoring.
 
 External outreach requires owner approval initially.
+
+Workspace tree: `C:\Development\Workspace\aarohan-careeros`.
+Isolated context: `evidence/PROJECT_PORTFOLIO/PRJ-AAROHAN/`.
+Do not open secret-named files or folders in that tree.

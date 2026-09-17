@@ -1,7 +1,7 @@
 # NEEWA OS Status
 
 State: A0/A1 OPERATIONAL — A2/A3 INTEGRATIONS PENDING
-Last verified: 2026-09-16 (Home voice controller + packed asar loaded by running Hermes.exe; Windows worker unchanged PASS)
+Last verified: 2026-09-17 (governed read-only workspace_inventory on existing Windows worker; outbound Tailscale poll preserved)
 
 Verified baseline:
 - repository integrity, governance, canonical registries, job lifecycle, budget and Done Gate controls;
@@ -10,8 +10,8 @@ Verified baseline:
 - Tailscale private connectivity and deterministic daily health scheduling;
 - 20 automated tests, 26 repository checks, and independent review PASS.
 
-Completed jobs: `JOB-20260916-001`, `JOB-20260916-004` (Windows worker artifact), `JOB-20260916-005` (read-only portfolio inventory submitted to NEEWA inbox).
-Evidence: `evidence/NEEWA_OS/JOB-20260916-001/`
+Completed jobs: `JOB-20260916-001`, `JOB-20260916-004` (Windows worker artifact), `JOB-20260916-005` (read-only portfolio inventory submitted to NEEWA inbox), `JOB-20260916-008` (read-only personal Workspace inventory), `JOB-20260917-E2E-WS` (local read-only workspace_inventory regression).
+Evidence: `evidence/NEEWA_OS/JOB-20260916-001/` and `evidence/LOCAL_WINDOWS_BRIDGE/`
 Validation report: `15_BOOTSTRAP/VALIDATION_REPORT.md`
 
 Full frozen architecture gaps requiring approval are prepared in `15_BOOTSTRAP/APPROVAL_BOUNDARIES.md`.

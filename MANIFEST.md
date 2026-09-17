@@ -32,6 +32,7 @@
 - `04_MEMORY/jobs/JOB-20260916-003.json`
 - `04_MEMORY/jobs/JOB-20260916-004.json`
 - `04_MEMORY/jobs/JOB-20260916-005.json`
+- `04_MEMORY/jobs/JOB-20260916-008.json`
 - `05_OPERATIONS/BACKUP_RECOVERY.md`
 - `05_OPERATIONS/DAILY_EXECUTIVE_BRIEF.md`
 - `05_OPERATIONS/DOCUMENTATION_STANDARD.md`
@@ -107,6 +108,7 @@
 - `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
 - `12_SCRIPTS/bootstrap.sh`
+- `12_SCRIPTS/collect_local_windows_bridge_evidence.py`
 - `12_SCRIPTS/configure_openai_fallback.sh`
 - `12_SCRIPTS/cron_health.sh`
 - `12_SCRIPTS/edge_readiness.ps1`
@@ -129,6 +131,7 @@
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_windows_package.py`
 - `13_TESTS/test_windows_worker.py`
+- `13_TESTS/test_workspace_inventory.py`
 - `14_REFERENCE/DECISIONS_FREEZE.md`
 - `14_REFERENCE/GLOSSARY.md`
 - `14_REFERENCE/NEMOCLAW_MIGRATION_PLAN.md`
@@ -151,6 +154,7 @@
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
+- `16_WINDOWS_CLIENT/worker/New-WorkspaceInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/README.md`
 - `16_WINDOWS_CLIENT/worker/Register-NeewaWindowsStartup.ps1`
 - `16_WINDOWS_CLIENT/worker/Start-CuaDriver.ps1`
@@ -161,6 +165,7 @@
 - `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
 - `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
 - `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
+- `16_WINDOWS_CLIENT/worker/workspace-inventory-policy.json`
 - `AI-OPS/company/APPROVAL_MATRIX.md`
 - `AI-OPS/company/OWNER.md`
 - `AI-OPS/company/POLICIES.md`
@@ -174,10 +179,17 @@
 - `AI-OPS/delivery/VOICE_PROVIDER_MATRIX.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
+- `AI-OPS/delivery/work-orders/WO-20260916-workspace-inventory.md`
 - `MANIFEST.md`
 - `MORNING_REPORT.md`
 - `README.md`
 - `START_HERE.md`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/README.md`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/constraints.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/inventory-summary.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/tests.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/tool-status.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/worker-status.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/docker-sandbox.txt`
 - `evidence/NEEWA_OS/JOB-20260916-001/done-gate.json`
@@ -201,4 +213,6 @@
 - `evidence/NEEWA_OS/JOB-20260916-004/voice-pipeline-observed.json`
 - `evidence/NEEWA_OS/JOB-20260916-005/command-center-and-brief.json`
 - `evidence/NEEWA_OS/JOB-20260916-006/final-acceptance.json`
+- `evidence/NEEWA_OS/JOB-20260916-006/voice-recovery.json`
 - `evidence/NEEWA_OS/JOB-20260916-007/wake-path-repair.json`
+- `evidence/NEEWA_OS/JOB-20260916-008/workspace-inventory-summary.json`

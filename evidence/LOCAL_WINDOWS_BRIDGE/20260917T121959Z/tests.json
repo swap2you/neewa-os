@@ -1,0 +1,27 @@
+{
+  "ran_at": "2026-09-17T12:21:30Z",
+  "python_unittest": {
+    "command": "python -m unittest discover -s 13_TESTS -v",
+    "tests": 71,
+    "failures": 0,
+    "skipped": 1,
+    "result": "OK"
+  },
+  "powershell_parse": {
+    "fails": 0,
+    "result": "OK"
+  },
+  "json_validate": {
+    "fails": 0,
+    "result": "OK"
+  },
+  "git_diff_check": {
+    "result": "OK"
+  },
+  "e2e_workspace_inventory": {
+    "job_id": "JOB-20260917-E2E-WS",
+    "result": "OK",
+    "write_access": false,
+    "file_contents_read": false
+  }
+}

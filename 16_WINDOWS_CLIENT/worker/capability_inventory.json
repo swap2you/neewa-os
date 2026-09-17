@@ -1,52 +1,57 @@
-[
-  {
-    "name": "Git",
-    "status": "AVAILABLE",
-    "detail": "git version 2.50.0.windows.1"
-  },
-  {
-    "name": "Cursor CLI",
-    "status": "AVAILABLE",
-    "detail": "c:\\Users\\swap2\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd 3.17.8"
-  },
-  {
-    "name": "Codex CLI",
-    "status": "NOT INSTALLED",
-    "detail": ""
-  },
-  {
-    "name": "GitHub CLI",
-    "status": "AVAILABLE",
-    "detail": "authenticated"
-  },
-  {
-    "name": "Tailscale",
-    "status": "AVAILABLE",
-    "detail": "status json readable"
-  },
-  {
-    "name": "OpenSSH client",
-    "status": "AVAILABLE",
-    "detail": "C:\\WINDOWS\\System32\\OpenSSH\\ssh.exe"
-  },
-  {
-    "name": "Personal workspace",
-    "status": "AVAILABLE",
-    "detail": "C:\\Users\\swap2\\NEEWA-Personal"
-  },
-  {
-    "name": "Employer files",
-    "status": "UNSUPPORTED",
-    "detail": "explicitly excluded from the worker allowlist"
-  },
-  {
-    "name": "Unrestricted Windows shell",
-    "status": "UNSUPPORTED",
-    "detail": "remote model must not receive a raw shell"
-  },
-  {
-    "name": "Public listener",
-    "status": "UNSUPPORTED",
-    "detail": "outbound/poll only"
-  }
+﻿[
+    {
+        "name":  "Git",
+        "status":  "AVAILABLE",
+        "detail":  "git version 2.50.0.windows.1"
+    },
+    {
+        "name":  "Cursor CLI",
+        "status":  "AVAILABLE",
+        "detail":  "c:\\Users\\swap2\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd 3.17.8"
+    },
+    {
+        "name":  "Codex CLI",
+        "status":  "NOT INSTALLED",
+        "detail":  ""
+    },
+    {
+        "name":  "GitHub CLI",
+        "status":  "AVAILABLE",
+        "detail":  "authenticated"
+    },
+    {
+        "name":  "Tailscale",
+        "status":  "AVAILABLE",
+        "detail":  "status json readable"
+    },
+    {
+        "name":  "OpenSSH client",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\WINDOWS\\System32\\OpenSSH\\ssh.exe"
+    },
+    {
+        "name":  "Personal workspace",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\Users\\swap2\\NEEWA-Personal"
+    },
+    {
+        "name":  "Workspace inventory",
+        "status":  "AVAILABLE",
+        "detail":  "read-only personal allowlist via workspace_inventory"
+    },
+    {
+        "name":  "Employer files",
+        "status":  "UNSUPPORTED",
+        "detail":  "explicitly excluded from the worker allowlist"
+    },
+    {
+        "name":  "Unrestricted Windows shell",
+        "status":  "UNSUPPORTED",
+        "detail":  "remote model must not receive a raw shell"
+    },
+    {
+        "name":  "Public listener",
+        "status":  "UNSUPPORTED",
+        "detail":  "outbound/poll only"
+    }
 ]

@@ -61,6 +61,7 @@ reopens. If Iriun is put back as Communications default, wake will fail again.
 - Daemon: `Start-CuaDriver.ps1`. Worker: `Start-NeewaWindowsWorker.ps1` (outbound SSH poll).
 - Logon: HKCU Run keys `NEEWA-CuaDriver` and `NEEWA-WindowsWorker` (not a SYSTEM service).
 - Remote NEEWA does **not** drive this desktop through the Hermes SSH gateway. Jobs go to `windows-jobs/inbox` on the core workspace.
+- Read-only personal Workspace inventory: enqueue `workspace_inventory` at A1. Policy and generator live in `16_WINDOWS_CLIENT/worker/`. Evidence packs: `evidence/LOCAL_WINDOWS_BRIDGE/<timestamp>/`. Raw JSON stays under `%USERPROFILE%\NEEWA-Personal`.
 - Calculator UWP needs a restored (not iconic) window for UIA. Do not grant `ApplicationFrameHost.exe`.
 - Cursor/Claude/Codex were **not** given concurrent cua MCP control.
 

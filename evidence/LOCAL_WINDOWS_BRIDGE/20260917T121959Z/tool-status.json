@@ -1,0 +1,80 @@
+{
+  "git": {
+    "status": "AVAILABLE",
+    "path": "C:\\Program Files\\Git\\cmd\\git.EXE",
+    "detail": "git version 2.50.0.windows.1"
+  },
+  "gh": {
+    "status": "AVAILABLE",
+    "path": "C:\\Program Files\\GitHub CLI\\gh.EXE",
+    "detail": "gh version 2.95.0 (2026-06-17)"
+  },
+  "cursor": {
+    "status": "AVAILABLE",
+    "path": "c:\\Users\\swap2\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.CMD",
+    "detail": "3.17.8"
+  },
+  "node": {
+    "status": "AVAILABLE",
+    "path": "C:\\nvm4w\\nodejs\\node.EXE",
+    "detail": "v22.23.1"
+  },
+  "python": {
+    "status": "AVAILABLE",
+    "path": "C:\\Python314\\python.EXE",
+    "detail": "Python 3.14.6"
+  },
+  "cua-driver": {
+    "status": "AVAILABLE",
+    "path": "C:\\Users\\swap2\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.EXE",
+    "detail": "cua-driver 0.28.2"
+  },
+  "hermes": {
+    "status": "AVAILABLE",
+    "path": "C:\\Users\\swap2\\AppData\\Local\\hermes\\bin\\hermes.EXE",
+    "detail": "Hermes Agent v0.21.3 (2026.9.14) \u00b7 upstream 4716ec0b \u00b7 local 3077512b (+2 carried commits)"
+  },
+  "cua-driver-doctor": {
+    "cmd": [
+      "C:\\Users\\swap2\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.EXE",
+      "doctor",
+      "--json"
+    ],
+    "exit": 0,
+    "ok": true,
+    "tail": "msvc\\\\cua-driver.exe\",\n      \"status\": \"ok\"\n    },\n    {\n      \"label\": \"home dir\",\n      \"message\": \"C:\\\\Users\\\\swap2\\\\.cua-driver (1 release dir cached)\",\n      \"status\": \"ok\"\n    },\n    {\n      \"label\": \"telemetry\",\n      \"message\": \"disabled via environment (installation ID retained)\",\n      \"status\": \"ok\"\n    },\n    {\n      \"label\": \"interactive session\",\n      \"message\": \"session 3 has an attached interactive desktop (session=3; window_station=attached; thread_desktop=Default; input_desktop=Default; foreground_hwnd=0x308fe)\",\n      \"status\": \"ok\"\n    },\n    {\n      \"label\": \"UI Automation\",\n      \"message\": \"CoCreateInstance(CUIAutomation) succeeded\",\n      \"status\": \"ok\"\n    },\n    {\n      \"label\": \"EnumWindows visible\",\n      \"message\": \"9 windows\",\n      \"status\": \"ok\"\n    }\n  ]\n}"
+  },
+  "hermes-computer-use-doctor": {
+    "cmd": [
+      "hermes",
+      "computer-use",
+      "doctor"
+    ],
+    "exit": 0,
+    "ok": true,
+    "tail": "\u2705 cua-driver cua-driver 0.28.2 on win32 \u2014 ok\n  binary: C:\\Users\\swap2\\AppData\\Local\\Programs\\Cua\\cua-driver\\bin\\cua-driver.EXE\n  \u2705 binary_version: cua-driver 0.28.2\n  \u2705 platform_supported: Windows Microsoft Windows [Version 10.0.26200.9457] (x86_64)\n      architecture=x86_64\n      os_version=Microsoft Windows [Version 10.0.26200.9457]\n  \u2705 session_active: MCP session is active.\n  \u23ed\ufe0f bundle_identity: not applicable on Windows\n  \u23ed\ufe0f tcc_accessibility: not applicable on Windows\n  \u23ed\ufe0f tcc_screen_recording: not applicable on Windows\n  \u2705 ax_capability: UIAutomation is reachable; UI tree walking will succeed.\n  \u2705 screen_capture_capability: D3D11 device reachable; Windows Graphics Capture will succeed."
+  },
+  "copilot": {
+    "note": "help/extension probe only; no token printed",
+    "cmd": [
+      "gh",
+      "copilot",
+      "--help"
+    ],
+    "exit": 0,
+    "ok": true,
+    "tail": "ilot,\nuse `--` before Copilot flags and args.\n\nLearn more at https://gh.io/copilot-cli\n\n\nUSAGE\n  gh copilot [flags] [args]\n\nFLAGS\n  --remove   Remove the downloaded Copilot CLI\n\nINHERITED FLAGS\n  --help   Show help for command\n\nEXAMPLES\n  # Download and run the Copilot CLI\n  $ gh copilot\n  \n  # Run the Copilot CLI\n  $ gh copilot -p \"Summarize this week's commits\" --allow-tool 'shell(git)'\n  \n  # Remove the Copilot CLI (if installed through gh)\n  $ gh copilot --remove\n  \n  # Run the Copilot CLI help command\n  $ gh copilot -- --help\n\nLEARN MORE\n  Use `gh <command> <subcommand> --help` for more information about a command.\n  Read the manual at https://cli.github.com/manual\n  Learn about exit codes using `gh help exit-codes`\n  Learn about accessibility experiences using `gh help accessibility`",
+    "cursor_extensions": [],
+    "cursor_copilot": "NOT INSTALLED",
+    "gh_copilot_cli": "AVAILABLE"
+  },
+  "worker_path": {
+    "status": "AVAILABLE",
+    "invoke": "C:\\Development\\Workspace\\NEEWA-OS\\16_WINDOWS_CLIENT\\worker\\Invoke-NeewaWindowsJob.ps1",
+    "poller": "C:\\Development\\Workspace\\NEEWA-OS\\16_WINDOWS_CLIENT\\worker\\Start-NeewaWindowsWorker.ps1",
+    "transport": "outbound Tailscale SSH poll",
+    "git_writer": "Cursor",
+    "public_listener": false,
+    "unrestricted_shell": false
+  }
+}

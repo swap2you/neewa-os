@@ -1,0 +1,77 @@
+{
+  "generated_at": "2026-09-17T12:19:38.6456648Z",
+  "workspace_root": "C:\\Development\\Workspace",
+  "mode": "read_only_metadata",
+  "write_access": false,
+  "file_contents_read": false,
+  "unrestricted_desktop": false,
+  "personal_inventoried": [
+    {
+      "name": "aarohan-careeros",
+      "is_git": true,
+      "status_doc": "README.md",
+      "top_level_count": 33
+    },
+    {
+      "name": "ChakraOps",
+      "is_git": true,
+      "status_doc": null,
+      "top_level_count": 22
+    },
+    {
+      "name": "ChakraOps-dev",
+      "is_git": false,
+      "status_doc": null,
+      "top_level_count": 14
+    },
+    {
+      "name": "DevotionalRepo",
+      "is_git": false,
+      "status_doc": null,
+      "top_level_count": 11
+    },
+    {
+      "name": "KidsProjects",
+      "is_git": false,
+      "status_doc": null,
+      "top_level_count": 2
+    },
+    {
+      "name": "manan",
+      "is_git": true,
+      "status_doc": "README.md",
+      "top_level_count": 9
+    },
+    {
+      "name": "NEEWA-OS",
+      "is_git": true,
+      "status_doc": "README.md",
+      "top_level_count": 31
+    },
+    {
+      "name": "SocialMediaManager",
+      "is_git": false,
+      "status_doc": "README.md",
+      "top_level_count": 15
+    },
+    {
+      "name": "Zume",
+      "is_git": true,
+      "status_doc": "README.md",
+      "top_level_count": 40
+    }
+  ],
+  "denied_skipped": [
+    "api-fintech-automation-platform",
+    "ChakraOptionsWatch",
+    "OratsUtil",
+    "perf-fintech-testing-platform",
+    "QE_Platform_lead_Repos",
+    "ui-fintech-automation-platform"
+  ],
+  "unclassified_skipped": [
+    "Udemy-Yutube-repos"
+  ],
+  "raw_artifact": "%USERPROFILE%\\NEEWA-Personal\\inventory\\workspace-inventory.json",
+  "raw_committed": false
+}

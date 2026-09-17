@@ -24,9 +24,22 @@ one installed on `neewa-edge-01`.
 - `ping`
 - `capability_inventory.ps1` — discovery only
 - `personal_artifact` — one file under `%USERPROFILE%\NEEWA-Personal\jobs\`
-- `portfolio_inventory` — copies a previously generated read-only report
+- `portfolio_inventory` — copies a previously generated 08_PROJECTS registry report
+- `workspace_inventory` — generates a read-only metadata inventory of
+  allowlisted personal projects under `C:\Development\Workspace`. Employer,
+  fintech, and trading trees are named and skipped. No file contents, no write
+  access to Workspace, no unrestricted desktop.
 
 A2/A3 jobs are refused. Unknown actions return `FAILED`.
+
+NEEWA requests this from `neewa-core-01` by enqueueing JSON on the Docker
+workspace inbox (`windows-jobs/inbox`) using `12_SCRIPTS/windows_job_inbox.py`
+`--action workspace_inventory --approval A1`. The Windows worker polls that
+inbox over outbound Tailscale SSH. Cursor remains the Git writer.
+
+Local evidence packs live under `evidence/LOCAL_WINDOWS_BRIDGE/<timestamp>/`.
+Raw inventory JSON stays in `%USERPROFILE%\NEEWA-Personal\inventory` and is
+not committed.
 
 ## Cua Driver
 

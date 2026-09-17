@@ -1,0 +1,9 @@
+{
+  "checked_at": "2026-09-17T12:21:19Z",
+  "process": "RUNNING pid=5784,13900",
+  "hkcu": "worker=True; cua=True",
+  "transport": "outbound Tailscale SSH poll",
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "git_writer": "Cursor"
+}

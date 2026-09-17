@@ -14,7 +14,12 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["public_listener"], False)
         self.assertEqual(data["tailscale_funnel"], False)
         self.assertIn(r"%USERPROFILE%\NEEWA-Personal", data["approved_roots"])
+        self.assertIn(r"C:\Development\Workspace", data["approved_roots"])
+        self.assertEqual(data["approved_root_modes"][r"C:\Development\Workspace"], "read_only_personal_inventory")
+        self.assertIn("workspace_inventory", data["actions"])
+        self.assertEqual(data["actions"]["workspace_inventory"], "A1")
         self.assertIn("employer repositories and documents", data["denied_roots"])
+        self.assertIn(r"C:\Development\Workspace\api-fintech-automation-platform", data["denied_roots"])
 
     def test_scripts_exist(self):
         for name in (
@@ -25,6 +30,8 @@ class WindowsWorkerTests(unittest.TestCase):
             "Register-NeewaWindowsStartup.ps1",
             "capability-manifest.yaml",
             "allowlist.json",
+            "New-WorkspaceInventory.ps1",
+            "workspace-inventory-policy.json",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
 
@@ -56,7 +63,35 @@ class WindowsWorkerTests(unittest.TestCase):
         src = (ROOT / "12_SCRIPTS" / "windows_job_inbox.py").read_text(encoding="utf-8")
         self.assertIn("A2/A3", src)
         self.assertIn("personal_artifact", src)
+        self.assertIn("workspace_inventory", src)
         self.assertNotIn("0.0.0.0", src)
+
+    def test_workspace_inventory_is_read_only_and_excludes_employer(self):
+        policy = json.loads((WORKER / "workspace-inventory-policy.json").read_text(encoding="utf-8"))
+        script = (WORKER / "New-WorkspaceInventory.ps1").read_text(encoding="utf-8")
+        invoke = (WORKER / "Invoke-NeewaWindowsJob.ps1").read_text(encoding="utf-8")
+        self.assertEqual(policy["mode"], "read_only_metadata")
+        self.assertEqual(policy["workspace_root"], r"C:\Development\Workspace")
+        self.assertIn("NEEWA-OS", policy["personal_projects"])
+        self.assertIn("api-fintech-automation-platform", policy["denied_name_equals"])
+        self.assertIn("ChakraOptionsWatch", policy["denied_name_equals"])
+        self.assertIn(".env", policy["skip_file_names"])
+        self.assertIn("Get-Content -Raw -LiteralPath $policyPath", script)
+        self.assertNotIn("Get-Content", script.replace("Get-Content -Raw -LiteralPath $policyPath", ""))
+        self.assertIn("NEEWA-Personal\\inventory", script)
+        self.assertIn("'workspace_inventory'", invoke)
+        self.assertNotIn("C:\\Users\\", policy["personal_projects"])
+        self.assertIn(".git", policy["skip_dir_names"])
+        self.assertIn("User Data", policy["skip_dir_names"])
+        self.assertIn("trading", policy["denied_name_contains"])
+        worker = (WORKER / "Start-NeewaWindowsWorker.ps1").read_text(encoding="utf-8")
+        self.assertIn("poll", worker.lower())
+        self.assertIn("ssh", worker.lower())
+        self.assertNotIn("0.0.0.0", worker)
+        allow = json.loads((WORKER / "allowlist.json").read_text(encoding="utf-8"))
+        self.assertEqual(allow["git_writer"], "Cursor")
+        self.assertFalse(allow["unrestricted_shell"])
+        self.assertFalse(allow["public_listener"])
 
 
 if __name__ == "__main__":

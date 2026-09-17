@@ -69,6 +69,12 @@ switch ($action) {
     $artifact = Join-Path $jobsDir "$($job.job_id)-portfolio-inventory.json"
     Copy-Item -LiteralPath $src -Destination $artifact -Force
   }
+  'workspace_inventory' {
+    $src = & (Join-Path $here 'New-WorkspaceInventory.ps1')
+    if (-not $src -or -not (Test-Path -LiteralPath $src)) { throw 'workspace inventory was not generated' }
+    $artifact = Join-Path $jobsDir "$($job.job_id)-workspace-inventory.json"
+    Copy-Item -LiteralPath $src -Destination $artifact -Force
+  }
 }
 $result = [pscustomobject]@{
   job_id = $job.job_id

@@ -56,6 +56,13 @@ $personal = Join-Path $env:USERPROFILE 'NEEWA-Personal'
 if (Test-Path $personal) { Add-Cap 'Personal workspace' 'AVAILABLE' $personal }
 else { Add-Cap 'Personal workspace' 'PERMISSION REQUIRED' "create $personal for scoped worker tasks" }
 
+$workspace = 'C:\Development\Workspace'
+if (Test-Path -LiteralPath $workspace) {
+  Add-Cap 'Workspace inventory' 'AVAILABLE' 'read-only personal allowlist via workspace_inventory'
+} else {
+  Add-Cap 'Workspace inventory' 'PERMISSION REQUIRED' $workspace
+}
+
 Add-Cap 'Employer files' 'UNSUPPORTED' 'explicitly excluded from the worker allowlist'
 Add-Cap 'Unrestricted Windows shell' 'UNSUPPORTED' 'remote model must not receive a raw shell'
 Add-Cap 'Public listener' 'UNSUPPORTED' 'outbound/poll only'

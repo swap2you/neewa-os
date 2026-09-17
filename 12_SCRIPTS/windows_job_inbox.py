@@ -17,7 +17,13 @@ DEFAULT_ROOT = Path(
         "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs",
     )
 )
-ALLOWED = {"ping", "capability_inventory", "personal_artifact", "portfolio_inventory"}
+ALLOWED = {
+    "ping",
+    "capability_inventory",
+    "personal_artifact",
+    "portfolio_inventory",
+    "workspace_inventory",
+}
 
 
 def utc_now() -> str:

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "mode": "read_only_metadata",
+  "workspace_root": "C:\\Development\\Workspace",
+  "report_dir": "%USERPROFILE%\\NEEWA-Personal\\inventory",
+  "personal_projects": [
+    "NEEWA-OS",
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "SocialMediaManager",
+    "Zume"
+  ],
+  "denied_name_equals": [
+    "api-fintech-automation-platform",
+    "perf-fintech-testing-platform",
+    "ui-fintech-automation-platform",
+    "QE_Platform_lead_Repos",
+    "OratsUtil",
+    "ChakraOptionsWatch"
+  ],
+  "denied_name_contains": [
+    "fintech",
+    "employer",
+    "brokerage",
+    "trading"
+  ],
+  "skip_file_names": [
+    ".env",
+    ".env.local",
+    ".env.production",
+    "credentials.json",
+    "secrets.json",
+    "id_rsa",
+    "id_ed25519",
+    "id_ecdsa",
+    ".git-credentials",
+    "CopilotAuth.json"
+  ],
+  "skip_dir_names": [
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "__pycache__",
+    ".ssh",
+    ".aws",
+    ".gnupg",
+    "AppData",
+    "User Data",
+    "Chrome",
+    "Firefox",
+    "msedge"
+  ],
+  "notes": [
+    "NEEWA may request action workspace_inventory (A1).",
+    "Only personal_projects receive top-level metadata.",
+    "Denied and unclassified folders are named and skipped — no recursion, no file contents.",
+    "This is not write access and not unrestricted desktop access."
+  ]
+}

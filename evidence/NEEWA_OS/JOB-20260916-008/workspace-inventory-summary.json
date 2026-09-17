@@ -1,0 +1,32 @@
+{
+  "job_id": "JOB-20260916-008",
+  "action": "workspace_inventory",
+  "approval": "A1",
+  "status": "complete",
+  "workspace_root": "C:\\Development\\Workspace",
+  "mode": "read_only_metadata",
+  "write_access": false,
+  "file_contents_read": false,
+  "unrestricted_desktop": false,
+  "personal_inventoried": [
+    "NEEWA-OS",
+    "aarohan-careeros",
+    "ChakraOps",
+    "ChakraOps-dev",
+    "DevotionalRepo",
+    "KidsProjects",
+    "manan",
+    "SocialMediaManager",
+    "Zume"
+  ],
+  "denied_skipped": [
+    "api-fintech-automation-platform",
+    "perf-fintech-testing-platform",
+    "ui-fintech-automation-platform",
+    "QE_Platform_lead_Repos",
+    "OratsUtil",
+    "ChakraOptionsWatch"
+  ],
+  "unclassified_skipped": ["Udemy-Yutube-repos"],
+  "local_artifact": "%USERPROFILE%\\NEEWA-Personal\\jobs\\JOB-20260916-008-workspace-inventory.json"
+}

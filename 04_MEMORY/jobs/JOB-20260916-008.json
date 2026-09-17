@@ -1,0 +1,23 @@
+{
+  "job_id": "JOB-20260916-008",
+  "title": "Governed read-only inventory of personal Workspace projects",
+  "status": "complete",
+  "action": "workspace_inventory",
+  "approval": "A1",
+  "scope": "C:\\Development\\Workspace personal allowlist only",
+  "excluded": [
+    "employer/fintech/QE lead trees",
+    "options/trading utilities",
+    "credential stores",
+    "file contents"
+  ],
+  "artifact": "%USERPROFILE%\\NEEWA-Personal\\jobs\\JOB-20260916-008-workspace-inventory.json",
+  "raw_report": "%USERPROFILE%\\NEEWA-Personal\\inventory\\workspace-inventory.json",
+  "counts": {
+    "personal": 9,
+    "denied": 6,
+    "unclassified": 1
+  },
+  "git_writer": "Cursor",
+  "note": "Raw inventory JSON is kept local and is not committed."
+}

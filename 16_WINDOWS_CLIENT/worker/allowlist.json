@@ -9,14 +9,25 @@
   "tailscale_funnel": false,
   "unrestricted_shell": false,
   "approved_roots": [
-    "%USERPROFILE%\\NEEWA-Personal"
+    "%USERPROFILE%\\NEEWA-Personal",
+    "C:\\Development\\Workspace"
   ],
+  "approved_root_modes": {
+    "%USERPROFILE%\\NEEWA-Personal": "read_write_jobs",
+    "C:\\Development\\Workspace": "read_only_personal_inventory"
+  },
   "denied_roots": [
     "%USERPROFILE%\\.ssh",
     "%USERPROFILE%\\.aws",
     "%USERPROFILE%\\.gnupg",
     "C:\\Users",
     "employer repositories and documents",
+    "C:\\Development\\Workspace\\api-fintech-automation-platform",
+    "C:\\Development\\Workspace\\perf-fintech-testing-platform",
+    "C:\\Development\\Workspace\\ui-fintech-automation-platform",
+    "C:\\Development\\Workspace\\QE_Platform_lead_Repos",
+    "C:\\Development\\Workspace\\OratsUtil",
+    "C:\\Development\\Workspace\\ChakraOptionsWatch",
     "banking and brokerage applications",
     "password managers",
     "private browser sessions"
@@ -25,7 +36,8 @@
     "ping": "A0",
     "capability_inventory": "A0",
     "personal_artifact": "A1",
-    "portfolio_inventory": "A1"
+    "portfolio_inventory": "A1",
+    "workspace_inventory": "A1"
   },
   "notes": [
     "A2/A3 remain owner-gated and are not executable by this worker.",

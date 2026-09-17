@@ -1,0 +1,17 @@
+{
+  "transport": "outbound Tailscale SSH poll",
+  "public_listener": false,
+  "tailscale_funnel": false,
+  "unrestricted_shell": false,
+  "git_writer": "Cursor",
+  "workspace_root": "C:\\Development\\Workspace",
+  "mode": "read_only_metadata",
+  "exclusions": [
+    "secrets",
+    "credentials",
+    "employer data",
+    "banking/trading data",
+    "browser profiles",
+    ".git internals"
+  ]
+}

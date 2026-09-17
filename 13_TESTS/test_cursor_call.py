@@ -12,6 +12,27 @@ POLICY = WORKER / "cursor-call-policy.json"
 
 
 class CursorCallTests(unittest.TestCase):
+    def test_inbox_prefers_sandbox_bind_mount(self):
+        mod = SourceFileLoader("windows_job_inbox_root", str(INBOX)).load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox = Path(tmp) / "workspace" / "windows-jobs"
+            host = Path(tmp) / "host-overlay" / "windows-jobs"
+            sandbox.parent.mkdir()
+            host.parent.mkdir()
+            chosen = mod.resolve_inbox_root(
+                environ={},
+                sandbox_root=sandbox,
+                host_root=host,
+            )
+            self.assertEqual(chosen, sandbox)
+            missing_sandbox = Path(tmp) / "missing" / "windows-jobs"
+            fallback = mod.resolve_inbox_root(
+                environ={},
+                sandbox_root=missing_sandbox,
+                host_root=host,
+            )
+            self.assertEqual(fallback, host)
+
     def test_inbox_accepts_cursor_call_only_at_a1(self):
         mod = SourceFileLoader("windows_job_inbox", str(INBOX)).load_module()
         self.assertIn("cursor_call", mod.ALLOWED)

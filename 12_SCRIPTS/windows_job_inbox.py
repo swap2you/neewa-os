@@ -11,12 +11,39 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_ROOT = Path(
-    os.environ.get(
-        "NEEWA_WINDOWS_JOB_INBOX",
-        "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs",
-    )
+HOST_ROOT = Path(
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs"
 )
+SANDBOX_ROOT = Path("/workspace/windows-jobs")
+
+
+def resolve_inbox_root(
+    explicit: str | None = None,
+    *,
+    environ: dict | None = None,
+    sandbox_root: Path | None = None,
+    host_root: Path | None = None,
+) -> Path:
+    """Prefer the Hermes sandbox bind-mount so Conversation jobs reach the worker.
+
+    Inside the Docker sandbox, python can also create the host-shaped path as a
+    local overlay. That copy is invisible to the Windows worker, so /workspace
+    wins whenever that directory exists.
+    """
+    sandbox_root = sandbox_root or SANDBOX_ROOT
+    host_root = host_root or HOST_ROOT
+    environ = os.environ if environ is None else environ
+    if explicit:
+        return Path(explicit)
+    env = environ.get("NEEWA_WINDOWS_JOB_INBOX") if hasattr(environ, "get") else None
+    if env:
+        return Path(env)
+    if sandbox_root.parent.exists() and sandbox_root.parent.is_dir():
+        return sandbox_root
+    return host_root
+
+
+DEFAULT_ROOT = resolve_inbox_root()
 ALLOWED = {
     "ping",
     "capability_inventory",
@@ -74,7 +101,7 @@ def main() -> int:
     parser.add_argument("--job-id")
     parser.add_argument("--action", default="personal_artifact")
     parser.add_argument("--approval", default="A1")
-    parser.add_argument("--root", default=str(DEFAULT_ROOT))
+    parser.add_argument("--root", default=str(resolve_inbox_root()))
     parser.add_argument("--repo")
     parser.add_argument("--prompt")
     parser.add_argument("--timeout-sec", type=int)

@@ -1,7 +1,9 @@
 # Skill: NEEWA Windows worker + Cursor delegation
 
-Use the existing outbound Windows job inbox. Do not open a public listener
-and do not request an unrestricted Windows shell.
+Inside the Hermes Docker sandbox the worker-visible inbox is
+`/workspace/windows-jobs`. The enqueue script prefers that bind-mount
+automatically. Do not write a private overlay under `/home/ubuntu/.hermes/...`
+inside the container.
 
 ## Read-only Workspace inventory (does not use Cursor)
 

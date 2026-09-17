@@ -17,18 +17,24 @@ python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py submit --capability 
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py wait --job-id JOB-<utc>-WS --timeout-sec 90
 ```
 
-## Software objective (requirements, council, tests, release candidate)
+## Software objective (requirements, council, Cursor, tests, release candidate)
+
+Do not run the demo-status fixture. Do not ask the owner to paste into Cursor.
+Submit a parent job and return the job_id immediately. The host runner advances it.
 
 ```
-python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py run \
-  --objective "build a project-status application" \
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
+  --objective "<owner software objective>" \
   --project-id PRJ-NEEWA \
-  --workdir /workspace/windows-jobs/autonomy/work
+  --workspace "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox" \
+  --origin conversation \
+  --unattended
 python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
 ```
 
-Do not ask the owner to paste the same prompt into Cursor. Child coding still
-uses `neewa_orchestrate.py` `code_implementation` as below.
+Implementation is a child `cursor_call` through `neewa_orchestrate.py`.
+Do not call `--fixture demo-status` for real owner work.
+Do not wait in the chat for Cursor; report the parent job_id and current state.
 
 ## Delegate coding to Cursor (approved personal repo or cursor-sandbox)
 

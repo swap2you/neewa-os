@@ -1,19 +1,11 @@
 # Requirements engine
 
-Implemented in `12_SCRIPTS/neewa_autonomy.py` (`build_requirements`).
+Production: `build_requirements(objective)` derives REQ IDs from the owner's
+text (product slug, clauses, implied CLI/read/print/test/security contracts).
+Source class is `DERIVED_FROM_OBJECTIVE`.
 
-Each software job writes `requirements.json` with stable IDs (`REQ-001`…).
-Fields kept separate:
+The project-status JSON requirements live only in
+`12_SCRIPTS/neewa_autonomy_fixture.py` (`source_class=FIXTURE`).
 
-- `original_objective`
-- `clarifications`
-- `implementation_decisions`
-- `proposed_enhancements`
-- `out_of_scope`
-
-Traceability is `requirement → DES-v2 → status_app.py → test_status_app.py`
-in `traceability.json`. A requirement without a result is not PASS.
-
-The current software template is the project-status CLI used for the
-acceptance scenario. Other domains use `11_CONFIG/domain_workflows.json`
-for extra gates; they do not silently replace REQ IDs.
+Traceability requires per-requirement evidence (implementation path, unittest
+source, workspace scope). Missing tests are `NOT RUN` or `FAIL`, never silent PASS.

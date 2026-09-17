@@ -7,10 +7,14 @@
     "openrouter": 20.0,
     "runpod": 25.0
   },
-  "job_defaults": {
-    "max_cost": 5.0,
-    "max_retries": 2,
-    "cost_estimate_required": true
-  },
+    "job_defaults": {
+        "max_cost": 5.0,
+        "max_retries": 2,
+        "cost_estimate_required": true
+    },
+    "conservative_estimates_usd": {
+        "cursor_call": 0.5
+    },
+    "block_when_cost_unknown": true,
   "owner_approval_required_above_budget": true
 }

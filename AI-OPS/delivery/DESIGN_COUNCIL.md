@@ -1,14 +1,15 @@
 # Design council
 
-Implemented as local review roles in `run_council`, not six paid model calls.
+Production `run_council(design, requirements)` inspects the actual design blob:
 
-Roles: solution architect, implementation engineer, quality engineer,
-security/privacy, UX/product, cost/operations.
+- acceptance vs requirement IDs
+- test component vs quality requirements
+- error-handling vs reliability requirements
+- filesystem scope vs security requirements
+- extra paid installs
 
-One bounded round. Material findings revise DES-v1 to DES-v2.
-The project-status design is challenged on malformed JSON (REQ-003).
-That finding is written to `council.json` and must exist for council PASS.
+Each finding carries `evidence`. Material findings revise DES-v1 to DES-v2.
+Zero material findings is allowed when the checklist passes; disagreement is
+not invented.
 
-Independence here is role checklists plus a real failing test later, not
-repeated sampling of the same model. High-risk work can still add a
-separate Cursor `--mode ask` review via `neewa_orchestrate.py`.
+The hardcoded malformed-JSON finding is fixture-only.

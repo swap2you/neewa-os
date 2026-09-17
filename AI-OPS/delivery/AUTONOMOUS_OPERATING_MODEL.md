@@ -4,16 +4,18 @@ NEEWA is the coordinator. Cursor is the Git writer. A chat reply is not DONE.
 
 ## Executable path
 
-Owner objective
-→ `12_SCRIPTS/neewa_autonomy.py` classifies intent
-→ durable parent job under `windows-jobs/autonomy` or `--root`
-→ lightest workflow that can satisfy the request
-→ software path: requirements, design, council, worker, tests, done-gate, owner review
-→ child Windows jobs still use `neewa_orchestrate.py` + the existing inbox
+Conversation
+→ `neewa_autonomy.py submit` (parent job on the Windows-jobs bind-mount)
+→ host runner `neewa_autonomy_runner.sh` (survives chat disconnect)
+→ requirements derived from the objective
+→ design from those requirements
+→ council inspects the written design (evidence per finding)
+→ child `cursor_call` via `neewa_orchestrate.py` and the Windows worker
+→ unittest evidence + independent traceability
+→ release candidate → OWNER_REVIEW
 
-Conversation can close. The parent job JSON is the source of truth.
-NEEWA only claims background execution when that record exists and a worker
-or this controller owns the next state.
+The project-status JSON CLI is a **regression fixture** (`--fixture demo-status` /
+`neewa_autonomy_fixture.py`). It is not the production path.
 
 ## Parent states
 
@@ -21,9 +23,12 @@ or this controller owns the next state.
 
 Exceptions: `WAITING`, `BLOCKED`, `FAILED`, `CANCELLED`.
 
-`DONE` is not written by the local SDLC runner. Owner review is required
-before any public release. `evaluate_autonomy_done` still refuses unknown
-evidence and missing tests.
+`EXECUTING` parks on a child inbox job. Restarting the runner harvests that child
+instead of replaying completed work.
+
+Approval is re-checked at the cursor_call boundary (repo, blocked intents, A2/A3).
+Budget uses measured cost when present, otherwise the conservative Cursor estimate
+in `11_CONFIG/budgets.json`. Unknown remaining allowance blocks chargeable work.
 
 ## What this does not do
 

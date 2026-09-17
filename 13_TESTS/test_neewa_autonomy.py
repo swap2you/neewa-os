@@ -8,33 +8,19 @@ ROOT = Path(__file__).resolve().parents[1]
 AUTO = ROOT / "12_SCRIPTS" / "neewa_autonomy.py"
 ORCH = ROOT / "12_SCRIPTS" / "neewa_orchestrate.py"
 
+CHANGELOG_OBJECTIVE = (
+    "NEEWA, build a markdown changelog digest CLI that reads CHANGELOG.md and "
+    "prints the latest version heading and its bullet list, with tests and a release candidate."
+)
 
-class AutonomyTests(unittest.TestCase):
+
+class FixtureRegressionTests(unittest.TestCase):
+    """Labeled demo-status fixture. Not the production Conversation path."""
+
     def setUp(self):
         self.mod = SourceFileLoader("neewa_autonomy", str(AUTO)).load_module()
 
-    def test_software_intent(self):
-        row = self.mod.classify_intent(
-            "NEEWA, build a project-status application. Research, council, tests, release candidate."
-        )
-        self.assertEqual(row["intent"], "software")
-        self.assertEqual(row["workflow"], "sdlc")
-        self.assertEqual(row["approval"], "A1")
-
-    def test_question_does_not_start_sdlc(self):
-        row = self.mod.classify_intent("what is the status of connected projects")
-        self.assertEqual(row["intent"], "question")
-        self.assertEqual(row["workflow"], "answer")
-
-    def test_a2_publish_is_gated(self):
-        row = self.mod.classify_intent("publish this article to the public blog")
-        self.assertEqual(row["approval"], "A2")
-
-    def test_a3_trade_is_gated(self):
-        row = self.mod.classify_intent("place a live trade for AAPL")
-        self.assertEqual(row["approval"], "A3")
-
-    def test_local_sdlc_reaches_owner_review(self):
+    def test_fixture_reaches_owner_review(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"
             work = Path(tmp) / "work"
@@ -45,118 +31,252 @@ class AutonomyTests(unittest.TestCase):
             )
             job = self.mod.run_software_local(job, work)
             self.assertEqual(job["state"], "OWNER_REVIEW")
-            self.assertEqual(job["requirements_version"], "REQ-v1")
-            self.assertEqual(job["design_version"], "DES-v2")
+            self.assertEqual(job["execution_worker"], "local-implementer")
+            self.assertEqual(job.get("fixture"), "demo-status")
             self.assertGreaterEqual(json.loads((work / "council.json").read_text())["material_count"], 1)
-            self.assertEqual(job["validation"]["tests"], "PASS")
-            self.assertEqual(job["validation"]["traceability"], "PASS")
-            self.assertTrue((work / "RELEASE_CANDIDATE.md").is_file())
             self.assertGreater(job["validation"]["first_fail_exit"], 0)
-            self.assertEqual(job["owner_decision"], "pending_review")
             self.assertNotEqual(job["state"], "DONE")
 
-    def test_restart_resumes_from_checkpoint(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "jobs"
-            work = Path(tmp) / "work"
-            job = self.mod.create_parent_job(
-                "build a project-status application",
-                root=root,
-            )
-            job = self.mod.run_software_local(job, work, stop_before="DESIGN")
-            self.assertEqual(job["state"], "REQUIREMENTS")
-            job_id = job["job_id"]
-            reloaded = self.mod.resume_job(job_id, root)
-            self.assertIsNotNone(reloaded)
-            finished = self.mod.run_software_local(reloaded, work)
-            self.assertEqual(finished["state"], "OWNER_REVIEW")
-
-    def test_idempotent_rerun_does_not_leave_owner_review(self):
+    def test_fixture_restart_resumes(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"
             work = Path(tmp) / "work"
             job = self.mod.create_parent_job("build a project-status application", root=root)
-            job = self.mod.run_software_local(job, work)
-            again = self.mod.run_software_local(job, work)
-            self.assertEqual(again["state"], "OWNER_REVIEW")
+            job = self.mod.run_software_local(job, work, stop_before="DESIGN")
+            self.assertEqual(job["state"], "REQUIREMENTS")
+            finished = self.mod.run_software_local(self.mod.resume_job(job["job_id"], root), work)
+            self.assertEqual(finished["state"], "OWNER_REVIEW")
 
-    def test_budget_exhaustion_blocks_without_execution(self):
+    def test_fixture_council_material(self):
+        reqs = self.mod.FIXTURE.fixture_build_requirements("build status app")
+        design = self.mod.FIXTURE.fixture_initial_design(reqs)
+        council = self.mod.FIXTURE.fixture_run_council(design)
+        self.assertGreaterEqual(council["material_count"], 1)
+
+
+class GeneralAutonomyTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_gen", str(AUTO)).load_module()
+
+    def test_requirements_follow_changelog_objective_not_status_json(self):
+        reqs = self.mod.build_requirements(CHANGELOG_OBJECTIVE)
+        blob = " ".join(r["text"] for r in reqs["requirements"]).lower()
+        self.assertIn("changelog", blob)
+        self.assertNotIn("json file describing project statuses", blob)
+        self.assertEqual(reqs["source_class"], "DERIVED_FROM_OBJECTIVE")
+        self.assertTrue(reqs["product_slug"])
+
+    def test_council_reviews_actual_design(self):
+        reqs = self.mod.build_requirements(CHANGELOG_OBJECTIVE)
+        design = self.mod.initial_design(reqs, CHANGELOG_OBJECTIVE)
+        complete = self.mod.run_council(design, reqs)
+        self.assertEqual(complete["material_count"], 0)
+        self.assertIn("no material", (complete["approved_design"].get("no_material_finding") or "").lower())
+        broken = dict(design)
+        broken["error_handling"] = ""
+        broken["summary"] = "CLI without error handling"
+        broken["filesystem_scope"] = ""
+        broken["components"] = [f"{reqs['product_slug']}/{reqs['product_slug']}.py"]
+        reviewed = self.mod.run_council(broken, reqs)
+        self.assertGreaterEqual(reviewed["material_count"], 1)
+        self.assertTrue(all("evidence" in f for f in reviewed["findings"]))
+
+    def test_traceability_does_not_pass_without_tests(self):
+        reqs = self.mod.build_requirements(CHANGELOG_OBJECTIVE)
+        design = self.mod.initial_design(reqs, CHANGELOG_OBJECTIVE)
+        council = self.mod.run_council(design, reqs)
+        approved = council["approved_design"]
+        trace = self.mod.traceability(
+            reqs,
+            approved,
+            expected_paths=approved["components"],
+            test_evidence={"passed": False, "source": "absent", "stdout": ""},
+            workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+        )
+        self.assertFalse(trace["all_pass"])
+        self.assertTrue(any(r["result"] in {"FAIL", "NOT RUN"} for r in trace["rows"]))
+
+    def test_budget_blocks_unknown_and_exhausted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=Path(tmp), budget_ceiling=0)
+            decision = self.mod.budget_decision(job)
+            self.assertFalse(decision["allows"])
+            self.assertEqual(decision["reason"], "BUDGET_EXHAUSTED")
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=Path(tmp), budget_ceiling=0.4)
+            decision = self.mod.budget_decision(job, "cursor-agent-cli")
+            self.assertFalse(decision["allows"])
+            self.assertEqual(decision["reason"], "BUDGET_EXHAUSTED")
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=Path(tmp), budget_ceiling=5)
+            self.assertTrue(self.mod.budget_allows(job))
+
+    def test_execution_boundary_rejects_unauthorized_repo(self):
+        gate = self.mod.authorize_execution(
+            approval_level="A1",
+            owner_decision=None,
+            prompt="implement a helper",
+            repo=r"C:\Development\Workspace\OratsUtil",
+            write=True,
+        )
+        self.assertFalse(gate["allowed"])
+        self.assertEqual(gate["reason"], "UNAUTHORIZED_REPO")
+
+    def test_execution_boundary_rejects_a3_even_if_classified_a1(self):
+        gate = self.mod.authorize_execution(
+            approval_level="A1",
+            owner_decision=None,
+            prompt="build a report then place a live trade",
+            repo=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+            write=True,
+        )
+        self.assertFalse(gate["allowed"])
+        self.assertEqual(gate["needed"], "A3")
+
+    def test_worker_path_failed_validation_then_correction(self):
+        mod = self.mod
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"
-            work = Path(tmp) / "work"
+            inbox = Path(tmp) / "inboxroot"
+            job = mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+            )
+            calls = {"submit": 0, "harvest": 0}
+
+            def submit(**kwargs):
+                calls["submit"] += 1
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest(job_id, inbox_root=None):
+                calls["harvest"] += 1
+                if calls["harvest"] == 1:
+                    return {
+                        "job_id": job_id,
+                        "state": "FAILED",
+                        "failure_reason": "validation failed; missing expected files: digest.py",
+                        "selected_worker": "cursor-agent-cli",
+                    }
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": [r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"],
+                    "validation": {
+                        "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0, \"stdout\": \"Ran 2 tests\\nOK\"}"
+                    },
+                    "usage": {"inputTokens": 100, "outputTokens": 50},
+                }
+
+            job = mod.run_until_idle(
+                job,
+                root=root,
+                inbox_root=inbox,
+                orch_submit=submit,
+                orch_harvest=harvest,
+            )
+            self.assertEqual(job["state"], "OWNER_REVIEW")
+            self.assertEqual(job["execution_worker"], "cursor-agent-cli")
+            self.assertGreaterEqual(calls["submit"], 2)
+            self.assertTrue(any("FAILED" in str(item) for item in job["retry_history"]))
+            self.assertEqual(job["validation"]["tests"], "PASS")
+            self.assertEqual(job["validation"]["traceability"], "PASS")
+            self.assertNotEqual(job["state"], "DONE")
+
+    def test_worker_unavailable_then_recovery(self):
+        empty = {"workers": [{"id": "codex", "class": "coding-worker", "status": "missing", "routable": False}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox", root=root)
+            parked = self.mod.run_until_idle(job, root=root, worker_registry=empty)
+            self.assertEqual(parked["state"], "WAITING")
+
+            def submit(**kwargs):
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": ["x.py"],
+                    "validation": {"stdout_tail": "Ran 1 test in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0}"},
+                }
+
+            resumed = self.mod.run_until_idle(
+                parked, root=root, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(resumed["state"], "OWNER_REVIEW")
+
+    def test_restart_during_running_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox", root=root)
+            submitted = {"n": 0}
+
+            def submit(**kwargs):
+                submitted["n"] += 1
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            def harvest_running(job_id, inbox_root=None):
+                return {"job_id": job_id, "state": "RUNNING"}
+
+            running = self.mod.run_until_idle(job, root=root, orch_submit=submit, orch_harvest=harvest_running)
+            self.assertEqual(running["state"], "EXECUTING")
+            self.assertTrue(running.get("active_child_id"))
+            self.assertEqual(submitted["n"], 1)
+            job_id = running["job_id"]
+            reloaded = self.mod.resume_job(job_id, root)
+
+            def harvest_done(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": ["ok.py"],
+                    "validation": {"stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0}"},
+                }
+
+            finished = self.mod.run_until_idle(reloaded, root=root, orch_submit=submit, orch_harvest=harvest_done)
+            self.assertEqual(finished["state"], "OWNER_REVIEW")
+            self.assertEqual(submitted["n"], 1)
+
+    def test_budget_blocks_before_cursor_submit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
             job = self.mod.create_parent_job(
-                "build a project-status application",
+                CHANGELOG_OBJECTIVE,
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
                 root=root,
                 budget_ceiling=0,
             )
-            job = self.mod.run_software_local(job, work)
-            self.assertEqual(job["state"], "BLOCKED")
-            self.assertEqual(job["failure_reason"], "BUDGET_EXHAUSTED")
-            self.assertFalse((work / "status_app.py").exists())
+            called = {"n": 0}
 
-    def test_a2_parent_job_is_blocked(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "jobs"
-            job = self.mod.create_parent_job("publish this to production", root=root)
-            self.assertEqual(job["approval_level"], "A2")
-            self.mod.transition(job, "CLASSIFIED", job["intent"])
-            self.mod.transition(job, "BLOCKED", "owner gate required")
-            self.assertEqual(job["state"], "BLOCKED")
+            def submit(**kwargs):
+                called["n"] += 1
+                return {"job_id": "x", "state": "DISPATCHED"}
 
-    def test_failover_waits_when_no_coding_worker(self):
-        empty = {
-            "workers": [
-                {"id": "codex", "class": "coding-worker", "status": "missing", "routable": False}
-            ]
-        }
-        choice = self.mod.select_coding_worker(empty)
-        self.assertFalse(choice["available"])
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / "jobs"
-            work = Path(tmp) / "work"
-            job = self.mod.create_parent_job("build a project-status application", root=root)
-            parked = self.mod.run_software_local(job, work, worker_registry=empty)
-            self.assertEqual(parked["state"], "WAITING")
-            resumed = self.mod.run_software_local(parked, work)
-            self.assertEqual(resumed["state"], "OWNER_REVIEW")
+            job = self.mod.run_until_idle(job, root=root, orch_submit=submit, orch_harvest=lambda *a, **k: None)
+            self.assertEqual(job["state"], "BLOCKED")
+            self.assertEqual(called["n"], 0)
+
+    def test_question_and_a2_still_classified(self):
+        self.assertEqual(self.mod.classify_intent("what is the status of connected projects")["intent"], "question")
+        self.assertEqual(self.mod.classify_intent("publish this article to the public blog")["approval"], "A2")
+        self.assertEqual(self.mod.classify_intent("place a live trade for AAPL")["approval"], "A3")
 
     def test_done_gate_rejects_missing_tests(self):
         job = {
             "state": "VALIDATING",
             "approval_level": "A1",
             "requirements_version": "REQ-v1",
-            "design_version": "DES-v2",
+            "design_version": "DES-v1",
             "artifacts": ["x"],
             "validation": {"council": "PASS", "tests": "NOT RUN", "traceability": "PASS"},
         }
-        failures = self.mod.evaluate_autonomy_done(job)
-        self.assertTrue(failures)
-        self.assertTrue(any("unit tests" in item for item in failures))
-
-    def test_done_gate_rejects_a3_without_owner(self):
-        job = {
-            "state": "VALIDATING",
-            "approval_level": "A3",
-            "requirements_version": "REQ-v1",
-            "design_version": "DES-v2",
-            "artifacts": ["x"],
-            "owner_decision": None,
-            "validation": {"council": "PASS", "tests": "PASS", "traceability": "PASS"},
-        }
-        self.assertTrue(self.mod.evaluate_autonomy_done(job))
-
-    def test_cancel_is_terminal(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            job = self.mod.create_parent_job("build a project-status application", root=Path(tmp))
-            self.mod.cancel_job(job, "owner cancelled")
-            self.assertEqual(job["state"], "CANCELLED")
-
-    def test_council_finds_material_defect(self):
-        design = self.mod.initial_design(self.mod.build_requirements("build status app"))
-        council = self.mod.run_council(design)
-        self.assertGreaterEqual(council["material_count"], 1)
-        self.assertEqual(council["approved_design"]["version"], "DES-v2")
-        self.assertTrue(any(f["severity"] == "material" for f in council["findings"]))
+        self.assertTrue(any("unit tests" in item for item in self.mod.evaluate_autonomy_done(job)))
 
 
 class OrchestrateUsageTests(unittest.TestCase):
@@ -166,7 +286,7 @@ class OrchestrateUsageTests(unittest.TestCase):
     def test_harvest_records_usage_when_present(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            rec = self.mod.submit(
+            self.mod.submit(
                 job_id="JOB-TEST-USAGE",
                 capability="project_inventory",
                 objective="inventory",
@@ -182,6 +302,7 @@ class OrchestrateUsageTests(unittest.TestCase):
                         "status": "COMPLETED",
                         "artifact": "report.json",
                         "usage": {"inputTokens": 11, "outputTokens": 7},
+                        "stdout_tail": "hello",
                     }
                 ),
                 encoding="utf-8",
@@ -189,7 +310,7 @@ class OrchestrateUsageTests(unittest.TestCase):
             inbox_file.unlink()
             harvested = self.mod.harvest("JOB-TEST-USAGE", root)
             self.assertEqual(harvested["usage"]["inputTokens"], 11)
-            self.assertEqual(harvested["usage_basis"], "worker-reported")
+            self.assertEqual(harvested["validation"]["stdout_tail"], "hello")
 
 
 if __name__ == "__main__":

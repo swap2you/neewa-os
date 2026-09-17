@@ -122,6 +122,8 @@
 - `12_SCRIPTS/emergency_lockdown.md`
 - `12_SCRIPTS/morning_brief.py`
 - `12_SCRIPTS/neewa_autonomy.py`
+- `12_SCRIPTS/neewa_autonomy_fixture.py`
+- `12_SCRIPTS/neewa_autonomy_runner.sh`
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_orchestrate.py`

@@ -381,6 +381,7 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),
             "host": payload.get("host"),
+            "stdout_tail": payload.get("stdout_tail"),
         }
         usage = payload.get("usage")
         if isinstance(usage, dict):

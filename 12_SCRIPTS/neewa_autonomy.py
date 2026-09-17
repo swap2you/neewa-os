@@ -2,6 +2,10 @@
 
 Extends the existing Windows orchestrator. Does not open listeners or invent workers.
 A generated response is not DONE: artifacts, tests, and the done-gate must pass.
+
+The project-status JSON CLI lives in neewa_autonomy_fixture.py as a regression
+fixture only. Production jobs derive requirements from the objective and implement
+through the Conversation-to-Cursor Windows worker bridge.
 """
 from __future__ import annotations
 
@@ -9,9 +13,7 @@ import argparse
 import json
 import os
 import re
-import subprocess
-import sys
-import unittest
+import time
 from datetime import datetime, timezone
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -20,11 +22,13 @@ ROOT = Path(__file__).resolve().parents[1]
 ORCH = SourceFileLoader(
     "neewa_orchestrate_autonomy", str(ROOT / "12_SCRIPTS" / "neewa_orchestrate.py")
 ).load_module()
+FIXTURE = SourceFileLoader(
+    "neewa_autonomy_fixture", str(ROOT / "12_SCRIPTS" / "neewa_autonomy_fixture.py")
+).load_module()
 BUDGETS = ROOT / "11_CONFIG" / "budgets.json"
 WORKERS = ROOT / "11_CONFIG" / "workers.json"
 PROVIDERS = ROOT / "11_CONFIG" / "providers.json"
-PROJECTS = ROOT / "11_CONFIG" / "projects.json"
-RUNTIME = ROOT / "11_CONFIG" / "runtime.json"
+POLICY = ROOT / "16_WINDOWS_CLIENT" / "worker" / "cursor-call-policy.json"
 
 PARENT_STATES = (
     "INTAKE",
@@ -45,6 +49,7 @@ PARENT_STATES = (
     "CANCELLED",
 )
 TERMINAL = {"DONE", "BLOCKED", "FAILED", "CANCELLED"}
+ACTIVE_CHILD = {"QUEUED", "DISPATCHED", "RUNNING", "VALIDATING", "WAITING"}
 A2_HINTS = (
     "publish",
     "deploy to production",
@@ -52,25 +57,17 @@ A2_HINTS = (
     "subscribe",
     "rotate credential",
     "make public",
+    "npm publish",
 )
 A3_HINTS = ("live trade", "place order", "wire transfer", "bank transfer")
+STOP_WORDS = {
+    "a", "an", "the", "simple", "small", "new", "please", "neewa", "owner",
+    "and", "or", "to", "for", "of", "with", "that", "which", "this",
+}
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def autonomy_root(explicit: Path | None = None) -> Path:
-    if explicit:
-        path = explicit
-    else:
-        inbox = ORCH.INBOX_MOD.resolve_inbox_root()
-        if inbox.parent.exists():
-            path = inbox / "autonomy"
-        else:
-            path = ROOT / "04_MEMORY" / "jobs"
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 def load_json(path: Path) -> dict:
@@ -80,6 +77,17 @@ def load_json(path: Path) -> dict:
 def save_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def autonomy_root(explicit: Path | None = None) -> Path:
+    if explicit:
+        path = explicit
+    else:
+        inbox = ORCH.INBOX_MOD.resolve_inbox_root()
+        path = inbox / "autonomy"
+    path.mkdir(parents=True, exist_ok=True)
+    (path / "work").mkdir(exist_ok=True)
+    return path
 
 
 def classify_intent(text: str) -> dict:
@@ -114,7 +122,7 @@ def classify_intent(text: str) -> dict:
             "approval": "A0",
             "reason": "evidence-producing research",
         }
-    if re.search(r"\b(build|implement|application|unit test|release candidate)\b", lower):
+    if re.search(r"\b(build|implement|application|unit test|release candidate|cli)\b", lower):
         return {
             "intent": "software",
             "workflow": "sdlc",
@@ -147,14 +155,19 @@ def create_parent_job(
     workspace: str | None = None,
     root: Path | None = None,
     budget_ceiling: float | None = None,
+    origin: str = "controller",
 ) -> dict:
     classification = classify_intent(objective)
     budgets = load_json(BUDGETS)
-    ceiling = budgets["job_defaults"]["max_cost"] if budget_ceiling is None else budget_ceiling
+    if budget_ceiling is None:
+        ceiling = budgets["job_defaults"]["max_cost"]
+    else:
+        ceiling = budget_ceiling
     job = {
-        "schema_version": 2,
+        "schema_version": 3,
         "job_id": new_parent_id(),
         "coordinator": "neewa-chief",
+        "origin": origin,
         "parent_objective": objective,
         "project_id": project_id,
         "workspace": workspace,
@@ -165,17 +178,22 @@ def create_parent_job(
         "design_version": None,
         "scope": "approved personal workspace only",
         "assigned_worker": None,
+        "execution_worker": None,
+        "child_jobs": [],
         "state": "INTAKE",
         "budget": {
             "ceiling": ceiling,
+            "consumed_usd": 0.0,
+            "consumed_basis": "none",
             "actual_usd": None,
-            "estimated_usd": None,
-            "actual_status": "unavailable-for-subscription-included",
+            "estimated_usd": 0.0,
+            "actual_status": "unavailable-until-measured",
             "invocations": [],
         },
         "timeout_sec": 600,
         "dependencies": [],
         "artifacts": [],
+        "expected_paths": [],
         "validation": None,
         "failure_reason": None,
         "retry_history": [],
@@ -219,28 +237,145 @@ def transition(job: dict, state: str, note: str | None = None) -> None:
     save_job(job)
 
 
+def conservative_cursor_estimate() -> float | None:
+    budgets = load_json(BUDGETS)
+    estimates = budgets.get("conservative_estimates_usd") or {}
+    value = estimates.get("cursor_call")
+    if value is None:
+        return None
+    return float(value)
+
+
+def invocation_cost(inv: dict) -> tuple[float | None, str]:
+    if inv.get("cost_usd") is not None:
+        return float(inv["cost_usd"]), "measured"
+    worker = str(inv.get("worker") or "")
+    if worker in {"cursor-agent-cli", "local-implementer"}:
+        est = conservative_cursor_estimate()
+        if est is None:
+            return None, "unknown"
+        if worker == "local-implementer":
+            return 0.0, "fixture-local"
+        return est, "conservative_estimate"
+    return None, "unknown"
+
+
+def budget_decision(job: dict, next_worker: str = "cursor-agent-cli") -> dict:
+    ceiling = job.get("budget", {}).get("ceiling")
+    if ceiling is None:
+        return {"allows": False, "reason": "COST_UNKNOWN", "remaining": None}
+    ceiling = float(ceiling)
+    if ceiling <= 0:
+        return {"allows": False, "reason": "BUDGET_EXHAUSTED", "remaining": 0.0, "consumed": 0.0}
+    consumed = 0.0
+    basis = "conservative_estimate"
+    for inv in job.get("budget", {}).get("invocations") or []:
+        cost, inv_basis = invocation_cost(inv)
+        if cost is None:
+            return {"allows": False, "reason": "COST_UNKNOWN", "remaining": None}
+        consumed += cost
+        if inv_basis == "measured":
+            basis = "measured"
+    next_cost, next_basis = invocation_cost({"worker": next_worker, "cost_usd": None})
+    if next_cost is None:
+        return {"allows": False, "reason": "COST_UNKNOWN", "remaining": None, "consumed": consumed}
+    remaining = ceiling - consumed
+    job["budget"]["consumed_usd"] = consumed
+    job["budget"]["consumed_basis"] = basis
+    job["budget"]["estimated_usd"] = consumed
+    if remaining < next_cost:
+        return {
+            "allows": False,
+            "reason": "BUDGET_EXHAUSTED",
+            "remaining": remaining,
+            "consumed": consumed,
+            "next_estimate": next_cost,
+            "next_basis": next_basis,
+        }
+    return {
+        "allows": True,
+        "remaining": remaining,
+        "consumed": consumed,
+        "next_estimate": next_cost,
+        "next_basis": next_basis,
+    }
+
+
+def budget_allows(job: dict, next_worker: str = "cursor-agent-cli") -> bool:
+    return bool(budget_decision(job, next_worker).get("allows"))
+
+
+def load_policy() -> dict:
+    if POLICY.is_file():
+        return load_json(POLICY)
+    return {}
+
+
+def authorize_execution(
+    *,
+    approval_level: str,
+    owner_decision: str | None,
+    prompt: str = "",
+    repo: str = "",
+    write: bool = False,
+) -> dict:
+    blob = f"{prompt}\n{repo}".lower()
+    needed = "A1" if write else "A0"
+    for hint in A3_HINTS:
+        if hint in blob:
+            needed = "A3"
+            break
+    if needed != "A3":
+        for hint in A2_HINTS:
+            if hint in blob:
+                needed = "A2"
+                break
+    policy = load_policy()
+    repo_norm = repo.replace("/", "\\").lower()
+    for name in policy.get("denied_name_equals") or []:
+        if name and name.lower() in repo_norm:
+            return {
+                "allowed": False,
+                "reason": "UNAUTHORIZED_REPO",
+                "needed": "DENIED",
+                "detail": name,
+            }
+    for frag in policy.get("blocked_intent_substrings") or []:
+        if frag and frag.lower() in blob:
+            mapped = "A3" if any(h in frag.lower() for h in A3_HINTS) else "A2"
+            return {
+                "allowed": False,
+                "reason": "BLOCKED_INTENT",
+                "needed": mapped,
+                "detail": frag,
+            }
+    rank = {"A0": 0, "A1": 1, "A2": 2, "A3": 3, "DENIED": 9}
+    if rank.get(needed, 9) >= 2 and owner_decision != "approved":
+        return {"allowed": False, "reason": f"{needed}_OWNER_GATE", "needed": needed}
+    if rank.get(needed, 0) > rank.get(approval_level, 0) and owner_decision != "approved":
+        return {"allowed": False, "reason": f"{needed}_OWNER_GATE", "needed": needed}
+    return {"allowed": True, "needed": needed, "reason": None}
+
+
 def record_usage(job: dict, worker: str, outcome: str, usage: dict | None = None) -> None:
     inv = {
         "at": utc_now(),
         "worker": worker,
         "outcome": outcome,
-        "input_tokens": (usage or {}).get("inputTokens"),
-        "output_tokens": (usage or {}).get("outputTokens"),
+        "input_tokens": (usage or {}).get("inputTokens") or (usage or {}).get("input_tokens"),
+        "output_tokens": (usage or {}).get("outputTokens") or (usage or {}).get("output_tokens"),
         "cache_read_tokens": (usage or {}).get("cacheReadTokens"),
         "cache_write_tokens": (usage or {}).get("cacheWriteTokens"),
-        "cost_usd": None,
-        "cost_basis": "unavailable-subscription-included",
+        "cost_usd": (usage or {}).get("cost_usd"),
+        "cost_basis": "measured" if (usage or {}).get("cost_usd") is not None else "pending",
     }
+    cost, basis = invocation_cost(inv)
+    inv["cost_usd"] = cost
+    inv["cost_basis"] = basis
     job["budget"].setdefault("invocations", []).append(inv)
-
-
-def budget_allows(job: dict) -> bool:
-    ceiling = float(job["budget"]["ceiling"])
-    count = len(job["budget"].get("invocations") or [])
-    max_inv = int(load_json(BUDGETS)["job_defaults"].get("max_retries", 2)) + 8
-    if ceiling <= 0:
-        return False
-    return count < max_inv
+    decision = budget_decision(job, worker)
+    job["budget"]["consumed_usd"] = decision.get("consumed")
+    job["budget"]["consumed_basis"] = decision.get("next_basis") or basis
 
 
 def routable_workers(registry: dict | None = None) -> list[dict]:
@@ -268,100 +403,251 @@ def select_coding_worker(registry: dict | None = None, fallback_order: list[str]
     }
 
 
-def build_requirements(objective: str) -> dict:
-    reqs = [
-        {
-            "id": "REQ-001",
-            "text": "Accept a JSON file describing project statuses.",
-            "kind": "functional",
-        },
-        {
-            "id": "REQ-002",
-            "text": "Print a human-readable status report including name and health.",
-            "kind": "functional",
-        },
-        {
-            "id": "REQ-003",
-            "text": "Reject malformed JSON with a non-zero exit code.",
-            "kind": "functional",
-        },
-        {
-            "id": "REQ-004",
-            "text": "Automated tests cover happy path and malformed input.",
-            "kind": "quality",
-        },
-        {
-            "id": "REQ-005",
-            "text": "Do not access employer trees or unrestricted filesystem paths.",
-            "kind": "security",
-        },
-    ]
+def product_slug(objective: str) -> str:
+    text = re.sub(r"(?i)^(?:neewa,?\s*|please\s*|owner:\s*)+", "", objective.strip())
+    match = re.search(
+        r"(?i)(?:build|create|implement|write|make)\s+(?:an?\s+)?(.+?)(?:\s+that\b|\s+which\b|\s+with\b|,|\.|$)",
+        text,
+    )
+    phrase = match.group(1) if match else text[:80]
+    phrase = re.sub(r"(?i)\b(cli|application|app|tool|utility|program)\b", " ", phrase)
+    words = [w for w in re.findall(r"[a-z0-9]+", phrase.lower()) if w not in STOP_WORDS][:4]
+    return "_".join(words) or "task"
+
+
+def split_objective_clauses(objective: str) -> list[str]:
+    cleaned = re.sub(r"(?i)^(?:neewa,?\s*)+", "", objective.strip())
+    parts = re.split(r"(?:,|;|\.(?:\s|$)|(?:\s+and\s+)|(?:\s+then\s+))", cleaned)
+    return [p.strip() for p in parts if p and len(p.strip()) > 8]
+
+
+def build_requirements(objective: str, *, fixture: str | None = None) -> dict:
+    if fixture == FIXTURE.FIXTURE_ID:
+        return FIXTURE.fixture_build_requirements(objective)
+    slug = product_slug(objective)
+    clauses = split_objective_clauses(objective)
+    reqs: list[dict] = []
+
+    def add(kind: str, text: str) -> None:
+        reqs.append({"id": f"REQ-{len(reqs)+1:03d}", "text": text, "kind": kind})
+
+    add("functional", f"Deliver `{slug}` satisfying: {objective.strip()}")
+    lower = objective.lower()
+    if "read" in lower:
+        add("functional", "Read the input file named or implied by the objective; do not scan unrelated directories.")
+    if re.search(r"\bprint|output|digest|report|heading|bullet\b", lower):
+        add("functional", "Emit the requested output described in the objective (stdout or named artifact).")
+    if re.search(r"\bchangelog|markdown|\.md\b", lower):
+        add("functional", "Treat Markdown structure as data; preserve headings and list items from the source file.")
+    if re.search(r"\bjson\b", lower):
+        add("functional", "Honor the JSON input/output contract stated in the objective.")
+    if re.search(r"\btest", lower) or "release candidate" in lower or classify_intent(objective)["workflow"] == "sdlc":
+        add("quality", "Automated tests cover the primary success path and at least one invalid or missing-input path.")
+    add("reliability", "Missing or unreadable input must produce a non-zero exit code and an error on stderr.")
+    add("security", "Operate only on an explicit path argument inside the approved workspace; do not access employer trees.")
+    if "release candidate" in lower:
+        add("release", "Produce a release-candidate document with requirement traceability after tests pass.")
+    seen = set()
+    unique = []
+    for req in reqs:
+        key = req["text"]
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(req)
+    for i, req in enumerate(unique, start=1):
+        req["id"] = f"REQ-{i:03d}"
     return {
         "version": "REQ-v1",
         "original_objective": objective,
+        "product_slug": slug,
+        "clauses": clauses,
         "clarifications": [],
         "implementation_decisions": [],
         "proposed_enhancements": [],
-        "out_of_scope": ["public deployment", "live trading", "employer data"],
-        "requirements": reqs,
+        "out_of_scope": ["public deployment", "live trading", "employer data", "Home voice work"],
+        "requirements": unique,
         "created_at": utc_now(),
-        "source_class": "INFERENCE",
+        "source_class": "DERIVED_FROM_OBJECTIVE",
     }
 
 
-def initial_design(requirements: dict) -> dict:
+def initial_design(requirements: dict, objective: str | None = None) -> dict:
+    if requirements.get("fixture") == FIXTURE.FIXTURE_ID:
+        return FIXTURE.fixture_initial_design(requirements)
+    objective = objective or requirements.get("original_objective") or ""
+    slug = requirements.get("product_slug") or product_slug(objective)
+    components = [f"{slug}/{slug}.py", f"{slug}/test_{slug}.py", f"{slug}/sample_input.txt", f"{slug}/test-results.json"]
+    if any("markdown" in r["text"].lower() or "changelog" in r["text"].lower() for r in requirements["requirements"]):
+        components[2] = f"{slug}/sample_CHANGELOG.md"
+    if any(r.get("kind") == "release" for r in requirements["requirements"]):
+        components.append(f"{slug}/RELEASE_CANDIDATE.md")
+    summary = (
+        f"Python CLI `{slug}/{slug}.py` in the approved cursor-sandbox. "
+        f"It implements: " + "; ".join(r["text"] for r in requirements["requirements"] if r["kind"] == "functional")
+    )
     return {
         "version": "DES-v1",
-        "summary": "CLI that reads a JSON array of {name, status} and prints a table.",
-        "assumptions": ["Local Python 3 is available.", "Workspace is the approved sandbox."],
-        "components": ["status_app.py", "sample_status.json", "test_status_app.py"],
+        "product_slug": slug,
+        "summary": summary,
+        "assumptions": [
+            "Local Python 3 is available on the Windows worker.",
+            "Workspace is the approved personal sandbox unless a connected repo is named.",
+        ],
+        "components": components,
+        "error_handling": "non-zero exit and stderr on missing/unreadable/invalid input",
+        "filesystem_scope": "explicit path argument only; approved workspace",
         "acceptance": [r["id"] for r in requirements["requirements"]],
         "created_at": utc_now(),
     }
 
 
-def run_council(design: dict) -> dict:
-    """Deterministic role reviews. Finds a real defect: missing malformed-JSON handling."""
-    findings = [
-        {
-            "role": "solution_architect",
-            "severity": "info",
-            "finding": "Single-file CLI is appropriate for the sandbox scope.",
-        },
-        {
-            "role": "implementation_engineer",
-            "severity": "info",
-            "finding": "No third-party dependencies required.",
-        },
-        {
-            "role": "quality_engineer",
-            "severity": "material",
-            "finding": "DES-v1 does not specify behavior for malformed JSON; REQ-003 would fail.",
-        },
-        {
-            "role": "security_privacy",
-            "severity": "info",
-            "finding": "Keep reads on an explicit path argument; do not walk C:\\.",
-        },
-        {
-            "role": "ux_product",
-            "severity": "info",
-            "finding": "Print a one-line error to stderr on invalid input.",
-        },
-        {
-            "role": "cost_operations",
-            "severity": "info",
-            "finding": "Use the existing Cursor worker only for implementation; council itself is local.",
-        },
-    ]
+def _design_blob(design: dict) -> str:
+    return " ".join(
+        [
+            str(design.get("summary") or ""),
+            str(design.get("error_handling") or ""),
+            str(design.get("filesystem_scope") or ""),
+            " ".join(str(c) for c in design.get("components") or []),
+        ]
+    ).lower()
+
+
+def run_council(design: dict, requirements: dict | None = None) -> dict:
+    if design.get("fixture") == FIXTURE.FIXTURE_ID or (requirements or {}).get("fixture") == FIXTURE.FIXTURE_ID:
+        return FIXTURE.fixture_run_council(design)
+    requirements = requirements or {"requirements": []}
+    blob = _design_blob(design)
+    findings = []
+
+    def note(role: str, severity: str, finding: str, evidence: str) -> None:
+        findings.append({"role": role, "severity": severity, "finding": finding, "evidence": evidence})
+
+    acceptance = set(design.get("acceptance") or [])
+    reqs = requirements.get("requirements") or []
+    missing_ids = [r["id"] for r in reqs if r["id"] not in acceptance]
+    if missing_ids:
+        note(
+            "quality_engineer",
+            "material",
+            f"Design acceptance omits {missing_ids}.",
+            f"acceptance={sorted(acceptance)}",
+        )
+    else:
+        note(
+            "quality_engineer",
+            "info",
+            "Every requirement ID is listed in design acceptance.",
+            f"acceptance={sorted(acceptance)}",
+        )
+
+    if any("test" in r["text"].lower() or r["kind"] == "quality" for r in reqs):
+        if not any("test" in str(c).lower() for c in design.get("components") or []):
+            note(
+                "quality_engineer",
+                "material",
+                "Quality requirement exists but no test component is listed.",
+                f"components={design.get('components')}",
+            )
+        else:
+            note(
+                "quality_engineer",
+                "info",
+                "Test component is present.",
+                f"components={design.get('components')}",
+            )
+
+    if any(r["kind"] == "reliability" or "invalid" in r["text"].lower() or "missing" in r["text"].lower() for r in reqs):
+        if not any(w in blob for w in ("stderr", "non-zero", "exit", "invalid", "missing")):
+            note(
+                "quality_engineer",
+                "material",
+                "Reliability requirement is not reflected in error-handling design.",
+                f"error_handling={design.get('error_handling')!r} summary={design.get('summary')!r}",
+            )
+        else:
+            note(
+                "quality_engineer",
+                "info",
+                "Error handling is specified.",
+                str(design.get("error_handling") or design.get("summary")),
+            )
+
+    if any(r["kind"] == "security" for r in reqs):
+        if not any(w in blob for w in ("approved", "sandbox", "explicit path", "employer")):
+            note(
+                "security_privacy",
+                "material",
+                "Security requirement is not reflected in filesystem scope.",
+                str(design.get("filesystem_scope")),
+            )
+        else:
+            note(
+                "security_privacy",
+                "info",
+                "Filesystem scope is constrained.",
+                str(design.get("filesystem_scope")),
+            )
+
+    if re.search(r"\b(pip install|npm install|paid api|openai api)\b", blob):
+        note(
+            "cost_operations",
+            "material",
+            "Design introduces extra installs or paid APIs without authorization.",
+            blob[:300],
+        )
+    else:
+        note(
+            "cost_operations",
+            "info",
+            "No extra paid providers in the design.",
+            "components use local Python",
+        )
+
+    note(
+        "solution_architect",
+        "info",
+        "Single-package CLI matches sandbox A1 scope." if len(design.get("components") or []) <= 6 else "Component set is large for a sandbox task.",
+        f"n={len(design.get('components') or [])}",
+    )
+    note(
+        "implementation_engineer",
+        "info",
+        "Implementation is a stdlib Python CLI unless later evidence shows otherwise.",
+        str(design.get("components")),
+    )
+    note(
+        "ux_product",
+        "info",
+        "CLI should print usage on missing args.",
+        "implicit CLI contract",
+    )
+
     material = [f for f in findings if f["severity"] == "material"]
     revised = dict(design)
-    revised["version"] = "DES-v2"
-    revised["summary"] = (
-        "CLI that reads a JSON array of {name, status}, prints a table, "
-        "and exits non-zero on malformed JSON without walking other directories."
-    )
-    revised["corrections"] = [f["finding"] for f in material]
+    if material:
+        revised["version"] = "DES-v2"
+        extra = " Corrected to address: " + " ".join(f["finding"] for f in material)
+        revised["summary"] = (revised.get("summary") or "") + extra
+        if any("error" in f["finding"].lower() or "reliability" in f["finding"].lower() for f in material):
+            revised["error_handling"] = "non-zero exit and stderr on missing/unreadable/invalid input"
+        if any("security" in f["finding"].lower() or "filesystem" in f["finding"].lower() for f in material):
+            revised["filesystem_scope"] = "explicit path argument only; approved workspace; no employer trees"
+        if any("test" in f["finding"].lower() for f in material):
+            slug = revised.get("product_slug") or "task"
+            comps = list(revised.get("components") or [])
+            test_path = f"{slug}/test_{slug}.py"
+            if test_path not in comps:
+                comps.append(test_path)
+            revised["components"] = comps
+        revised["corrections"] = [f["finding"] for f in material]
+        revised["acceptance"] = [r["id"] for r in reqs] or revised.get("acceptance")
+    else:
+        revised["version"] = design.get("version") or "DES-v1"
+        revised["corrections"] = []
+        revised["no_material_finding"] = (
+            "Council checklist passed against the written design; no material defect was found."
+        )
     return {
         "rounds": 1,
         "findings": findings,
@@ -372,177 +658,151 @@ def run_council(design: dict) -> dict:
     }
 
 
-STATUS_APP_SRC = '''\
-"""Project status CLI. Reads one JSON file; does not walk the filesystem."""
-from __future__ import annotations
-
-import json
-import sys
-from pathlib import Path
+def expected_paths_from_design(design: dict) -> list[str]:
+    return [str(c) for c in design.get("components") or []]
 
 
-def load_projects(path: Path) -> list[dict]:
-    raw = path.read_text(encoding="utf-8")
-    data = json.loads(raw)
-    if not isinstance(data, list):
-        raise ValueError("status file must be a JSON array")
-    out = []
-    for row in data:
-        if not isinstance(row, dict) or "name" not in row or "status" not in row:
-            raise ValueError("each item needs name and status")
-        out.append({"name": str(row["name"]), "status": str(row["status"])})
-    return out
+def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
+    req_lines = "\n".join(f"- {r['id']}: {r['text']}" for r in requirements["requirements"])
+    files = "\n".join(f"- {p}" for p in expected_paths_from_design(design))
+    return f"""Implement this approved NEEWA work package. Do not change the objective.
+
+OBJECTIVE:
+{job['parent_objective']}
+
+REQUIREMENTS ({requirements.get('version')}):
+{req_lines}
+
+APPROVED DESIGN ({design.get('version')}):
+{design.get('summary')}
+Error handling: {design.get('error_handling')}
+Filesystem scope: {design.get('filesystem_scope')}
+
+Write ALL of these files (relative to the workspace root):
+{files}
+
+Rules:
+- Python 3 stdlib only.
+- Automated tests must actually run via python -m unittest.
+- Write test-results.json in the product folder with keys exit_code, passed, stdout, stderr from that unittest run.
+- Print a single final line: TEST_JSON:<compact json of test-results>
+- Stay inside this workspace. Do not touch employer trees or the rest of the C drive.
+- No public distribution, production rollout, buying services, or brokerage actions.
+- Do not claim files exist unless you wrote them.
+"""
 
 
-def render(projects: list[dict]) -> str:
-    lines = ["PROJECT STATUS", "=============="]
-    for row in projects:
-        lines.append(f"{row['name']}: {row['status']}")
-    lines.append(f"count={len(projects)}")
-    return "\\n".join(lines) + "\\n"
+def parse_test_evidence(stdout: str | None, payload: dict | None = None) -> dict:
+    text = stdout or ""
+    payload = payload or {}
+    if payload.get("test_results"):
+        row = payload["test_results"]
+        return {
+            "passed": bool(row.get("passed")),
+            "exit_code": row.get("exit_code"),
+            "stdout": str(row.get("stdout") or "")[-4000:],
+            "source": "payload",
+        }
+    match = re.search(r"TEST_JSON:(\{.*\})", text)
+    if match:
+        try:
+            row = json.loads(match.group(1))
+            return {
+                "passed": bool(row.get("passed")),
+                "exit_code": row.get("exit_code"),
+                "stdout": str(row.get("stdout") or "")[-4000:],
+                "source": "TEST_JSON",
+            }
+        except json.JSONDecodeError:
+            pass
+    ok = bool(re.search(r"\nOK\b", text) or re.search(r"Ran \d+ tests? in .*s\n\nOK", text))
+    failed = "FAILED (" in text or "errors=" in text.lower()
+    ran = re.search(r"Ran (\d+) tests?", text)
+    if ran:
+        return {
+            "passed": ok and not failed,
+            "exit_code": 0 if ok and not failed else 1,
+            "stdout": text[-4000:],
+            "source": "unittest-stdout",
+            "ran": int(ran.group(1)),
+        }
+    return {"passed": False, "exit_code": None, "stdout": text[-4000:], "source": "absent"}
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = list(sys.argv[1:] if argv is None else argv)
-    if not args:
-        sys.stderr.write("usage: status_app.py <file.json>\\n")
-        return 2
-    path = Path(args[0])
-    try:
-        text = render(load_projects(path))
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        sys.stderr.write(f"invalid status file: {exc}\\n")
-        return 1
-    sys.stdout.write(text)
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-'''
-
-STATUS_APP_BROKEN = STATUS_APP_SRC.replace(
-    """    try:
-        text = render(load_projects(path))
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        sys.stderr.write(f"invalid status file: {exc}\\n")
-        return 1
-    sys.stdout.write(text)
-    return 0""",
-    """    try:
-        text = render(load_projects(path))
-    except Exception:
-        sys.stdout.write("PROJECT STATUS\\n==============\\ncount=0\\n")
-        return 0
-    sys.stdout.write(text)
-    return 0""",
-)
-
-STATUS_TEST_SRC = '''\
-import json
-import subprocess
-import sys
-import tempfile
-import unittest
-from pathlib import Path
-
-APP = Path(__file__).resolve().parent / "status_app.py"
-
-
-class StatusAppTests(unittest.TestCase):
-    def test_happy_path(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            sample = Path(tmp) / "ok.json"
-            sample.write_text(
-                json.dumps([{"name": "NEEWA", "status": "healthy"}]),
-                encoding="utf-8",
-            )
-            completed = subprocess.run(
-                [sys.executable, str(APP), str(sample)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertIn("NEEWA: healthy", completed.stdout)
-        self.assertIn("count=1", completed.stdout)
-
-    def test_malformed_json_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            sample = Path(tmp) / "bad.json"
-            sample.write_text("{not json", encoding="utf-8")
-            completed = subprocess.run(
-                [sys.executable, str(APP), str(sample)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
-        self.assertNotEqual(completed.returncode, 0)
-        self.assertIn("invalid status file", completed.stderr)
-
-
-if __name__ == "__main__":
-    unittest.main()
-'''
-
-
-def implement_local(workdir: Path, broken: bool = False) -> list[Path]:
-    workdir.mkdir(parents=True, exist_ok=True)
-    src = STATUS_APP_BROKEN if broken else STATUS_APP_SRC
-    files = {
-        "status_app.py": src,
-        "test_status_app.py": STATUS_TEST_SRC,
-        "sample_status.json": json.dumps(
-            [
-                {"name": "NEEWA-OS", "status": "healthy"},
-                {"name": "cursor-sandbox", "status": "active"},
-            ],
-            indent=2,
-        )
-        + "\n",
-    }
-    paths = []
-    for name, body in files.items():
-        path = workdir / name
-        path.write_text(body, encoding="utf-8")
-        paths.append(path)
-    return paths
-
-
-def run_unit_tests(workdir: Path) -> dict:
-    completed = subprocess.run(
-        [sys.executable, "-m", "unittest", "test_status_app.py", "-v"],
-        cwd=str(workdir),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    return {
-        "exit_code": completed.returncode,
-        "passed": completed.returncode == 0,
-        "stdout": completed.stdout[-4000:],
-        "stderr": completed.stderr[-2000:],
-    }
-
-
-def traceability(requirements: dict, test_result: dict) -> dict:
+def traceability(
+    requirements: dict,
+    design: dict,
+    *,
+    expected_paths: list[str],
+    test_evidence: dict,
+    workspace: str | None,
+) -> dict:
     rows = []
+    tests_passed = bool(test_evidence.get("passed"))
+    stdout = (test_evidence.get("stdout") or "").lower()
+    paths_l = " ".join(expected_paths).lower()
     for req in requirements["requirements"]:
-        covered = req["id"] in {"REQ-001", "REQ-002", "REQ-003", "REQ-004", "REQ-005"}
-        tested = test_result.get("passed") and req["id"] != "REQ-005"
-        if req["id"] == "REQ-005":
-            tested = True
+        evidence = []
+        result = "FAIL"
+        text = req["text"].lower()
+        if req["id"] not in (design.get("acceptance") or []):
+            evidence.append("requirement not in approved design acceptance")
+        if req["kind"] in {"functional", "reliability"}:
+            impl = [p for p in expected_paths if p.endswith(".py") and "test_" not in Path(p).name]
+            if impl:
+                evidence.append("implementation=" + ",".join(impl))
+            if tests_passed:
+                evidence.append(f"tests_passed via {test_evidence.get('source')}")
+                result = "PASS"
+            elif test_evidence.get("source") == "absent":
+                result = "NOT RUN"
+                evidence.append("no unittest evidence")
+            else:
+                evidence.append("tests did not pass")
+        elif req["kind"] == "quality":
+            if tests_passed and any("test" in p.lower() for p in expected_paths):
+                evidence.append("test file present and unittest passed")
+                result = "PASS"
+            elif not any("test" in p.lower() for p in expected_paths):
+                evidence.append("no test file in expected_paths")
+            else:
+                evidence.append(f"unittest source={test_evidence.get('source')} passed={tests_passed}")
+                result = "NOT RUN" if test_evidence.get("source") == "absent" else "FAIL"
+        elif req["kind"] == "security":
+            scope_ok = any(w in _design_blob(design) for w in ("approved", "sandbox", "explicit path"))
+            workspace_ok = bool(workspace) and "oratsutil" not in workspace.lower()
+            if scope_ok and workspace_ok:
+                evidence.append(f"design.filesystem_scope={design.get('filesystem_scope')}")
+                evidence.append(f"workspace={workspace}")
+                result = "PASS"
+            else:
+                evidence.append("missing scope or workspace evidence")
+        elif req["kind"] == "release":
+            if "release_candidate" in paths_l or "release candidate" in stdout:
+                evidence.append("release artifact referenced")
+                result = "PASS" if tests_passed else "FAIL"
+            else:
+                evidence.append("release candidate not yet attached")
+                result = "NOT RUN"
+        else:
+            if tests_passed:
+                result = "PASS"
+                evidence.append("covered by passing suite")
+            else:
+                result = "NOT RUN" if test_evidence.get("source") == "absent" else "FAIL"
         rows.append(
             {
                 "requirement": req["id"],
-                "design": "DES-v2",
-                "implementation": "status_app.py",
-                "test": "test_status_app.py" if req["id"] != "REQ-005" else "policy",
-                "result": "PASS" if covered and tested else "FAIL",
+                "text": req["text"],
+                "design": design.get("version"),
+                "implementation": ",".join(p for p in expected_paths if p.endswith(".py") and "test_" not in Path(p).name) or None,
+                "test": test_evidence.get("source"),
+                "evidence": evidence,
+                "result": result,
             }
         )
     return {
-        "all_pass": all(r["result"] == "PASS" for r in rows),
+        "all_pass": all(r["result"] == "PASS" for r in rows) and bool(rows),
         "rows": rows,
     }
 
@@ -579,19 +839,28 @@ def write_release_candidate(workdir: Path, job: dict, trace: dict) -> Path:
         f"Objective: {job['parent_objective']}",
         f"Requirements: {job['requirements_version']}",
         f"Design: {job['design_version']}",
-        f"Worker: {job.get('assigned_worker')}",
+        f"Assigned worker: {job.get('assigned_worker')}",
+        f"Execution worker: {job.get('execution_worker')}",
+        f"Child jobs: {json.dumps(job.get('child_jobs') or [])}",
         "",
         "## Traceability",
         json.dumps(trace["rows"], indent=2),
         "",
         "## Limitations",
-        "- Sandbox CLI only; not deployed.",
-        "- Subscription included Cursor usage cost is unavailable as a dollar figure.",
+        "- Approved sandbox only; not deployed.",
+        f"- Cost basis: {job.get('budget', {}).get('consumed_basis')}.",
         "",
         "Owner review is required before any public release.",
         "",
     ]
     path.write_text("\n".join(body), encoding="utf-8")
+    return path
+
+
+def job_workdir(job: dict, root: Path | None) -> Path:
+    base = autonomy_root(root)
+    path = base / "work" / job["job_id"]
+    path.mkdir(parents=True, exist_ok=True)
     return path
 
 
@@ -602,15 +871,85 @@ def cancel_job(job: dict, reason: str = "cancelled") -> dict:
     return job
 
 
-def run_software_local(
+def resume_job(job_id: str, root: Path | None = None) -> dict | None:
+    path = autonomy_root(root) / f"{job_id}.json"
+    if not path.is_file():
+        return None
+    job = load_json(path)
+    job["_path"] = str(path)
+    return job
+
+
+def list_parent_jobs(root: Path | None = None) -> list[dict]:
+    jobs = []
+    for path in sorted(autonomy_root(root).glob("JOB-*.json")):
+        row = load_json(path)
+        row["_path"] = str(path)
+        jobs.append(row)
+    return jobs
+
+
+def _submit_cursor(
     job: dict,
-    workdir: Path,
+    prompt: str,
+    expected_paths: list[str],
     *,
-    stop_before: str | None = None,
-    worker_registry: dict | None = None,
+    inbox_root: Path | None,
+    orch_submit,
 ) -> dict:
-    """Idempotent SDLC stepper. Reloading the job JSON and calling again resumes."""
-    workdir.mkdir(parents=True, exist_ok=True)
+    gate = authorize_execution(
+        approval_level=job.get("approval_level") or "A1",
+        owner_decision=job.get("owner_decision"),
+        prompt=job.get("parent_objective") or "",
+        repo=job.get("workspace") or "",
+        write=True,
+    )
+    if not gate["allowed"]:
+        return {"state": "BLOCKED", "failure_reason": gate["reason"], "authorization": gate}
+    decision = budget_decision(job)
+    if not decision["allows"]:
+        return {"state": "BLOCKED", "failure_reason": decision["reason"], "budget": decision}
+    seq = len(job.get("child_jobs") or []) + 1
+    child_id = f"{job['job_id']}-CC{seq:02d}"
+    record = orch_submit(
+        job_id=child_id,
+        capability="code_implementation",
+        objective=job["parent_objective"],
+        repo=job.get("workspace"),
+        prompt=prompt,
+        write=True,
+        timeout_sec=job.get("timeout_sec") or 600,
+        expected_paths=expected_paths,
+        project_id=job.get("project_id"),
+        approval="A1",
+        inbox_root=inbox_root,
+    )
+    job.setdefault("child_jobs", []).append(
+        {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
+    )
+    job["active_child_id"] = child_id
+    save_job(job)
+    return record
+
+
+def _child_terminal(record: dict | None) -> bool:
+    return bool(record and record.get("state") in {"COMPLETED", "BLOCKED", "FAILED", "CANCELLED"})
+
+
+def advance_job(
+    job: dict,
+    *,
+    root: Path | None = None,
+    inbox_root: Path | None = None,
+    worker_registry: dict | None = None,
+    orch_submit=None,
+    orch_harvest=None,
+    stop_before: str | None = None,
+) -> dict:
+    """Advance at most one meaningful transition. Safe to call after process restart."""
+    orch_submit = orch_submit or ORCH.submit
+    orch_harvest = orch_harvest or ORCH.harvest
+    workdir = job_workdir(job, root)
     if job["state"] in TERMINAL or job["state"] == "OWNER_REVIEW":
         return job
 
@@ -620,13 +959,27 @@ def run_software_local(
             return job
 
     if job["state"] == "CLASSIFIED":
+        gate = authorize_execution(
+            approval_level=job.get("approval_level") or "A1",
+            owner_decision=job.get("owner_decision"),
+            prompt=job.get("parent_objective") or "",
+            repo=job.get("workspace") or "",
+            write=job.get("workflow") == "sdlc",
+        )
+        if not gate["allowed"]:
+            job["failure_reason"] = gate["reason"]
+            transition(job, "BLOCKED", gate["reason"])
+            return job
         if job["approval_level"] in {"A2", "A3"}:
             job["failure_reason"] = "A2/A3 owner gate"
             transition(job, "BLOCKED", "consequential action requires owner gate")
             return job
+        if job.get("workflow") != "sdlc":
+            save_job(job)
+            return job
         if not budget_allows(job):
-            job["failure_reason"] = "BUDGET_EXHAUSTED"
-            transition(job, "BLOCKED", "budget ceiling prevents new execution")
+            job["failure_reason"] = budget_decision(job)["reason"]
+            transition(job, "BLOCKED", job["failure_reason"])
             return job
         transition(job, "REQUIREMENTS")
         if stop_before == "REQUIREMENTS":
@@ -642,28 +995,32 @@ def run_software_local(
         job["requirements_version"] = requirements["version"]
         if str(req_path) not in job["artifacts"]:
             job["artifacts"].append(str(req_path))
-        checkpoint(job, "requirements", {"version": requirements["version"]})
+        checkpoint(job, "requirements", {"version": requirements["version"], "count": len(requirements["requirements"])})
         if stop_before == "DESIGN":
             save_job(job)
             return job
         transition(job, "DESIGN")
+        return job
 
     if job["state"] == "DESIGN":
         requirements = load_json(workdir / "requirements.json")
-        design = initial_design(requirements)
+        design = initial_design(requirements, job["parent_objective"])
         save_json(workdir / "design-v1.json", design)
         if stop_before == "COUNCIL":
             save_job(job)
             return job
         transition(job, "COUNCIL")
+        return job
 
     if job["state"] == "COUNCIL":
+        requirements = load_json(workdir / "requirements.json")
         design = load_json(workdir / "design-v1.json")
-        council = run_council(design)
+        council = run_council(design, requirements)
         save_json(workdir / "council.json", council)
         save_json(workdir / "design-v2.json", council["approved_design"])
         job["design_version"] = council["approved_design"]["version"]
-        job["validation"] = {"council": "PASS" if council["material_count"] >= 1 else "FAIL"}
+        job["expected_paths"] = expected_paths_from_design(council["approved_design"])
+        job["validation"] = {"council": "PASS"}
         checkpoint(job, "council", {"material": council["material_count"]})
         choice = select_coding_worker(worker_registry)
         if not choice["available"]:
@@ -672,6 +1029,7 @@ def run_software_local(
             return job
         job["assigned_worker"] = choice["worker"]
         transition(job, "PLANNED", choice["worker"])
+        return job
 
     if job["state"] == "WAITING":
         choice = select_coding_worker(worker_registry)
@@ -681,31 +1039,314 @@ def run_software_local(
         job["assigned_worker"] = choice["worker"]
         job["failure_reason"] = None
         transition(job, "PLANNED", f"resumed with {choice['worker']}")
+        return job
 
     if job["state"] == "PLANNED":
         if stop_before == "EXECUTING":
             save_job(job)
             return job
-        transition(job, "EXECUTING", "introduce then repair a validation defect")
+        if not budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
+            job["failure_reason"] = budget_decision(job)["reason"]
+            transition(job, "BLOCKED", job["failure_reason"])
+            return job
+        transition(job, "EXECUTING", "submit cursor_call")
+        return job
 
     if job["state"] == "EXECUTING":
-        implement_local(workdir, broken=True)
+        requirements = load_json(workdir / "requirements.json")
+        design = load_json(workdir / "design-v2.json") if (workdir / "design-v2.json").is_file() else load_json(workdir / "design-v1.json")
+        expected = job.get("expected_paths") or expected_paths_from_design(design)
+        child_id = job.get("active_child_id")
+        if child_id:
+            record = orch_harvest(child_id, inbox_root)
+            if not _child_terminal(record):
+                save_job(job)
+                return job
+            usage = (record or {}).get("usage")
+            record_usage(job, job.get("assigned_worker") or "cursor-agent-cli", record.get("state"), usage)
+            job["execution_worker"] = record.get("selected_worker") or job.get("assigned_worker")
+            if record.get("state") != "COMPLETED":
+                retries = len(job.get("retry_history") or [])
+                max_retries = int(load_json(BUDGETS)["job_defaults"].get("max_retries", 2))
+                job.setdefault("retry_history", []).append(
+                    {
+                        "at": utc_now(),
+                        "child": child_id,
+                        "state": record.get("state"),
+                        "reason": record.get("failure_reason"),
+                    }
+                )
+                if retries + 1 > max_retries:
+                    job["failure_reason"] = record.get("failure_reason") or "child failed"
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
+                if not budget_allows(job):
+                    job["failure_reason"] = budget_decision(job)["reason"]
+                    transition(job, "BLOCKED", job["failure_reason"])
+                    return job
+                prompt = build_worker_prompt(job, requirements, design)
+                prompt += f"\nPrevious child {child_id} failed: {record.get('failure_reason')}. Write the missing files. Do not claim success without them.\n"
+                job["active_child_id"] = None
+                submitted = _submit_cursor(
+                    job, prompt, expected, inbox_root=inbox_root, orch_submit=orch_submit
+                )
+                if submitted.get("state") == "BLOCKED":
+                    job["failure_reason"] = submitted.get("failure_reason")
+                    transition(job, "BLOCKED", job["failure_reason"])
+                save_job(job)
+                return job
+            job["last_child"] = record
+            stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
+            # harvest may not copy stdout; keep payload if present
+            payload = record
+            test_ev = parse_test_evidence(stdout, payload)
+            job["validation"] = job.get("validation") or {}
+            job["validation"]["tests"] = "PASS" if test_ev.get("passed") else "FAIL"
+            job["validation"]["test_evidence"] = test_ev
+            if record.get("artifact_paths"):
+                for art in record["artifact_paths"]:
+                    if art not in job["artifacts"]:
+                        job["artifacts"].append(art)
+            save_json(workdir / "test-results.json", test_ev)
+            transition(job, "TESTING", child_id)
+            return job
+        prompt = build_worker_prompt(job, requirements, design)
+        submitted = _submit_cursor(
+            job, prompt, expected, inbox_root=inbox_root, orch_submit=orch_submit
+        )
+        if submitted.get("state") == "BLOCKED":
+            job["failure_reason"] = submitted.get("failure_reason")
+            transition(job, "BLOCKED", job["failure_reason"])
+        save_job(job)
+        return job
+
+    if job["state"] == "TESTING":
+        requirements = load_json(workdir / "requirements.json")
+        design = load_json(workdir / "design-v2.json") if (workdir / "design-v2.json").is_file() else load_json(workdir / "design-v1.json")
+        test_ev = (job.get("validation") or {}).get("test_evidence") or {}
+        if test_ev.get("passed"):
+            job["validation"]["tests"] = "PASS"
+        else:
+            retries = len(job.get("retry_history") or [])
+            max_retries = int(load_json(BUDGETS)["job_defaults"].get("max_retries", 2))
+            if retries < max_retries and budget_allows(job):
+                job.setdefault("retry_history", []).append(
+                    {"at": utc_now(), "event": "tests failed; requesting correction"}
+                )
+                job["active_child_id"] = None
+                prompt = build_worker_prompt(job, requirements, design)
+                prompt += "\nUnittest evidence did not PASS. Fix the implementation and tests, rerun unittest, rewrite test-results.json.\n"
+                transition(job, "EXECUTING", "automatic correction")
+                submitted = _submit_cursor(
+                    job,
+                    prompt,
+                    job.get("expected_paths") or expected_paths_from_design(design),
+                    inbox_root=inbox_root,
+                    orch_submit=orch_submit,
+                )
+                if submitted.get("state") == "BLOCKED":
+                    job["failure_reason"] = submitted.get("failure_reason")
+                    transition(job, "BLOCKED", job["failure_reason"])
+                save_job(job)
+                return job
+            job["validation"]["tests"] = "FAIL"
+            job["failure_reason"] = "tests did not pass"
+            transition(job, "FAILED", job["failure_reason"])
+            return job
+        trace = traceability(
+            requirements,
+            design,
+            expected_paths=job.get("expected_paths") or [],
+            test_evidence=test_ev,
+            workspace=job.get("workspace"),
+        )
+        save_json(workdir / "traceability.json", trace)
+        job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
+        if str(workdir / "traceability.json") not in job["artifacts"]:
+            job["artifacts"].append(str(workdir / "traceability.json"))
+        transition(job, "VALIDATING")
+        return job
+
+    if job["state"] == "VALIDATING":
+        failures = evaluate_autonomy_done(job)
+        if failures:
+            job["failure_reason"] = "; ".join(failures)
+            transition(job, "FAILED", job["failure_reason"])
+            return job
+        trace = load_json(workdir / "traceability.json")
+        rc = write_release_candidate(workdir, job, trace)
+        if str(rc) not in job["artifacts"]:
+            job["artifacts"].append(str(rc))
+        job["owner_decision"] = "pending_review"
+        transition(job, "RELEASE_CANDIDATE", str(rc))
+        transition(job, "OWNER_REVIEW", "release candidate ready; no public deploy")
+        save_job(job)
+    return job
+
+
+def run_until_idle(
+    job: dict,
+    *,
+    root: Path | None = None,
+    inbox_root: Path | None = None,
+    worker_registry: dict | None = None,
+    orch_submit=None,
+    orch_harvest=None,
+    max_steps: int = 40,
+    stop_before: str | None = None,
+) -> dict:
+    for _ in range(max_steps):
+        before = (job["state"], job.get("active_child_id"), len(job.get("history") or []))
+        job = advance_job(
+            job,
+            root=root,
+            inbox_root=inbox_root,
+            worker_registry=worker_registry,
+            orch_submit=orch_submit,
+            orch_harvest=orch_harvest,
+            stop_before=stop_before,
+        )
+        if job["state"] in TERMINAL or job["state"] == "OWNER_REVIEW":
+            return job
+        if stop_before and job["state"] == stop_before:
+            return job
+        after = (job["state"], job.get("active_child_id"), len(job.get("history") or []))
+        if after == before:
+            return job
+    return job
+
+
+def runner_once(
+    *,
+    root: Path | None = None,
+    inbox_root: Path | None = None,
+    worker_registry: dict | None = None,
+) -> list[dict]:
+    heartbeat = {"at": utc_now(), "pid": os.getpid()}
+    save_json(autonomy_root(root) / "runner-heartbeat.json", heartbeat)
+    results = []
+    for job in list_parent_jobs(root):
+        if job.get("state") in TERMINAL or job.get("state") == "OWNER_REVIEW":
+            continue
+        if job.get("workflow") != "sdlc" and job.get("state") not in {"INTAKE"}:
+            continue
+        updated = advance_job(
+            job, root=root, inbox_root=inbox_root, worker_registry=worker_registry
+        )
+        results.append({"job_id": updated["job_id"], "state": updated["state"]})
+    return results
+
+
+def runner_loop(
+    *,
+    root: Path | None = None,
+    inbox_root: Path | None = None,
+    poll_sec: int = 15,
+    once: bool = False,
+) -> int:
+    while True:
+        runner_once(root=root, inbox_root=inbox_root)
+        if once:
+            return 0
+        time.sleep(max(3, poll_sec))
+
+
+def run_software_local(job: dict, workdir: Path, **kwargs):
+    """REGRESSION FIXTURE entrypoint. Not used for Conversation production jobs."""
+    stop_before = kwargs.get("stop_before")
+    worker_registry = kwargs.get("worker_registry")
+    job["fixture"] = FIXTURE.FIXTURE_ID
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    def save_json_local(path: Path, payload: dict) -> None:
+        save_json(path, payload)
+
+    if job["state"] in TERMINAL or job["state"] == "OWNER_REVIEW":
+        return job
+    if job["state"] == "INTAKE":
+        transition(job, "CLASSIFIED", job["intent"])
+        if stop_before == "CLASSIFIED":
+            return job
+    if job["state"] == "CLASSIFIED":
+        if job["approval_level"] in {"A2", "A3"}:
+            job["failure_reason"] = "A2/A3 owner gate"
+            transition(job, "BLOCKED", "consequential action requires owner gate")
+            return job
+        if not budget_allows(job, "local-implementer"):
+            job["failure_reason"] = budget_decision(job, "local-implementer")["reason"]
+            transition(job, "BLOCKED", job["failure_reason"])
+            return job
+        transition(job, "REQUIREMENTS")
+        if stop_before == "REQUIREMENTS":
+            return job
+    if job["state"] == "REQUIREMENTS":
+        req_path = workdir / "requirements.json"
+        if not req_path.is_file():
+            requirements = FIXTURE.fixture_build_requirements(job["parent_objective"])
+            save_json_local(req_path, requirements)
+        else:
+            requirements = load_json(req_path)
+        job["requirements_version"] = requirements["version"]
+        if str(req_path) not in job["artifacts"]:
+            job["artifacts"].append(str(req_path))
+        checkpoint(job, "requirements", {"version": requirements["version"], "fixture": FIXTURE.FIXTURE_ID})
+        if stop_before == "DESIGN":
+            save_job(job)
+            return job
+        transition(job, "DESIGN")
+    if job["state"] == "DESIGN":
+        requirements = load_json(workdir / "requirements.json")
+        design = FIXTURE.fixture_initial_design(requirements)
+        save_json_local(workdir / "design-v1.json", design)
+        if stop_before == "COUNCIL":
+            save_job(job)
+            return job
+        transition(job, "COUNCIL")
+    if job["state"] == "COUNCIL":
+        design = load_json(workdir / "design-v1.json")
+        council = FIXTURE.fixture_run_council(design)
+        save_json_local(workdir / "council.json", council)
+        save_json_local(workdir / "design-v2.json", council["approved_design"])
+        job["design_version"] = council["approved_design"]["version"]
+        job["validation"] = {"council": "PASS" if council["material_count"] >= 1 else "FAIL"}
+        checkpoint(job, "council", {"material": council["material_count"], "fixture": FIXTURE.FIXTURE_ID})
+        choice = select_coding_worker(worker_registry)
+        if not choice["available"]:
+            job["failure_reason"] = choice["missing"]
+            transition(job, "WAITING", choice["missing"])
+            return job
+        job["assigned_worker"] = choice["worker"]
+        transition(job, "PLANNED", choice["worker"])
+    if job["state"] == "WAITING":
+        choice = select_coding_worker(worker_registry)
+        if not choice["available"]:
+            save_job(job)
+            return job
+        job["assigned_worker"] = choice["worker"]
+        job["failure_reason"] = None
+        transition(job, "PLANNED", f"resumed with {choice['worker']}")
+    if job["state"] == "PLANNED":
+        if stop_before == "EXECUTING":
+            save_job(job)
+            return job
+        transition(job, "EXECUTING", "fixture local implementer")
+    if job["state"] == "EXECUTING":
+        FIXTURE.implement_local(workdir, broken=True)
         record_usage(job, "local-implementer", "defect-injected")
         job["execution_worker"] = "local-implementer"
         transition(job, "TESTING")
-
     if job["state"] == "TESTING":
-        first = run_unit_tests(workdir)
+        first = FIXTURE.run_unit_tests(workdir)
         if first["passed"]:
-            job["failure_reason"] = "expected defect was not detected"
+            job["failure_reason"] = "expected fixture defect was not detected"
             transition(job, "FAILED", "false completion: broken build passed tests")
             return job
         job.setdefault("retry_history", []).append(
-            {"at": utc_now(), "event": "malformed-json test failed as intended"}
+            {"at": utc_now(), "event": "fixture malformed-json test failed as intended"}
         )
-        implement_local(workdir, broken=False)
+        FIXTURE.implement_local(workdir, broken=False)
         record_usage(job, "local-implementer", "defect-corrected")
-        regression = run_unit_tests(workdir)
+        regression = FIXTURE.run_unit_tests(workdir)
         job.setdefault("validation", {})
         job["validation"]["tests"] = "PASS" if regression["passed"] else "FAIL"
         job["validation"]["first_fail_exit"] = first["exit_code"]
@@ -715,7 +1356,7 @@ def run_software_local(
             transition(job, "FAILED", "regression tests failed")
             return job
         requirements = load_json(workdir / "requirements.json")
-        trace = traceability(requirements, regression)
+        trace = FIXTURE.fixture_traceability(requirements, regression)
         job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
         save_json(workdir / "traceability.json", trace)
         for name in (
@@ -729,31 +1370,20 @@ def run_software_local(
             if path not in job["artifacts"]:
                 job["artifacts"].append(path)
         transition(job, "VALIDATING")
-
     if job["state"] == "VALIDATING":
         failures = evaluate_autonomy_done(job)
         if failures:
             job["failure_reason"] = "; ".join(failures)
             transition(job, "FAILED", job["failure_reason"])
             return job
-        requirements = load_json(workdir / "requirements.json")
         trace = load_json(workdir / "traceability.json")
         rc = write_release_candidate(workdir, job, trace)
         if str(rc) not in job["artifacts"]:
             job["artifacts"].append(str(rc))
         job["owner_decision"] = "pending_review"
         transition(job, "RELEASE_CANDIDATE", str(rc))
-        transition(job, "OWNER_REVIEW", "release candidate ready; no public deploy")
+        transition(job, "OWNER_REVIEW", "fixture release candidate; not production")
         save_job(job)
-    return job
-
-
-def resume_job(job_id: str, root: Path | None = None) -> dict | None:
-    path = autonomy_root(root) / f"{job_id}.json"
-    if not path.is_file():
-        return None
-    job = load_json(path)
-    job["_path"] = str(path)
     return job
 
 
@@ -773,10 +1403,9 @@ def capability_matrix() -> dict:
             "workspace_inventory",
             "cursor_call A1 on approved repos",
             "Conversation-to-Cursor JOB-20260917-CONV-CC-005",
-            "local autonomy SDLC controller",
         ],
         "IMPLEMENTED_BUT_UNVERIFIED": [
-            "Conversation-hosted parent SDLC (needs core sync + live job)",
+            "Conversation-originated parent SDLC through Cursor worker",
         ],
         "CONFIGURED_BUT_UNAVAILABLE": unavailable,
         "NOT_IMPLEMENTED": [
@@ -791,6 +1420,7 @@ def capability_matrix() -> dict:
             "new paid provider accounts",
         ],
         "routable_coding_workers": [w["id"] for w in routable_workers() if w.get("class") == "coding-worker"],
+        "cross_provider_failover": "UNVERIFIED",
     }
 
 
@@ -800,6 +1430,14 @@ def main() -> int:
     sub.add_parser("matrix")
     cls = sub.add_parser("classify")
     cls.add_argument("--text", required=True)
+    subp = sub.add_parser("submit")
+    subp.add_argument("--objective", required=True)
+    subp.add_argument("--project-id")
+    subp.add_argument("--workspace")
+    subp.add_argument("--root")
+    subp.add_argument("--budget-ceiling", type=float)
+    subp.add_argument("--origin", default="conversation")
+    subp.add_argument("--unattended", action="store_true")
     runp = sub.add_parser("run")
     runp.add_argument("--objective")
     runp.add_argument("--project-id")
@@ -808,9 +1446,18 @@ def main() -> int:
     runp.add_argument("--root")
     runp.add_argument("--budget-ceiling", type=float)
     runp.add_argument("--resume")
+    runp.add_argument("--fixture", choices=[FIXTURE.FIXTURE_ID])
+    runp.add_argument("--origin", default="controller")
     getp = sub.add_parser("get")
     getp.add_argument("--job-id", required=True)
     getp.add_argument("--root")
+    runr = sub.add_parser("runner")
+    runr.add_argument("--root")
+    runr.add_argument("--inbox-root")
+    runr.add_argument("--once", action="store_true")
+    runr.add_argument("--poll-sec", type=int, default=15)
+    listp = sub.add_parser("list")
+    listp.add_argument("--root")
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps(capability_matrix(), indent=2))
@@ -824,8 +1471,33 @@ def main() -> int:
             raise SystemExit(f"unknown job {args.job_id}")
         print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
         return 0
+    if args.command == "list":
+        rows = [
+            {"job_id": j["job_id"], "state": j.get("state"), "origin": j.get("origin"), "objective": j.get("parent_objective")}
+            for j in list_parent_jobs(Path(args.root) if args.root else None)
+        ]
+        print(json.dumps(rows, indent=2))
+        return 0
+    if args.command == "runner":
+        return runner_loop(
+            root=Path(args.root) if args.root else None,
+            inbox_root=Path(args.inbox_root) if args.inbox_root else None,
+            poll_sec=args.poll_sec,
+            once=args.once,
+        )
+    if args.command == "submit":
+        root = Path(args.root) if args.root else None
+        job = create_parent_job(
+            args.objective,
+            project_id=args.project_id,
+            workspace=args.workspace,
+            root=root,
+            budget_ceiling=args.budget_ceiling,
+            origin=args.origin,
+        )
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
+        return 0
     root = Path(args.root) if args.root else None
-    workdir = Path(args.workdir) if args.workdir else (autonomy_root(root) / "work")
     if not args.resume and not args.objective:
         raise SystemExit("run requires --objective or --resume")
     if args.resume:
@@ -839,16 +1511,20 @@ def main() -> int:
             workspace=args.workspace,
             root=root,
             budget_ceiling=args.budget_ceiling,
+            origin=args.origin,
         )
+    if args.fixture == FIXTURE.FIXTURE_ID:
+        workdir = Path(args.workdir) if args.workdir else (autonomy_root(root) / "work" / job["job_id"])
+        job = run_software_local(job, workdir)
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
+        return 0 if job["state"] in {"OWNER_REVIEW", "RELEASE_CANDIDATE", "DONE"} else 2
     if job["workflow"] != "sdlc":
-        transition(job, "CLASSIFIED", job["intent"])
-        if job["approval_level"] in {"A2", "A3"}:
-            transition(job, "BLOCKED", "owner gate required")
+        job = advance_job(job, root=root)
         print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
         return 0 if job["state"] != "BLOCKED" else 2
-    job = run_software_local(job, workdir)
+    job = run_until_idle(job, root=root)
     print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
-    return 0 if job["state"] in {"OWNER_REVIEW", "RELEASE_CANDIDATE", "DONE"} else 2
+    return 0 if job["state"] in {"OWNER_REVIEW", "RELEASE_CANDIDATE", "DONE", "WAITING", "EXECUTING"} else 2
 
 
 if __name__ == "__main__":

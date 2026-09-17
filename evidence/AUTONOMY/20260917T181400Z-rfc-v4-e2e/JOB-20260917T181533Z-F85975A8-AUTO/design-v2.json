@@ -1,0 +1,29 @@
+{
+  "version": "DES-v1",
+  "product_slug": "briefing_on_personal_project",
+  "workflow": "research_report",
+  "summary": "Source-grounded research document `briefing_on_personal_project/RESEARCH_REPORT.md` using only the approved local source pack. No software CLI.",
+  "assumptions": [
+    "Approved local corpus files only (OWNER.md, PROJECT_ACCESS.md, source packs as matched).",
+    "Missing sources are SOURCE_PENDING, never invented."
+  ],
+  "source_plan": "Quote SRC-IDs from the local pack; list owner tradition choices.",
+  "components": [
+    "briefing_on_personal_project/RESEARCH_REPORT.md",
+    "briefing_on_personal_project/citations.json",
+    "briefing_on_personal_project/SOURCE_STATUS.json"
+  ],
+  "error_handling": "SOURCE_PENDING when the pack lacks a requested source; do not fabricate citations",
+  "filesystem_scope": "approved NEEWA reference pack only",
+  "acceptance": [
+    "REQ-001",
+    "REQ-002",
+    "REQ-003",
+    "REQ-004",
+    "REQ-005",
+    "REQ-006"
+  ],
+  "created_at": "2026-09-17T18:15:57Z",
+  "corrections": [],
+  "no_material_finding": "Council checklist passed against the written design; no material defect was found."
+}

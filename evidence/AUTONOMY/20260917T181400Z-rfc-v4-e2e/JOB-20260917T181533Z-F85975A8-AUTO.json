@@ -1,0 +1,158 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T181533Z-F85975A8-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "Write a briefing on NEEWA personal project access stages citing OWNER.md and PROJECT_ACCESS.md. Do not publish.",
+  "project_id": "PRJ-NEEWA",
+  "workspace": "C:\\Development\\Workspace\\NEEWA-OS",
+  "intent": "research",
+  "workflow": "research_report",
+  "approval_level": "A0",
+  "requirements_version": "REQ-v1",
+  "design_version": "DES-v1",
+  "scope": "approved personal workspace only",
+  "assigned_worker": "local-research-synthesizer",
+  "execution_worker": "local-research-synthesizer",
+  "child_jobs": [],
+  "state": "OWNER_REVIEW",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 0.0,
+    "reserved_usd": 0.0,
+    "consumed_basis": "none",
+    "actual_usd": null,
+    "estimated_usd": 0.0,
+    "actual_status": "unavailable-until-measured",
+    "invocations": []
+  },
+  "project_resolution": {
+    "allowed": true,
+    "reason": null,
+    "access_stage": "CONNECTED"
+  },
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "lease": {
+    "owner": 2144935,
+    "fencing": "2144935-bc8f2010",
+    "expires_at": "2026-09-17T18:18:58Z"
+  },
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/requirements.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/briefing_on_personal_project/RESEARCH_REPORT.md",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/briefing_on_personal_project/citations.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/briefing_on_personal_project/SOURCE_STATUS.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/traceability.json",
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/RELEASE_CANDIDATE.md"
+  ],
+  "expected_paths": [
+    "briefing_on_personal_project/RESEARCH_REPORT.md",
+    "briefing_on_personal_project/citations.json",
+    "briefing_on_personal_project/SOURCE_STATUS.json"
+  ],
+  "validation": {
+    "council": "PASS",
+    "tests": "PASS",
+    "test_evidence": {
+      "passed": true,
+      "exit_code": 0,
+      "stdout": "PASS",
+      "source": "PASS"
+    },
+    "traceability": "PASS",
+    "independent_rerun": "LOCAL_CORPUS"
+  },
+  "failure_reason": null,
+  "retry_history": [],
+  "owner_decision": "pending_review",
+  "checkpoints": [
+    {
+      "name": "requirements",
+      "at": "2026-09-17T18:15:42Z",
+      "payload": {
+        "version": "REQ-v1",
+        "count": 6
+      }
+    },
+    {
+      "name": "council",
+      "at": "2026-09-17T18:16:12Z",
+      "payload": {
+        "material": 0,
+        "spec_sha256": "a799e6ceadb588ea100f260d5ad597b1f71443e6e7401ed7c1b4d2031ed9222d"
+      }
+    }
+  ],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T18:15:33Z",
+      "note": "evidence-producing research"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T18:15:42Z",
+      "note": "research"
+    },
+    {
+      "state": "REQUIREMENTS",
+      "at": "2026-09-17T18:15:42Z"
+    },
+    {
+      "state": "DESIGN",
+      "at": "2026-09-17T18:15:42Z"
+    },
+    {
+      "state": "COUNCIL",
+      "at": "2026-09-17T18:15:57Z"
+    },
+    {
+      "state": "BASELINE_LOCKED",
+      "at": "2026-09-17T18:16:12Z",
+      "note": "research baseline"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-17T18:16:27Z",
+      "note": "local-research-synthesizer"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T18:16:42Z",
+      "note": "synthesize research"
+    },
+    {
+      "state": "TESTING",
+      "at": "2026-09-17T18:16:57Z",
+      "note": "research citations"
+    },
+    {
+      "state": "VALIDATING",
+      "at": "2026-09-17T18:17:12Z"
+    },
+    {
+      "state": "RELEASE_CANDIDATE",
+      "at": "2026-09-17T18:17:28Z",
+      "note": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181533Z-F85975A8-AUTO/RELEASE_CANDIDATE.md"
+    },
+    {
+      "state": "OWNER_REVIEW",
+      "at": "2026-09-17T18:17:28Z",
+      "note": "release candidate ready; no public deploy"
+    }
+  ],
+  "created_at": "2026-09-17T18:15:33Z",
+  "updated_at": "2026-09-17T18:17:28Z",
+  "workspace_inspect": {
+    "workspace": "C:\\Development\\Workspace\\NEEWA-OS",
+    "exists_here": false,
+    "markers": [],
+    "stack": "python-docs",
+    "test_command": "python -m unittest 13_TESTS.test_neewa_autonomy -q",
+    "source": "catalog"
+  },
+  "spec_sha256": "a799e6ceadb588ea100f260d5ad597b1f71443e6e7401ed7c1b4d2031ed9222d"
+}

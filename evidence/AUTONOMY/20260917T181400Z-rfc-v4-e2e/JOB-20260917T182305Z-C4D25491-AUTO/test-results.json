@@ -1,0 +1,6 @@
+{
+  "passed": true,
+  "exit_code": 0,
+  "stdout": "\n> science-quest@1.0.0 test\n> vitest run\n\n RUN  v2.1.9 C:/Development/Workspace/KidsProjects/ScienceQuest\n\n \u0393\u00a3\u00f4 src/progress/storage.test.ts (3 tests) 13ms\n \u0393\u00a3\u00f4 src/engine/circuit/analyzeCircuit.test.ts (15 tests) 17ms\n \u0393\u00a3\u00f4 src/content/contentSchema.test.ts (6 tests) 30ms\n \u0393\u00a3\u00f4 src/app.routes.test.tsx (2 tests) 215ms\n\n Test Files  4 passed (4)\n      Tests  26 passed (26)\n   Start at  14:25:16\n   Duration  2.87s (transform 529ms, setup 887ms, collect 1.05s, tests 275ms, environment 4.41s, prepare 1.10s)\n",
+  "source": "TEST_JSON"
+}

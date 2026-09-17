@@ -1,0 +1,69 @@
+{
+  "version": "REQ-v1",
+  "original_objective": "Write a briefing on NEEWA personal project access stages citing OWNER.md and PROJECT_ACCESS.md. Do not publish.",
+  "product_slug": "briefing_on_personal_project",
+  "workflow": "research_report",
+  "clauses": [
+    "Write a briefing on NEEWA personal project access stages citing OWNER.md",
+    "PROJECT_ACCESS.md",
+    "Do not publish"
+  ],
+  "clarifications": [],
+  "implementation_decisions": [],
+  "proposed_enhancements": [],
+  "out_of_scope": [
+    "public deployment",
+    "live trading",
+    "employer data",
+    "Home voice work"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Produce a source-grounded research/document artifact for: Write a briefing on NEEWA personal project access stages citing OWNER.md and PROJECT_ACCESS.md. Do not publish.",
+      "kind": "functional",
+      "ac": "Report exists and cites corpus or SOURCE_PENDING",
+      "check": "report_file"
+    },
+    {
+      "id": "REQ-002",
+      "text": "Cite only approved local corpus files; never invent verses or attributions.",
+      "kind": "provenance",
+      "ac": "Every citation id exists in the approved corpus",
+      "check": "citation"
+    },
+    {
+      "id": "REQ-003",
+      "text": "If a needed source is absent, mark SOURCE_PENDING instead of fabricating a citation.",
+      "kind": "provenance",
+      "ac": "Every citation id exists in the approved corpus",
+      "check": "citation"
+    },
+    {
+      "id": "REQ-004",
+      "text": "List items that require the owner to choose a tradition, policy, or lineage.",
+      "kind": "domain",
+      "ac": "Owner-choice items listed",
+      "check": "report_contains_owner_choice"
+    },
+    {
+      "id": "REQ-005",
+      "text": "Do not publish; stop at a release candidate for owner review.",
+      "kind": "release",
+      "ac": "Document is not published",
+      "check": "no_publish"
+    },
+    {
+      "id": "REQ-006",
+      "text": "Stay inside approved personal NEEWA references; do not access employer trees.",
+      "kind": "security",
+      "ac": "Report exists and cites corpus or SOURCE_PENDING",
+      "check": "report_file"
+    }
+  ],
+  "created_at": "2026-09-17T18:15:42Z",
+  "source_class": "DERIVED_FROM_OBJECTIVE",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "stack": "python-docs",
+  "test_command": "python -m unittest 13_TESTS.test_neewa_autonomy -q"
+}

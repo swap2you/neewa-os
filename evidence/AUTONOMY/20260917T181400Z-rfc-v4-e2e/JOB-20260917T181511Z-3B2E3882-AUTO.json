@@ -1,0 +1,200 @@
+{
+  "schema_version": 3,
+  "job_id": "JOB-20260917T181511Z-3B2E3882-AUTO",
+  "coordinator": "neewa-chief",
+  "origin": "conversation",
+  "parent_objective": "In the existing approved KidsProjects/ScienceQuest repository, add one sentence to docs/KNOWN_LIMITATIONS.md stating that npm test (vitest run) is the independent unit-test command, and add a Vitest assertion in src/progress/storage.test.ts that local progress records contain no account identifiers. Do not create a Python CLI. Do not touch myDropbox or gameplay.",
+  "project_id": "PRJ-KIDS",
+  "workspace": "C:\\Development\\Workspace\\KidsProjects\\ScienceQuest",
+  "intent": "software",
+  "workflow": "sdlc",
+  "approval_level": "A1",
+  "requirements_version": "REQ-v1",
+  "design_version": "DES-v2",
+  "scope": "approved personal workspace only",
+  "assigned_worker": "cursor-agent-cli",
+  "execution_worker": "cursor-agent-cli",
+  "child_jobs": [
+    {
+      "job_id": "JOB-20260917T181511Z-3B2E3882-AUTO-CC01",
+      "at": "2026-09-17T18:16:27Z",
+      "state": "DISPATCHED"
+    },
+    {
+      "job_id": "JOB-20260917T181511Z-3B2E3882-AUTO-CC02",
+      "at": "2026-09-17T18:17:58Z",
+      "state": "DISPATCHED"
+    },
+    {
+      "job_id": "JOB-20260917T181511Z-3B2E3882-AUTO-CC03",
+      "at": "2026-09-17T18:19:28Z",
+      "state": "DISPATCHED"
+    }
+  ],
+  "state": "FAILED",
+  "budget": {
+    "ceiling": 5.0,
+    "consumed_usd": 1.5,
+    "reserved_usd": 0.0,
+    "consumed_basis": "conservative_estimate",
+    "actual_usd": null,
+    "estimated_usd": 1.5,
+    "actual_status": "unavailable-until-measured",
+    "invocations": [
+      {
+        "at": "2026-09-17T18:17:58Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "FAILED",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      },
+      {
+        "at": "2026-09-17T18:19:28Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "FAILED",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      },
+      {
+        "at": "2026-09-17T18:22:30Z",
+        "worker": "cursor-agent-cli",
+        "outcome": "FAILED",
+        "input_tokens": null,
+        "output_tokens": null,
+        "cache_read_tokens": null,
+        "cache_write_tokens": null,
+        "cost_usd": 0.5,
+        "cost_basis": "conservative_estimate"
+      }
+    ]
+  },
+  "project_resolution": {
+    "allowed": true,
+    "reason": null,
+    "access_stage": "ACCESS_APPROVED"
+  },
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "lease": {
+    "owner": 2145504,
+    "fencing": "2145504-49f180db",
+    "expires_at": "2026-09-17T18:24:00Z"
+  },
+  "timeout_sec": 600,
+  "dependencies": [],
+  "artifacts": [
+    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy/work/JOB-20260917T181511Z-3B2E3882-AUTO/requirements.json"
+  ],
+  "expected_paths": [
+    "docs/KNOWN_LIMITATIONS.md",
+    "src/progress/storage.test.ts",
+    "RELEASE_CANDIDATE.md"
+  ],
+  "validation": {
+    "council": "PASS"
+  },
+  "failure_reason": "validation failed; missing expected files: docs/KNOWN_LIMITATIONS.md, src/progress/storage.test.ts, RELEASE_CANDIDATE.md",
+  "retry_history": [
+    {
+      "at": "2026-09-17T18:17:58Z",
+      "child": "JOB-20260917T181511Z-3B2E3882-AUTO-CC01",
+      "state": "FAILED",
+      "reason": "validation failed; missing expected files: docs/KNOWN_LIMITATIONS.md, src/progress/storage.test.ts, RELEASE_CANDIDATE.md"
+    },
+    {
+      "at": "2026-09-17T18:19:28Z",
+      "child": "JOB-20260917T181511Z-3B2E3882-AUTO-CC02",
+      "state": "FAILED",
+      "reason": "validation failed; missing expected files: docs/KNOWN_LIMITATIONS.md, src/progress/storage.test.ts, RELEASE_CANDIDATE.md"
+    },
+    {
+      "at": "2026-09-17T18:22:30Z",
+      "child": "JOB-20260917T181511Z-3B2E3882-AUTO-CC03",
+      "state": "FAILED",
+      "reason": "validation failed; missing expected files: docs/KNOWN_LIMITATIONS.md, src/progress/storage.test.ts, RELEASE_CANDIDATE.md"
+    }
+  ],
+  "owner_decision": null,
+  "checkpoints": [
+    {
+      "name": "requirements",
+      "at": "2026-09-17T18:15:12Z",
+      "payload": {
+        "version": "REQ-v1",
+        "count": 5
+      }
+    },
+    {
+      "name": "council",
+      "at": "2026-09-17T18:15:42Z",
+      "payload": {
+        "material": 1,
+        "spec_sha256": "8d5d11078db17f05a979abf6a6598bc8fcbe5a80f474e7fa8faef552638df6fe"
+      }
+    }
+  ],
+  "public_listener": false,
+  "history": [
+    {
+      "state": "INTAKE",
+      "at": "2026-09-17T18:15:11Z",
+      "note": "software lifecycle with tests and done-gate"
+    },
+    {
+      "state": "CLASSIFIED",
+      "at": "2026-09-17T18:15:12Z",
+      "note": "software"
+    },
+    {
+      "state": "REQUIREMENTS",
+      "at": "2026-09-17T18:15:12Z"
+    },
+    {
+      "state": "DESIGN",
+      "at": "2026-09-17T18:15:12Z"
+    },
+    {
+      "state": "COUNCIL",
+      "at": "2026-09-17T18:15:27Z"
+    },
+    {
+      "state": "BASELINE_LOCKED",
+      "at": "2026-09-17T18:15:42Z",
+      "note": "cursor-agent-cli"
+    },
+    {
+      "state": "PLANNED",
+      "at": "2026-09-17T18:15:57Z",
+      "note": "cursor-agent-cli"
+    },
+    {
+      "state": "EXECUTING",
+      "at": "2026-09-17T18:16:12Z",
+      "note": "submit cursor_call"
+    },
+    {
+      "state": "FAILED",
+      "at": "2026-09-17T18:22:30Z",
+      "note": "validation failed; missing expected files: docs/KNOWN_LIMITATIONS.md, src/progress/storage.test.ts, RELEASE_CANDIDATE.md"
+    }
+  ],
+  "created_at": "2026-09-17T18:15:11Z",
+  "updated_at": "2026-09-17T18:22:30Z",
+  "workspace_inspect": {
+    "workspace": "C:\\Development\\Workspace\\KidsProjects\\ScienceQuest",
+    "exists_here": false,
+    "markers": [],
+    "stack": "node-typescript",
+    "test_command": "npm test",
+    "source": "catalog"
+  },
+  "spec_sha256": "8d5d11078db17f05a979abf6a6598bc8fcbe5a80f474e7fa8faef552638df6fe",
+  "active_child_id": "JOB-20260917T181511Z-3B2E3882-AUTO-CC03"
+}

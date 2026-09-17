@@ -1,0 +1,20 @@
+{
+  "citations": [
+    {
+      "id": "OWNER.md",
+      "path": "/opt/neewa/neewa-os/AI-OPS/company/OWNER.md",
+      "exists": true
+    },
+    {
+      "id": "PROJECT_ACCESS.md",
+      "path": "/opt/neewa/neewa-os/AI-OPS/delivery/PROJECT_ACCESS.md",
+      "exists": true
+    },
+    {
+      "id": "projects.json",
+      "path": "/opt/neewa/neewa-os/11_CONFIG/projects.json",
+      "exists": true
+    }
+  ],
+  "invented": []
+}

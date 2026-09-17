@@ -1,0 +1,64 @@
+{
+  "version": "REQ-v1",
+  "original_objective": "In the existing approved KidsProjects/ScienceQuest repository, add one sentence to docs/KNOWN_LIMITATIONS.md stating that npm test (vitest run) is the independent unit-test command, and add a Vitest assertion in src/progress/storage.test.ts that local progress records contain no account identifiers. Do not create a Python CLI. Do not touch myDropbox or gameplay.",
+  "product_slug": "python",
+  "workflow": "sdlc",
+  "clauses": [
+    "In the existing approved KidsProjects/ScienceQuest repository",
+    "add one sentence to docs/KNOWN_LIMITATIONS.md stating that npm test (vitest run) is the independent unit-test command",
+    "add a Vitest assertion in src/progress/storage.test.ts that local progress records contain no account identifiers",
+    "Do not create a Python CLI",
+    "Do not touch myDropbox or gameplay"
+  ],
+  "clarifications": [],
+  "implementation_decisions": [],
+  "proposed_enhancements": [],
+  "out_of_scope": [
+    "public deployment",
+    "live trading",
+    "employer data",
+    "Home voice work"
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "text": "Deliver the requested change for `python`: In the existing approved KidsProjects/ScienceQuest repository, add one sentence to docs/KNOWN_LIMITATIONS.md stating that npm test (vitest run) is the independent unit-test command, and add a Vitest assertion in src/progress/storage.test.ts that local progress records contain no account identifiers. Do not create a Python CLI. Do not touch myDropbox or gameplay.",
+      "kind": "functional",
+      "ac": "Objective clause is implemented in stack node-typescript",
+      "check": "artifact_or_test"
+    },
+    {
+      "id": "REQ-002",
+      "text": "Treat Markdown structure as data; preserve headings and list items from the source file.",
+      "kind": "functional",
+      "ac": "Objective clause is implemented in stack node-typescript",
+      "check": "artifact_or_test"
+    },
+    {
+      "id": "REQ-003",
+      "text": "Run the repository test command (npm test) covering the changed behavior.",
+      "kind": "quality",
+      "ac": "Independent rerun of npm test passes",
+      "check": "independent_tests"
+    },
+    {
+      "id": "REQ-004",
+      "text": "Operate only inside the approved workspace; do not access employer trees.",
+      "kind": "security",
+      "ac": "Workspace is allowlisted and not a denied tree",
+      "check": "workspace_boundary"
+    },
+    {
+      "id": "REQ-005",
+      "text": "Produce a release-candidate document with requirement traceability after tests pass.",
+      "kind": "release",
+      "ac": "RELEASE_CANDIDATE.md exists after tests",
+      "check": "file_exists:RELEASE_CANDIDATE.md"
+    }
+  ],
+  "created_at": "2026-09-17T18:23:15Z",
+  "source_class": "DERIVED_FROM_OBJECTIVE",
+  "baseline_id": "AUTONOMY-REQ-v3-DES-v3-ACCEPT-v3",
+  "stack": "node-typescript",
+  "test_command": "npm test"
+}

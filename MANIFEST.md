@@ -190,6 +190,11 @@
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/tests.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/tool-status.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T121959Z/worker-status.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/README.md`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/acceptance.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/constraints.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/git.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/inbox-status.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/automation-audit.json`
 - `evidence/NEEWA_OS/JOB-20260916-001/docker-sandbox.txt`
 - `evidence/NEEWA_OS/JOB-20260916-001/done-gate.json`

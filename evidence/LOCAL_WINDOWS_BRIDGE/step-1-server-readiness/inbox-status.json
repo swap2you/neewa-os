@@ -1,0 +1,77 @@
+{
+  "root": "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs",
+  "command": "python3 12_SCRIPTS/windows_job_inbox.py status --root /home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs",
+  "status_text": [
+    "inbox: 0",
+    "processing: 0",
+    "done: 3",
+    "  JOB-20260916-004.json",
+    "  JOB-20260916-005-portfolio-inventory.json",
+    "  JOB-20260916-005.json",
+    "failed: 2",
+    "  JOB-20260916-004-deny-a3.json",
+    "  JOB-20260916-004-deny-shell.json"
+  ],
+  "directories": {
+    "inbox": {"exists": true, "mode": "755", "owner": "ubuntu:ubuntu"},
+    "processing": {"exists": true, "mode": "755", "owner": "ubuntu:ubuntu"},
+    "done": {"exists": true, "mode": "755", "owner": "ubuntu:ubuntu"},
+    "failed": {"exists": true, "mode": "755", "owner": "ubuntu:ubuntu"}
+  },
+  "folders": {
+    "inbox": {"count": 0, "files": []},
+    "processing": {"count": 0, "files": []},
+    "done": {
+      "count": 3,
+      "files": [
+        "JOB-20260916-004.json",
+        "JOB-20260916-005-portfolio-inventory.json",
+        "JOB-20260916-005.json"
+      ]
+    },
+    "failed": {
+      "count": 2,
+      "files": [
+        "JOB-20260916-004-deny-a3.json",
+        "JOB-20260916-004-deny-shell.json"
+      ]
+    }
+  },
+  "jobs": [
+    {
+      "folder": "done",
+      "name": "JOB-20260916-004.json",
+      "json_valid": true,
+      "job_id": "JOB-20260916-004",
+      "status": "complete"
+    },
+    {
+      "folder": "done",
+      "name": "JOB-20260916-005-portfolio-inventory.json",
+      "json_valid": true
+    },
+    {
+      "folder": "done",
+      "name": "JOB-20260916-005.json",
+      "json_valid": true,
+      "job_id": "JOB-20260916-005",
+      "status": "complete"
+    },
+    {
+      "folder": "failed",
+      "name": "JOB-20260916-004-deny-a3.json",
+      "json_valid": true,
+      "job_id": "JOB-20260916-004-deny-a3",
+      "status": "FAILED"
+    },
+    {
+      "folder": "failed",
+      "name": "JOB-20260916-004-deny-shell.json",
+      "json_valid": true,
+      "job_id": "JOB-20260916-004-deny-shell",
+      "status": "FAILED"
+    }
+  ],
+  "existing_job_json_valid": 5,
+  "new_job_enqueued": false
+}

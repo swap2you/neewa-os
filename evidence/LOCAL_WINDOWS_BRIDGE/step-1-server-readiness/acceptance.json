@@ -1,0 +1,88 @@
+{
+  "step": 1,
+  "title": "NEEWA Windows orchestration bridge — server readiness",
+  "checked_at": "2026-09-17T14:23:00Z",
+  "result": "PASS",
+  "no_windows_job_run": true,
+  "no_workspace_inventory_run": true,
+  "no_project_code_modified": true,
+  "no_credentials_changed": true,
+  "no_force_push": true,
+  "checks": [
+    {
+      "id": "commit-present-locally",
+      "result": "PASS",
+      "detail": "17a22d195a08e7c7829bf35730d3884abf35492b feat: enable governed Windows workspace inventory"
+    },
+    {
+      "id": "workspace_inventory-allowlist",
+      "result": "PASS",
+      "detail": "16_WINDOWS_CLIENT/worker/allowlist.json actions.workspace_inventory=A1"
+    },
+    {
+      "id": "workspace_inventory-inbox",
+      "result": "PASS",
+      "detail": "12_SCRIPTS/windows_job_inbox.py ALLOWED includes workspace_inventory"
+    },
+    {
+      "id": "workspace_inventory-invoke",
+      "result": "PASS",
+      "detail": "16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1 case workspace_inventory at line 72"
+    },
+    {
+      "id": "push-origin-main-ff-only",
+      "result": "PASS",
+      "detail": "git push origin main: a0de0db..17a22d1 main -> main"
+    },
+    {
+      "id": "commit-on-origin",
+      "result": "PASS",
+      "detail": "origin/main == 17a22d195a08e7c7829bf35730d3884abf35492b"
+    },
+    {
+      "id": "server-clean-tree-before-pull",
+      "result": "PASS",
+      "detail": "/opt/neewa/neewa-os porcelain empty; HEAD was 4be4d1d9b961901158c6f8748329e9cd57ec763b"
+    },
+    {
+      "id": "server-pull-ff-only",
+      "result": "PASS",
+      "detail": "git pull --ff-only origin main on ubuntu@neewa-core-01; HEAD now 17a22d195a08e7c7829bf35730d3884abf35492b"
+    },
+    {
+      "id": "server-clean-tree-after-pull",
+      "result": "PASS",
+      "detail": "/opt/neewa/neewa-os porcelain empty; main...origin/main"
+    },
+    {
+      "id": "server-allowlist",
+      "result": "PASS",
+      "detail": "allowlist JSON valid; workspace_inventory=A1; public_listener=false; unrestricted_shell=false; git_writer=Cursor"
+    },
+    {
+      "id": "server-inbox-script",
+      "result": "PASS",
+      "detail": "ALLOWED=capability_inventory,personal_artifact,ping,portfolio_inventory,workspace_inventory"
+    },
+    {
+      "id": "server-invoke-script",
+      "result": "PASS",
+      "detail": "Invoke-NeewaWindowsJob.ps1 and New-WorkspaceInventory.ps1 present after pull"
+    },
+    {
+      "id": "inbox-directories",
+      "result": "PASS",
+      "detail": "inbox, processing, done, failed exist under /home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs (mode 755, ubuntu:ubuntu)"
+    },
+    {
+      "id": "inbox-status",
+      "result": "PASS",
+      "detail": "python3 12_SCRIPTS/windows_job_inbox.py status --root ... ; inbox=0 processing=0 done=3 failed=2"
+    },
+    {
+      "id": "inbox-json-valid",
+      "result": "PASS",
+      "detail": "5 existing job JSON files parsed; no new job JSON written"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "step": 1,
+  "windows_job_run": false,
+  "workspace_inventory_run": false,
+  "project_code_modified": false,
+  "credentials_changed": false,
+  "force_push": false,
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "git_writer": "Cursor"
+}

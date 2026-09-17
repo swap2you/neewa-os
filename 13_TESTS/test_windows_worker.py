@@ -1,5 +1,7 @@
 import json
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -130,9 +132,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn("'repo_preflight'", invoke)
 
     def test_repo_preflight_identifies_neewa_os(self):
-        import json
-        import subprocess
-        import tempfile
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present")
         jobs = Path(tempfile.mkdtemp())
         job_path = jobs / "job.json"
         job_path.write_text(
@@ -164,6 +165,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertTrue(result["preflight"]["git_ok"])
 
     def test_personal_workspace_resolver_allows_unlisted_and_denies_employer(self):
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present")
         command = (
             "$here = '%s'; "
             "$policy = Get-Content -Raw -LiteralPath (Join-Path $here 'cursor-call-policy.json') | ConvertFrom-Json; "

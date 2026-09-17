@@ -909,19 +909,20 @@ def attach_project_identity(job: dict) -> dict:
         persisted=job.get("project_identity"),
     )
     job["project_identity"] = IDENTITY.public_identity(identity)
+    project_path = identity.get("project_path")
     if (
         identity.get("allowed")
-        and identity.get("project_path")
+        and IDENTITY.is_absolute_win_path(project_path)
         and identity.get("source") in {"explicit_name", "path_basename", "persisted"}
     ):
-        job["workspace"] = identity["project_path"]
+        job["workspace"] = project_path
     elif (
         identity.get("allowed")
-        and identity.get("project_path")
+        and IDENTITY.is_absolute_win_path(project_path)
         and identity.get("source") == "generated"
         and IDENTITY._is_sandbox_root(job.get("workspace"))
     ):
-        job["workspace"] = identity["project_path"]
+        job["workspace"] = project_path
     return identity
 
 
@@ -1364,13 +1365,31 @@ def synthesize_research(objective: str, requirements: dict, design: dict) -> dic
     return result
 
 
+def _canonical_identity_block(job: dict, requirements: dict | None = None, design: dict | None = None) -> str:
+    identity = (
+        (job or {}).get("project_identity")
+        or (design or {}).get("project_identity")
+        or (requirements or {}).get("project_identity")
+        or {}
+    )
+    return (
+        "CANONICAL PROJECT IDENTITY:\n"
+        f"project_name: {identity.get('project_name')}\n"
+        f"workspace_root: {identity.get('workspace_root')}\n"
+        f"project_path: {identity.get('project_path')}\n"
+        "Use only this identity. Do not infer a second project name from descriptive text.\n"
+    )
+
+
 def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
     req_lines = "\n".join(f"- {r['id']}: {r['text']}" for r in requirements["requirements"])
     files = "\n".join(f"- {p}" for p in expected_paths_from_design(design))
     test_cmd = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
+    identity_block = _canonical_identity_block(job, requirements, design)
     if design.get("create_new_package") is False:
         return f"""Implement this approved NEEWA work package in the EXISTING repository. Do not change the objective.
 
+{identity_block}
 OBJECTIVE:
 {job['parent_objective']}
 
@@ -1399,6 +1418,7 @@ Rules:
 """
     return f"""Implement this approved NEEWA work package. Do not change the objective.
 
+{identity_block}
 OBJECTIVE:
 {job['parent_objective']}
 

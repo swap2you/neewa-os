@@ -1486,6 +1486,172 @@ class ProjectIdentityTests(unittest.TestCase):
             self.assertEqual(closed["budget"]["reserved_usd"], 0.0)
 
 
+DATE_TOOL_OBJECTIVE = (
+    "Build exactly one new isolated Python standard-library CLI project named "
+    "neewa_date_tool_acceptance under the approved workspace root "
+    r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox. The canonical project directory is "
+    r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa_date_tool_acceptance. "
+    "Before dispatch, use the Windows worker to verify that this canonical directory "
+    "does not already contain implementation artifacts; if it exists with artifacts, "
+    "stop with a precise validation failure and do not reuse it. Do not copy or reuse "
+    "local_date_summary or any historical acceptance project. Implement a CLI that "
+    "accepts YYYY-MM-DD and outputs weekday, whether the year is a leap year, and day "
+    "number within the year. Valid dates exit 0. Invalid dates exit nonzero with a "
+    "clear error. Include automated tests for an ordinary valid date, leap-year date, "
+    "non-leap-year date, invalid calendar date, and day-of-year calculation, plus "
+    "concise usage documentation. Use only Python standard library. Execute through "
+    "Cursor Agent CLI on Windows. After implementation verify the canonical path and "
+    "actual files, run the product test command, independently rerun the same product "
+    "tests in the same canonical directory, validate every requirement individually, "
+    "validate the scoped diff, produce controller-owned traceability, finalize budget "
+    "accounting, and reconcile child to parent. Preserve all historical jobs and "
+    "unrelated projects. Reach OWNER_REVIEW only if Cursor executed, artifacts exist "
+    "at the canonical path, both test runs pass, traceability passes, child and parent "
+    "reconcile, and reserved budget is zero."
+)
+SANDBOX_ROOT = r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox"
+DATE_TOOL_PATH = r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa_date_tool_acceptance"
+
+
+class WorkspaceRootIdentityTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_wsroot", str(AUTO)).load_module()
+        self.ident = self.mod.IDENTITY
+
+    def test_exact_affected_objective_three_path_fields(self):
+        row = self.ident.resolve_project_identity(
+            DATE_TOOL_OBJECTIVE,
+            workspace=SANDBOX_ROOT,
+        )
+        self.assertTrue(row["allowed"], row)
+        self.assertEqual(row["project_name"], "neewa_date_tool_acceptance")
+        self.assertEqual(row["workspace_root"], SANDBOX_ROOT)
+        self.assertEqual(row["project_path"], DATE_TOOL_PATH)
+        self.assertNotEqual(row["normalization"].get("path_basename"), "cursor_sandbox")
+        self.assertNotEqual(row["normalization"].get("path_basename"), "c_users_swap2_neewa_personal_cursor_sandbox")
+        self.assertNotEqual(self.ident.win_basename(row["workspace_root"]).lower(), row["project_name"])
+
+    def test_root_plus_name_without_explicit_project_path(self):
+        row = self.ident.resolve_project_identity(
+            "Build a CLI named neewa_date_tool_acceptance under the approved sandbox.",
+            workspace=SANDBOX_ROOT,
+            workspace_root=SANDBOX_ROOT,
+            project_name="neewa_date_tool_acceptance",
+        )
+        self.assertTrue(row["allowed"], row)
+        self.assertEqual(row["project_name"], "neewa_date_tool_acceptance")
+        self.assertEqual(row["workspace_root"], SANDBOX_ROOT)
+        self.assertEqual(row["project_path"], DATE_TOOL_PATH)
+
+    def test_all_three_fields_agree(self):
+        row = self.ident.resolve_project_identity(
+            DATE_TOOL_OBJECTIVE,
+            workspace=SANDBOX_ROOT,
+            workspace_root=SANDBOX_ROOT,
+            project_name="neewa_date_tool_acceptance",
+            project_path=DATE_TOOL_PATH,
+        )
+        self.assertTrue(row["allowed"], row)
+        self.assertEqual(row["project_name"], "neewa_date_tool_acceptance")
+        self.assertEqual(row["workspace_root"], SANDBOX_ROOT)
+        self.assertEqual(row["project_path"], DATE_TOOL_PATH)
+
+    def test_genuine_name_path_disagreement(self):
+        row = self.ident.resolve_project_identity(
+            r"named alpha under C:\Users\swap2\NEEWA-Personal\cursor-sandbox\beta",
+            workspace=SANDBOX_ROOT,
+        )
+        self.assertFalse(row["allowed"])
+        self.assertEqual(row["reason"], "PROJECT_PATH_DISAGREEMENT")
+        self.assertEqual(row["normalization"]["path_basename"], "beta")
+        self.assertNotEqual(row["normalization"]["path_basename"], "cursor_sandbox")
+
+    def test_windows_case_and_separator_normalization(self):
+        row = self.ident.resolve_project_identity(
+            "named neewa_date_tool_acceptance",
+            workspace_root="C:/users/SWAP2/neewa-personal/CURSOR-SANDBOX",
+            project_name="neewa_date_tool_acceptance",
+            project_path=r"c:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa_date_tool_acceptance",
+        )
+        self.assertTrue(row["allowed"], row)
+        self.assertEqual(row["project_name"], "neewa_date_tool_acceptance")
+        self.assertTrue(self.ident.win_equal(row["workspace_root"], SANDBOX_ROOT))
+        self.assertTrue(self.ident.win_equal(row["project_path"], DATE_TOOL_PATH))
+
+    def test_path_outside_approved_personal_roots(self):
+        row = self.ident.resolve_project_identity(
+            "named neewa_date_tool_acceptance",
+            workspace_root=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+            project_name="neewa_date_tool_acceptance",
+            project_path=r"C:\Windows\Temp\neewa_date_tool_acceptance",
+        )
+        self.assertFalse(row["allowed"])
+        self.assertEqual(row["reason"], "OUTSIDE_PERSONAL_ROOT")
+
+    def test_traversal_and_ambiguous_paths(self):
+        traversal = self.ident.resolve_project_identity(
+            "named neewa_date_tool_acceptance",
+            workspace_root=SANDBOX_ROOT,
+            project_name="neewa_date_tool_acceptance",
+            project_path=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\..\..\..\Windows\neewa_date_tool_acceptance",
+        )
+        self.assertFalse(traversal["allowed"])
+        self.assertEqual(traversal["reason"], "PATH_TRAVERSAL")
+        ambiguous = self.ident.resolve_project_identity(
+            r"named neewa_date_tool_acceptance under C:\Users\swap2\NEEWA-Personal\cursor-sandbox\alpha "
+            r"and also C:\Users\swap2\NEEWA-Personal\cursor-sandbox\beta",
+            workspace=SANDBOX_ROOT,
+        )
+        self.assertFalse(ambiguous["allowed"])
+        self.assertEqual(ambiguous["reason"], "AMBIGUOUS_PROJECT_PATH")
+
+    def test_identity_stable_across_intake_planning_dispatch_validation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                DATE_TOOL_OBJECTIVE,
+                workspace=SANDBOX_ROOT,
+                project_id="PRJ-NEEWA",
+                root=root,
+            )
+            intake = dict(job["project_identity"])
+            self.assertTrue(intake["allowed"], intake)
+            self.assertEqual(intake["project_name"], "neewa_date_tool_acceptance")
+            self.assertEqual(intake["workspace_root"], SANDBOX_ROOT)
+            self.assertEqual(intake["project_path"], DATE_TOOL_PATH)
+            job = self.mod.advance_job(job, root=root, stop_before="REQUIREMENTS")
+            classified = dict(job["project_identity"])
+            self.assertEqual(classified["project_name"], intake["project_name"])
+            self.assertEqual(classified["workspace_root"], intake["workspace_root"])
+            self.assertEqual(classified["project_path"], intake["project_path"])
+            self.assertEqual(job["workspace"], DATE_TOOL_PATH)
+            reqs = self.mod.build_requirements(
+                DATE_TOOL_OBJECTIVE,
+                workspace=job["workspace"],
+                project_id="PRJ-NEEWA",
+            )
+            design = self.mod.initial_design(reqs, DATE_TOOL_OBJECTIVE)
+            expected = self.mod.expected_paths_from_design(design)
+            self.assertEqual(reqs.get("product_slug"), "neewa_date_tool_acceptance")
+            self.assertEqual(reqs.get("project_identity", {}).get("project_path"), DATE_TOOL_PATH)
+            self.assertTrue(expected)
+            for rel in expected:
+                self.assertNotIn("cursor-sandbox", rel.replace("\\", "/").split("/")[0])
+                self.assertFalse(rel.startswith("isolated_python_standard_library"))
+            prompt = self.mod.build_worker_prompt(job, reqs, design)
+            self.assertIn("neewa_date_tool_acceptance", prompt)
+            self.assertIn(DATE_TOOL_PATH, prompt)
+            self.assertEqual(job["project_identity"]["project_path"], DATE_TOOL_PATH)
+            self.assertEqual(job["workspace"], DATE_TOOL_PATH)
+
+    def test_replay_plan_allows_exact_failed_intake(self):
+        plan = self.mod.replay_plan(DATE_TOOL_OBJECTIVE, workspace=SANDBOX_ROOT)
+        self.assertTrue(plan["allowed"], plan)
+        self.assertEqual(plan["project_name"], "neewa_date_tool_acceptance")
+        self.assertEqual(plan["workspace_root"], SANDBOX_ROOT)
+        self.assertEqual(plan["project_path"], DATE_TOOL_PATH)
+
+
 class OrchestrateUsageTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_orchestrate_usage", str(ORCH)).load_module()

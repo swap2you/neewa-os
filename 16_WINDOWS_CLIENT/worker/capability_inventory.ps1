@@ -18,6 +18,34 @@ function Find-Cmd($names) {
   return $null
 }
 
+function Find-PathCmd($paths) {
+  foreach ($p in $paths) {
+    if ($p -and (Test-Path -LiteralPath $p)) {
+      return $p
+    }
+  }
+  return $null
+}
+
+function Invoke-CapCmd {
+  param($File, $ArgumentList, $TimeoutMs = 12000)
+  $out = Join-Path $env:TEMP ("neewa-cap-{0}.out" -f [guid]::NewGuid().ToString('N'))
+  $err = Join-Path $env:TEMP ("neewa-cap-{0}.err" -f [guid]::NewGuid().ToString('N'))
+  try {
+    $p = Start-Process -FilePath $File -ArgumentList $ArgumentList -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
+    if (-not $p.WaitForExit($TimeoutMs)) {
+      Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+      return @{ text = 'timeout'; code = -1 }
+    }
+    $text = ''
+    if (Test-Path $out) { $text += [string](Get-Content -Raw $out) }
+    if (Test-Path $err) { $text += [string](Get-Content -Raw $err) }
+    return @{ text = $text.Trim(); code = $p.ExitCode }
+  } finally {
+    Remove-Item $out, $err -ErrorAction SilentlyContinue
+  }
+}
+
 $git = Find-Cmd @('git')
 if ($git) {
   $ver = (& git --version) 2>$null
@@ -55,7 +83,14 @@ if (Test-Path -LiteralPath $agentCmd) {
 
 $codex = Find-Cmd @('codex', 'codex.cmd')
 if ($codex) {
-  Add-Cap 'Codex CLI' 'AVAILABLE' $codex.Source
+  $codexAuth = (& codex login status 2>&1 | Out-String)
+  if ($codexAuth -match '(?i)logged in') {
+    Add-Cap 'Codex CLI' 'AVAILABLE' "$($codex.Source); authenticated"
+  } elseif ($codexAuth -match '(?i)not logged|unauthenticated|login required') {
+    Add-Cap 'Codex CLI' 'AUTH REQUIRED' "$($codex.Source); run codex login"
+  } else {
+    Add-Cap 'Codex CLI' 'AVAILABLE' $codex.Source
+  }
 } else { Add-Cap 'Codex CLI' 'NOT INSTALLED' '' }
 
 $gh = Find-Cmd @('gh')
@@ -64,6 +99,84 @@ if ($gh) {
   if ($auth -match 'Logged in') { Add-Cap 'GitHub CLI' 'AVAILABLE' 'authenticated' }
   else { Add-Cap 'GitHub CLI' 'AUTH REQUIRED' 'gh present, not logged in' }
 } else { Add-Cap 'GitHub CLI' 'NOT INSTALLED' '' }
+
+$claudeExe = Find-PathCmd @(
+  (Join-Path $env:USERPROFILE '.local\bin\claude.exe'),
+  ((Find-Cmd @('claude')) | ForEach-Object { $_.Source })
+)
+if ($claudeExe) {
+  $st = Invoke-CapCmd $claudeExe @('auth','status')
+  $ver = Invoke-CapCmd $claudeExe @('--version')
+  $verText = if ($ver.text) { $ver.text.Split("`n")[0] } else { 'installed' }
+  if ($st.text -match '(?i)"loggedIn"\s*:\s*true|Login method:') {
+    Add-Cap 'Claude Code CLI' 'AVAILABLE' "$claudeExe $verText; authenticated"
+  } else {
+    Add-Cap 'Claude Code CLI' 'AUTH REQUIRED' "$claudeExe $verText; run claude auth login"
+  }
+} else { Add-Cap 'Claude Code CLI' 'NOT INSTALLED' 'native installer: irm https://claude.ai/install.ps1 | iex' }
+
+$coworkSvc = Get-Service -Name 'CoworkVMService','CoworkVMServiceStore' -ErrorAction SilentlyContinue | Select-Object -First 1
+$claudeApp = Get-AppxPackage -Name 'Claude' -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($coworkSvc -or $claudeApp) {
+  $svcText = if ($coworkSvc) { "$($coworkSvc.Name)=$($coworkSvc.Status)" } else { 'no Cowork service' }
+  $appText = if ($claudeApp) { "Claude Desktop $($claudeApp.Version)" } else { 'no Store package' }
+  Add-Cap 'Claude Cowork' 'UNSUPPORTED' "$appText; $svcText; desktop GUI only, no NEEWA CLI"
+} else {
+  Add-Cap 'Claude Cowork' 'UNSUPPORTED' 'desktop GUI feature; no programmable CLI for NEEWA'
+}
+
+$geminiCmd = Find-Cmd @('gemini', 'gemini.cmd')
+if ($geminiCmd) {
+  $oauth = Join-Path $env:USERPROFILE '.gemini\oauth_creds.json'
+  $accounts = Join-Path $env:USERPROFILE '.gemini\google_accounts.json'
+  if ((Test-Path $oauth) -or (Test-Path $accounts)) {
+    Add-Cap 'Gemini CLI' 'PERMISSION REQUIRED' "$($geminiCmd.Source); Google login present, but Gemini CLI is no longer supported for individuals; use Antigravity CLI (agy)"
+  } else {
+    Add-Cap 'Gemini CLI' 'AUTH REQUIRED' "$($geminiCmd.Source); run gemini and Sign in with Google"
+  }
+} else { Add-Cap 'Gemini CLI' 'NOT INSTALLED' 'npm install -g @google/gemini-cli' }
+
+$agyExe = Find-PathCmd @(
+  (Join-Path $env:LOCALAPPDATA 'agy\bin\agy.exe'),
+  ((Find-Cmd @('agy')) | ForEach-Object { $_.Source })
+)
+if ($agyExe) {
+  $ver = Invoke-CapCmd $agyExe @('--version')
+  $agyOauth = Join-Path $env:USERPROFILE '.gemini\oauth_creds.json'
+  $agyAccounts = Join-Path $env:USERPROFILE '.gemini\google_accounts.json'
+  if ((Test-Path $agyOauth) -or (Test-Path $agyAccounts)) {
+    Add-Cap 'Antigravity CLI' 'AVAILABLE' "$agyExe $($ver.text); Google credentials present"
+  } else {
+    Add-Cap 'Antigravity CLI' 'AUTH REQUIRED' "$agyExe $($ver.text); run agy and sign in with Google"
+  }
+} else { Add-Cap 'Antigravity CLI' 'NOT INSTALLED' 'irm https://antigravity.google/cli/install.ps1 | iex' }
+
+$agIde = Find-Cmd @('antigravity', 'antigravity.cmd')
+if ($agIde) {
+  Add-Cap 'Antigravity IDE' 'UNSUPPORTED' "$($agIde.Source); IDE launcher, NEEWA uses agy CLI only"
+} else {
+  Add-Cap 'Antigravity IDE' 'UNSUPPORTED' 'IDE not required for NEEWA CLI workers'
+}
+
+$grokCmd = Find-Cmd @('grok', 'grok.cmd')
+if ($grokCmd) {
+  $grokAuth = Join-Path $env:USERPROFILE '.grok\auth.json'
+  if (Test-Path $grokAuth) {
+    Add-Cap 'Grok CLI' 'AVAILABLE' "$($grokCmd.Source); auth.json present"
+  } else {
+    Add-Cap 'Grok CLI' 'AUTH REQUIRED' "$($grokCmd.Source); grok login --oauth (SuperGrok/X Premium+ or XAI_API_KEY may be required)"
+  }
+} else { Add-Cap 'Grok CLI' 'NOT INSTALLED' 'npm i -g @xai-official/grok' }
+
+$copilotExe = Find-PathCmd @(
+  (Join-Path $env:LOCALAPPDATA 'GitHubCopilotCLI\copilot.exe'),
+  ((Find-Cmd @('copilot')) | ForEach-Object { $_.Source })
+)
+if ($copilotExe) {
+  $ver = Invoke-CapCmd $copilotExe @('--version')
+  $verText = if ($ver.text) { ($ver.text -split "`n")[0] } else { 'installed' }
+  Add-Cap 'GitHub Copilot CLI' 'AUTH REQUIRED' "$copilotExe $verText; run copilot login (subscription required)"
+} else { Add-Cap 'GitHub Copilot CLI' 'NOT INSTALLED' '' }
 
 $tailscale = Find-Cmd @('tailscale')
 if ($tailscale) {

@@ -1,0 +1,15 @@
+You are NEEWA Conversation. Follow the windows-worker-bridge skill.
+
+Do not revive, relabel, or reuse job JOB-20260917T184136Z-F706E584-AUTO. That parent stays FAILED with its original evidence.
+
+The owner objective is: In the existing approved Aarohan CareerOS repository, after read-only inspection of its actual FastAPI/Next.js/PostgreSQL stack and current tests, choose one existing user-facing or local workflow feature with a clear failure path. Add or strengthen exactly one automated negative-path test for that existing feature, document the exact expected failure behavior in the repository, and run the narrow relevant test command plus the full relevant existing test command. Do not modify unrelated behavior, secrets, deployment, external outreach, or any other repository. Leave the parent at OWNER_REVIEW with the actual scoped diff and acceptance evidence.
+
+Run this exact command in the sandbox and print its stdout:
+
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit --objective "In the existing approved Aarohan CareerOS repository, after read-only inspection of its actual FastAPI/Next.js/PostgreSQL stack and current tests, choose one existing user-facing or local workflow feature with a clear failure path. Add or strengthen exactly one automated negative-path test for that existing feature, document the exact expected failure behavior in the repository, and run the narrow relevant test command plus the full relevant existing test command. Do not modify unrelated behavior, secrets, deployment, external outreach, or any other repository. Leave the parent at OWNER_REVIEW with the actual scoped diff and acceptance evidence." --project-id PRJ-AAROHAN --workspace "C:\Development\Workspace\aarohan-careeros" --origin conversation --unattended
+
+Do not use --fixture demo-status.
+Do not wait for Cursor.
+Do not ask the owner to paste anything into Cursor.
+Catalog stack labels such as FastAPI/Next.js are metadata, never expected file paths.
+Return the new parent job_id and state.

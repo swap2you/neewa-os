@@ -66,28 +66,85 @@
     {
       "id": "codex",
       "class": "coding-worker",
-      "status": "gui-present-cli-not-on-path",
-      "evidence": "%USERPROFILE%\\.codex exists; codex executable not on PATH",
-      "routable": false
+      "runtime": "Codex CLI",
+      "status": "installed-authenticated-smoke-ok",
+      "executable": "C:\\nvm4w\\nodejs\\codex.ps1",
+      "version": "0.154.0",
+      "auth": "ChatGPT logged in",
+      "noninteractive": "codex exec --skip-git-repo-check <prompt>",
+      "evidence": "codex exec pong smoke exit 0 (gpt-5.6-terra, 7574 tokens)",
+      "routable": false,
+      "notes": "CLI ready. Not NEEWA-routable until a governed windows-worker action exists (today only cursor_call)."
     },
     {
       "id": "claude-code",
       "class": "coding-worker",
-      "status": "gui-or-logs-present-cli-not-installed",
-      "evidence": "%LOCALAPPDATA%\\claude\\Logs only; claude executable not on PATH",
-      "routable": false
+      "runtime": "Claude Code CLI",
+      "status": "installed-authenticated-smoke-ok",
+      "executable": "%USERPROFILE%\\.local\\bin\\claude.exe",
+      "version": "2.1.274",
+      "noninteractive": "claude -p --output-format text",
+      "auth": "Claude Pro; claude auth status loggedIn true",
+      "evidence": "claude -p 'Reply with the single word pong.' returned pong, exit 0",
+      "routable": false,
+      "notes": "CLI ready. Not NEEWA-routable until a governed windows-worker action exists (today only cursor_call)."
     },
     {
       "id": "gemini-cli",
       "class": "coding-worker",
-      "status": "dotdir-present-cli-not-on-path",
-      "evidence": "%USERPROFILE%\\.gemini exists; gemini executable not on PATH",
+      "runtime": "Gemini CLI",
+      "status": "installed-google-login-client-ineligible",
+      "executable": "gemini.cmd via npm global",
+      "version": "0.60.0",
+      "noninteractive": "gemini --prompt",
+      "auth": "Google oauth_creds present",
+      "evidence": "IneligibleTierError UNSUPPORTED_CLIENT; Google directs individuals to Antigravity CLI",
+      "routable": false,
+      "notes": "Do not use as a NEEWA failover. Use antigravity-cli (agy) instead."
+    },
+    {
+      "id": "antigravity-cli",
+      "class": "coding-worker",
+      "runtime": "Google Antigravity CLI",
+      "status": "installed-authenticated-smoke-ok",
+      "executable": "%LOCALAPPDATA%\\agy\\bin\\agy.exe",
+      "version": "1.2.5",
+      "noninteractive": "agy -p --output-format text",
+      "auth": "Google sign-in (Gemini Pro)",
+      "evidence": "agy -p 'Reply with the single word pong.' returned pong, exit 0",
+      "notes": "This is the Google coding CLI for NEEWA. antigravity.cmd is the IDE launcher and is not this worker. Not NEEWA-routable until a governed windows-worker action exists.",
       "routable": false
+    },
+    {
+      "id": "github-copilot-cli",
+      "class": "coding-worker",
+      "runtime": "GitHub Copilot CLI",
+      "status": "installed-auth-unverified",
+      "executable": "%LOCALAPPDATA%\\GitHubCopilotCLI\\copilot.exe",
+      "version": "1.0.65",
+      "noninteractive": "copilot -p (unattended also wants --allow-all-tools; do not enable until governed)",
+      "auth": "copilot login; requires a Copilot subscription",
+      "routable": false
+    },
+    {
+      "id": "grok-cli",
+      "class": "coding-worker",
+      "runtime": "xAI Grok CLI",
+      "status": "installed-authenticated-smoke-ok",
+      "executable": "grok.cmd via npm global",
+      "version": "1.0.34",
+      "noninteractive": "grok -p",
+      "auth": "grok.com login; grok models lists grok-4.6",
+      "evidence": "grok -p pong smoke returned pong, exit 0",
+      "routable": false,
+      "notes": "Authenticated. Not in default failover until a governed windows-worker action exists."
     },
     {
       "id": "claude-cowork",
       "class": "coding-worker",
-      "status": "no-documented-remote-automation-verified",
+      "runtime": "Claude Desktop Cowork",
+      "status": "gui-present-no-cli",
+      "evidence": "Claude Store package 2.110.0; CoworkVMService running; no documented programmable CLI",
       "routable": false
     }
   ]

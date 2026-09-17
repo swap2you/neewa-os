@@ -699,7 +699,7 @@ def routable_workers(registry: dict | None = None) -> list[dict]:
 
 
 def select_coding_worker(registry: dict | None = None, fallback_order: list[str] | None = None) -> dict:
-    order = fallback_order or ["cursor-agent-cli", "codex", "claude-code", "gemini-cli"]
+    order = fallback_order or ["cursor-agent-cli", "codex", "claude-code", "antigravity-cli", "gemini-cli"]
     available = {w["id"]: w for w in routable_workers(registry)}
     for wid in order:
         row = available.get(wid)

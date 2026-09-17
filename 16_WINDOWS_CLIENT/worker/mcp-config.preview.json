@@ -9,6 +9,8 @@
       }
     }
   },
-  "claude_cli": "NOT INSTALLED — generated command would be: claude mcp add-json --scope user cua-computer-use ...",
-  "codex_cli": "NOT INSTALLED on PATH — generated command would be: codex mcp add cua-driver -- cua-driver.exe mcp"
+  "claude_cli": "INSTALLED — do not run: claude mcp add-json --scope user cua-computer-use ...",
+  "codex_cli": "INSTALLED — do not run: codex mcp add cua-driver -- cua-driver.exe mcp",
+  "gemini_cli": "INSTALLED — do not add cua-driver MCP",
+  "antigravity_cli": "INSTALLED — do not add cua-driver MCP"
 }

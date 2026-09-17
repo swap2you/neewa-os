@@ -99,7 +99,7 @@ parent instead (multiple capabilities are allowed; sdlc is primary).
 - Work across personal projects, including folders that are not yet in the registry.
 - Submit durable research/document jobs grounded in the approved local source pack.
 - Report job_id, state, worker, artifacts, tests/citations, and cost basis (measured, conservative estimate, or unknown).
-- Codex/Claude/Gemini CLIs are not installed; failover is UNVERIFIED.
+- Codex CLI is installed and ChatGPT-authenticated. Claude Code is Claude Pro-authenticated and `claude -p` returned pong. Grok CLI is grok.com-authenticated. Gemini CLI Google login works but Google rejected the individual Code Assist client; use Antigravity `agy` instead (`agy -p` returned pong). Failover is UNVERIFIED in NEEWA routing until a governed windows-worker action exists. Claude Cowork is GUI-only.
 - Home spoken voice remains PENDING_PHYSICAL and is not this path.
 - This is not full computer autonomy: the worker uses the owner's existing Windows
   user permissions, has no unrestricted shell, no public listener, and no admin elevation.

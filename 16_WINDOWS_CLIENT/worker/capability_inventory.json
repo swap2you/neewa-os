@@ -5,19 +5,64 @@
         "detail":  "git version 2.50.0.windows.1"
     },
     {
-        "name":  "Cursor CLI",
+        "name":  "Cursor IDE CLI",
         "status":  "AVAILABLE",
         "detail":  "c:\\Users\\swap2\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd 3.17.8"
     },
     {
+        "name":  "Cursor Agent CLI",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\Users\\swap2\\AppData\\Local\\cursor-agent\\agent.cmd 2026.09.15-d2fe57e"
+    },
+    {
+        "name":  "cursor_call",
+        "status":  "AVAILABLE",
+        "detail":  "A1 agent --print on approved personal repos"
+    },
+    {
         "name":  "Codex CLI",
-        "status":  "NOT INSTALLED",
-        "detail":  ""
+        "status":  "AVAILABLE",
+        "detail":  "C:\\nvm4w\\nodejs\\codex.ps1; authenticated"
     },
     {
         "name":  "GitHub CLI",
         "status":  "AVAILABLE",
         "detail":  "authenticated"
+    },
+    {
+        "name":  "Claude Code CLI",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\Users\\swap2\\.local\\bin\\claude.exe 2.1.274 (Claude Code); authenticated"
+    },
+    {
+        "name":  "Claude Cowork",
+        "status":  "UNSUPPORTED",
+        "detail":  "Claude Desktop 2.110.0.0; CoworkVMService=Running; desktop GUI only, no NEEWA CLI"
+    },
+    {
+        "name":  "Gemini CLI",
+        "status":  "PERMISSION REQUIRED",
+        "detail":  "C:\\nvm4w\\nodejs\\gemini.ps1; Google login present, but Gemini CLI is no longer supported for individuals; use Antigravity CLI (agy)"
+    },
+    {
+        "name":  "Antigravity CLI",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\Users\\swap2\\AppData\\Local\\agy\\bin\\agy.exe 1.2.5; Google credentials present"
+    },
+    {
+        "name":  "Antigravity IDE",
+        "status":  "UNSUPPORTED",
+        "detail":  "C:\\Users\\swap2\\AppData\\Local\\Programs\\Antigravity\\bin\\antigravity.cmd; IDE launcher, NEEWA uses agy CLI only"
+    },
+    {
+        "name":  "Grok CLI",
+        "status":  "AVAILABLE",
+        "detail":  "C:\\nvm4w\\nodejs\\grok.ps1; auth.json present"
+    },
+    {
+        "name":  "GitHub Copilot CLI",
+        "status":  "AUTH REQUIRED",
+        "detail":  "C:\\Users\\swap2\\AppData\\Local\\GitHubCopilotCLI\\copilot.exe GitHub Copilot CLI 1.0.65.; run copilot login (subscription required)"
     },
     {
         "name":  "Tailscale",

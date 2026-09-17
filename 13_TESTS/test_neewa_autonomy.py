@@ -924,6 +924,120 @@ class PathAndRecoveryTests(unittest.TestCase):
                 )
 
 
+LOCAL_DATE_SUMMARY_OBJECTIVE = (
+    "Build a new isolated Python 3 standard-library command-line application named "
+    "local_date_summary in the approved personal NEEWA-Personal sandbox. Do not reuse, "
+    "inspect, modify, or revive any previous weekday-label job or project. Accept an ISO "
+    "date in YYYY-MM-DD format; print its weekday and whether the year is a leap year; "
+    "reject invalid dates with a nonzero exit code and clear stderr error; include unit "
+    "tests for a valid date, leap year, non-leap year, and invalid date; include concise "
+    "usage documentation. Use the actual product test command in the new project, not "
+    "NEEWA OS internal tests. Execute implementation through Cursor Agent CLI, verify the "
+    "actual files and scoped diff, independently rerun the product tests in the correct "
+    "project workspace, and produce controller-owned requirements traceability. Leave the "
+    "parent OWNER_REVIEW only if implementation, tests, independent rerun, actual files, "
+    "scoped diff, and traceability all pass. No publication, deployment, external messages, "
+    "purchases, destructive actions, or changes outside the new isolated project."
+)
+
+
+class ActionSemanticsTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_semantics", str(AUTO)).load_module()
+
+    def _row(self, text):
+        return self.mod.classify_intent(text)
+
+    def test_local_date_summary_prohibition_list_is_a1_software(self):
+        row = self._row(LOCAL_DATE_SUMMARY_OBJECTIVE)
+        self.assertEqual(row["intent"], "software")
+        self.assertEqual(row["workflow"], "sdlc")
+        self.assertEqual(row["approval"], "A1")
+        self.assertIn("software", row["capabilities"])
+        self.assertIn("publish", row["prohibited_actions"])
+        self.assertIn("purchase", row["prohibited_actions"])
+        self.assertNotIn("purchase", row["requested_families"])
+        gate = self.mod.authorize_execution(
+            approval_level="A1",
+            owner_decision=None,
+            prompt=LOCAL_DATE_SUMMARY_OBJECTIVE,
+            repo=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\local_date_summary",
+            write=True,
+        )
+        self.assertTrue(gate["allowed"], gate)
+
+    def test_negated_equivalents_are_not_a2(self):
+        cases = [
+            "build a helper CLI with unit tests. no publication.",
+            "build a helper and do not publish",
+            "build a helper without deployment",
+            "build a helper; don't send emails",
+            "build a helper and never purchase",
+            "build a helper; do not delete files",
+        ]
+        for obj in cases:
+            row = self._row(obj)
+            self.assertEqual(row["approval"], "A1", obj)
+            self.assertEqual(row["workflow"], "sdlc", obj)
+
+    def test_affirmative_consequential_requests_remain_gated(self):
+        self.assertEqual(self._row("publish this article to the public blog")["approval"], "A2")
+        self.assertEqual(self._row("deploy this to production")["approval"], "A2")
+        self.assertEqual(self._row("send the client an email")["approval"], "A2")
+        self.assertEqual(self._row("purchase a new domain")["approval"], "A2")
+        self.assertEqual(self._row("delete all files in the repo")["approval"], "A2")
+        self.assertEqual(self._row("place a live trade for AAPL")["approval"], "A3")
+
+    def test_mixed_docs_about_deploy_are_not_authorization_to_deploy(self):
+        obj = "build an application and prepare deployment instructions, but do not deploy"
+        row = self._row(obj)
+        self.assertEqual(row["intent"], "software")
+        self.assertEqual(row["workflow"], "sdlc")
+        self.assertEqual(row["approval"], "A1")
+        self.assertIn("deploy", row["prohibited_actions"])
+        self.assertNotIn("deploy", row["requested_families"])
+
+    def test_quoted_publish_example_is_not_a_request(self):
+        obj = 'build a helper CLI. The README may mention "publish this article" as a forbidden example.'
+        row = self._row(obj)
+        self.assertEqual(row["approval"], "A1")
+        self.assertEqual(row["workflow"], "sdlc")
+
+    def test_classification_is_auditable_on_the_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(LOCAL_DATE_SUMMARY_OBJECTIVE, root=Path(tmp))
+            self.assertEqual(job["classification"]["approval"], "A1")
+            self.assertEqual(job["classification"]["workflow"], "sdlc")
+            self.assertTrue(job["prohibited_actions"])
+            self.assertEqual(job["classification"]["reason"], job["history"][0]["note"])
+
+    def test_misclassified_intake_closes_without_relabel_or_execute(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job = self.mod.create_parent_job(LOCAL_DATE_SUMMARY_OBJECTIVE, root=root)
+            job["intent"] = "publication"
+            job["workflow"] = "prepare_then_gate"
+            job["approval_level"] = "A2"
+            job["failure_reason"] = "BLOCKED_INTENT"
+            self.mod.transition(job, "CLASSIFIED", "publication")
+            self.mod.transition(job, "BLOCKED", "BLOCKED_INTENT")
+            closed = self.mod.close_misclassified_intake(
+                job, reason="prohibition list was treated as a requested purchase"
+            )
+            self.assertEqual(closed["state"], "CANCELLED")
+            self.assertEqual(closed["intent"], "publication")
+            self.assertEqual(closed["workflow"], "prepare_then_gate")
+            self.assertEqual(closed["approval_level"], "A2")
+            self.assertEqual(closed["classification_original"]["intent"], "publication")
+            self.assertEqual(closed["classification_correction"]["would_classify"]["approval"], "A1")
+            self.assertFalse(closed["classification_correction"]["executed"])
+            self.assertFalse(closed["classification_correction"]["relabeled_successful"])
+            self.assertNotEqual(closed["state"], "DONE")
+            self.assertNotEqual(closed["state"], "OWNER_REVIEW")
+            with self.assertRaises(ValueError):
+                self.mod.close_misclassified_intake(closed, reason="again")
+
+
 class OrchestrateUsageTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_orchestrate_usage", str(ORCH)).load_module()

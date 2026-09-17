@@ -139,6 +139,27 @@ class CursorCallTests(unittest.TestCase):
         self.assertEqual(result["status"], "BLOCKED")
         self.assertEqual(result.get("failure_class"), "MALFORMED_EXPECTED_PATH")
 
+    def test_prohibition_list_is_not_sensitive_intent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            jobs = Path(tmp)
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-NO-PURCHASES",
+                    "prompt": (
+                        "Implement local_date_summary with unit tests. "
+                        "No publication, deployment, external messages, purchases, "
+                        "or destructive actions."
+                    ),
+                    "repo": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                    "write": True,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+            )
+        self.assertNotIn("sensitive", (result.get("reason") or "").lower())
+        self.assertIn(result["status"], {"BLOCKED", "FAILED"})
+        self.assertIn("not installed", (result.get("reason") or "").lower())
+
 
 if __name__ == "__main__":
     unittest.main()

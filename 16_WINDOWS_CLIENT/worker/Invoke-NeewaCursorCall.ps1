@@ -37,15 +37,33 @@ function Get-AgentCli {
   return $null
 }
 
-function Test-BlockedIntent([string]$text) {
-  $lower = $text.ToLowerInvariant()
-  foreach ($frag in @($policy.blocked_intent_substrings)) {
-    if (-not $frag) { continue }
-    if (-not $lower.Contains($frag.ToLowerInvariant())) { continue }
-    $token = ($frag.Trim() -split '\s+')[-1]
-    if ($token -and $lower -match ("(?i)\b(?:do not|does not|don't|without|never|no)\b.{0,40}\b" + [regex]::Escape($token) + '\b')) {
+function Get-OperativePrompt([string]$text) {
+  if (-not $text) { return '' }
+  $work = [regex]::Replace($text, '"[^"]*"', ' ')
+  $parts = [regex]::Split($work, '(?<=[.!?;])\s+|\s+(?i:but|however)\s+')
+  $keep = New-Object System.Collections.Generic.List[string]
+  foreach ($p in $parts) {
+    $t = ([string]$p).Trim()
+    if (-not $t) { continue }
+    if ($t -match '^(?i)(?:please\s+)?(?:do not|does not|don''t|dont|must not|cannot|can''t|never|without|no|not to|avoid|refrain from|not for)\b') {
       continue
     }
+    $keep.Add($t)
+  }
+  return ($keep -join ' ')
+}
+
+function Test-BlockedIntent([string]$text) {
+  $operative = (Get-OperativePrompt $text).ToLowerInvariant()
+  if (-not $operative) { return $false }
+  foreach ($frag in @($policy.blocked_intent_substrings)) {
+    if (-not $frag) { continue }
+    $needle = $frag.ToLowerInvariant()
+    $token = (($frag.Trim() -split '\s+')[-1]).ToLowerInvariant()
+    $stem = [regex]::Replace($token, '(?:es|s|ed|ing)$', '')
+    if (-not $stem) { $stem = $token }
+    $present = $operative.Contains($needle) -or ($operative -match ('\b' + [regex]::Escape($stem) + '[a-z]*\b'))
+    if (-not $present) { continue }
     return $true
   }
   return $false

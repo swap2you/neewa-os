@@ -1,0 +1,14 @@
+{
+  "check": "side-effect-free classify of original local_date_summary objective",
+  "job_id_reference": "JOB-20260917T201825Z-1D8AB7DD-AUTO",
+  "live_job_created": false,
+  "result": {
+    "intent": "software",
+    "workflow": "sdlc",
+    "approval": "A1",
+    "capabilities": ["software", "documentation"],
+    "prohibited_actions": ["publish", "deploy", "purchase", "send_message", "destructive"],
+    "requested_families": [],
+    "reason": "software lifecycle; prohibited keywords do not raise authorization"
+  }
+}

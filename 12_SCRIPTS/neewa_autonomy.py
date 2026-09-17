@@ -30,6 +30,9 @@ FIXTURE = SourceFileLoader(
 PLANNING = SourceFileLoader(
     "neewa_autonomy_planning", str(ROOT / "12_SCRIPTS" / "neewa_autonomy_planning.py")
 ).load_module()
+SEM = SourceFileLoader(
+    "neewa_action_semantics", str(ROOT / "12_SCRIPTS" / "neewa_action_semantics.py")
+).load_module()
 BUDGETS = ROOT / "11_CONFIG" / "budgets.json"
 WORKERS = ROOT / "11_CONFIG" / "workers.json"
 PROVIDERS = ROOT / "11_CONFIG" / "providers.json"
@@ -138,26 +141,22 @@ def autonomy_root(explicit: Path | None = None) -> Path:
 
 
 def contains_negated(blob: str, term: str) -> bool:
+    """True when `term` appears only as a prohibited/negated action, not a request."""
+    analysis = SEM.analyze_objective(blob or "")
+    stem = re.escape(re.sub(r"(?:es|s|ed|ing|ation)$", "", (term or "").lower()) or (term or ""))
+    if re.search(rf"\b{stem}[a-z]*\b", analysis.get("prohibited_text") or "", re.I):
+        return True
     return bool(
         re.search(
-            rf"\b(?:do not|does not|don't|without|never|no)\b.{{0,40}}\b{re.escape(term)}\b",
-            blob,
+            rf"\b(?:do not|does not|don't|without|never|no)\b.{{0,80}}\b{stem}[a-z]*\b",
+            blob or "",
+            re.I,
         )
     )
 
 
 def action_needed_from_text(blob: str) -> str:
-    lower = blob.lower()
-    for hint in A3_HINTS:
-        if hint in lower and not contains_negated(lower, hint.split()[-1]):
-            return "A3"
-    for hint in A2_HINTS:
-        if hint in lower:
-            token = hint.split()[-1]
-            if contains_negated(lower, token):
-                continue
-            return "A2"
-    return "A0"
+    return SEM.analyze_objective(blob or "").get("needed") or "A0"
 
 
 def infer_capabilities(text: str) -> list[str]:
@@ -206,17 +205,28 @@ def infer_capabilities(text: str) -> list[str]:
 
 
 def classify_intent(text: str) -> dict:
-    lower = text.lower()
-    needed = action_needed_from_text(lower)
+    lower = (text or "").lower()
+    analysis = SEM.analyze_objective(text or "")
+    needed = analysis.get("needed") or "A0"
     caps = infer_capabilities(text)
-    base = {"capabilities": caps}
+    base = {
+        "capabilities": caps,
+        "requested_capabilities": caps,
+        "prohibited_actions": analysis.get("prohibited_actions") or [],
+        "requested_families": analysis.get("requested_families") or [],
+        "classification_audit": {
+            "needed": needed,
+            "requested_clause_count": len((analysis.get("clauses") or {}).get("requested") or []),
+            "prohibited_clause_count": len((analysis.get("clauses") or {}).get("prohibited") or []),
+        },
+    }
     if needed == "A3":
         return {
             **base,
             "intent": "financial_execution",
             "workflow": "owner_gate",
             "approval": "A3",
-            "reason": "reserved owner-controlled financial action",
+            "reason": "affirmative reserved financial action",
         }
     if needed == "A2":
         return {
@@ -224,7 +234,7 @@ def classify_intent(text: str) -> dict:
             "intent": "publication",
             "workflow": "prepare_then_gate",
             "approval": "A2",
-            "reason": "consequential publish/spend/deploy",
+            "reason": "affirmative consequential publish/spend/deploy/message/destructive action",
         }
     question = bool(re.search(r"\b(what is|how does|explain|status of|show me)\b", lower))
     if "software" in caps:
@@ -233,7 +243,7 @@ def classify_intent(text: str) -> dict:
             "intent": "software",
             "workflow": "sdlc",
             "approval": "A1",
-            "reason": "software lifecycle; documentation or review does not block tests",
+            "reason": "software lifecycle; prohibited keywords do not raise authorization",
         }
     if question and "files" not in caps:
         return {
@@ -362,6 +372,18 @@ def create_parent_job(
         "workflow": classification["workflow"],
         "approval_level": classification["approval"],
         "capabilities": classification.get("capabilities") or [],
+        "prohibited_actions": classification.get("prohibited_actions") or [],
+        "requested_families": classification.get("requested_families") or [],
+        "classification": {
+            "intent": classification["intent"],
+            "workflow": classification["workflow"],
+            "approval": classification["approval"],
+            "reason": classification["reason"],
+            "capabilities": classification.get("capabilities") or [],
+            "prohibited_actions": classification.get("prohibited_actions") or [],
+            "requested_families": classification.get("requested_families") or [],
+            "audit": classification.get("classification_audit") or {},
+        },
         "requirements_version": None,
         "design_version": None,
         "scope": "approved personal workspace only",
@@ -420,6 +442,47 @@ def checkpoint(job: dict, name: str, payload: dict | None = None) -> None:
         {"name": name, "at": utc_now(), "payload": payload or {}}
     )
     save_job(job)
+
+
+def close_misclassified_intake(job: dict, *, reason: str) -> dict:
+    """Close a parked false-A2/A3 intake without executing or relabeling success.
+
+    Preserves the original intent/workflow/approval_level/history. Records the
+    corrected classification as an audit sidecar and uses the existing
+    CANCELLED terminal state.
+    """
+    current = job.get("state")
+    eligible = {"INTAKE", "CLASSIFIED", "BLOCKED", "WAITING", "FAILED"}
+    if current not in eligible:
+        raise ValueError(f"cannot close misclassified intake from {current}")
+    fresh = classify_intent(job.get("parent_objective") or "")
+    job["classification_original"] = {
+        "intent": job.get("intent"),
+        "workflow": job.get("workflow"),
+        "approval_level": job.get("approval_level"),
+        "failure_reason": job.get("failure_reason"),
+        "state": current,
+    }
+    job["classification_correction"] = {
+        "at": utc_now(),
+        "would_classify": {
+            "intent": fresh.get("intent"),
+            "workflow": fresh.get("workflow"),
+            "approval": fresh.get("approval"),
+            "capabilities": fresh.get("capabilities") or [],
+            "prohibited_actions": fresh.get("prohibited_actions") or [],
+            "reason": fresh.get("reason"),
+        },
+        "executed": False,
+        "relabeled_successful": False,
+        "reason": reason,
+    }
+    transition(
+        job,
+        "CANCELLED",
+        "misclassified intake closed; original labels preserved; not executed",
+    )
+    return job
 
 
 def transition(job: dict, state: str, note: str | None = None) -> None:
@@ -646,10 +709,7 @@ def authorize_execution(
                 "detail": repo,
             }
     for frag in policy.get("blocked_intent_substrings") or []:
-        if frag and frag.lower() in blob:
-            token = frag.split()[-1]
-            if contains_negated(blob, token):
-                continue
+        if frag and SEM.blocked_fragment_is_requested(blob, frag):
             mapped = "A3" if any(h in frag.lower() for h in A3_HINTS) else "A2"
             return {
                 "allowed": False,
@@ -2412,6 +2472,13 @@ def main() -> int:
     recp.add_argument("--job-id", required=True)
     recp.add_argument("--root")
     recp.add_argument("--inbox-root")
+    closep = sub.add_parser("close-misclassified-intake")
+    closep.add_argument("--job-id", required=True)
+    closep.add_argument("--root")
+    closep.add_argument(
+        "--reason",
+        default="classifier treated a prohibition as a requested action",
+    )
     args = parser.parse_args()
     if args.command == "matrix":
         print(json.dumps(capability_matrix(), indent=2))
@@ -2440,6 +2507,13 @@ def main() -> int:
         job = reconcile_parent_job(job, inbox_root=inbox)
         print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
         return 0 if job["state"] in TERMINAL else 2
+    if args.command == "close-misclassified-intake":
+        job = resume_job(args.job_id, Path(args.root) if args.root else None)
+        if not job:
+            raise SystemExit(f"unknown job {args.job_id}")
+        job = close_misclassified_intake(job, reason=args.reason)
+        print(json.dumps({k: v for k, v in job.items() if k != "_path"}, indent=2))
+        return 0
     if args.command == "runner":
         return runner_loop(
             root=Path(args.root) if args.root else None,

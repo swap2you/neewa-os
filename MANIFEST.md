@@ -205,6 +205,9 @@
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151200Z-conversation-inventory/JOB-20260917-CONV-WS-001-workspace-inventory.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151200Z-conversation-inventory/JOB-20260917-CONV-WS-001.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151200Z-conversation-inventory/README.md`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151629Z-conversation-cursor-call/JOB-20260917-CONV-CC-001-cursor-call.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151629Z-conversation-cursor-call/JOB-20260917-CONV-CC-001.json`
+- `evidence/LOCAL_WINDOWS_BRIDGE/20260917T151629Z-conversation-cursor-call/README.md`
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/README.md`
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/acceptance.json`
 - `evidence/LOCAL_WINDOWS_BRIDGE/step-1-server-readiness/constraints.json`

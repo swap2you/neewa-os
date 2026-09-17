@@ -1,0 +1,18 @@
+{
+  "job_id": "JOB-20260917-CONV-CC-001",
+  "action": "cursor_call",
+  "status": "BLOCKED",
+  "reason": "Cursor Agent CLI is not authenticated",
+  "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-001-cursor-call.json",
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "git_writer": "Cursor",
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "repo": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "log": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-001-cursor-call.log",
+  "exit_code": 1,
+  "duration_sec": 2,
+  "stdout_tail": "",
+  "cli": "C:\\Users\\swap2\\AppData\\Local\\cursor-agent\\agent.cmd"
+}

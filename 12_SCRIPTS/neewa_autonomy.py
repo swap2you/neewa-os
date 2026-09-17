@@ -1604,6 +1604,7 @@ def advance_job(
                     if art not in job["artifacts"]:
                         job["artifacts"].append(art)
             save_json(workdir / "test-results.json", test_ev)
+            job["active_child_id"] = None
             transition(job, "TESTING", child_id)
             return job
         prompt = build_worker_prompt(job, requirements, design)
@@ -1805,7 +1806,7 @@ def runner_once(
         job_lease = job.get("lease") or {}
         expires = str(job_lease.get("expires_at") or "")
         owner = job_lease.get("owner")
-        if owner and owner != os.getpid() and expires > utc_now() and job.get("active_child_id"):
+        if owner and owner != os.getpid() and expires > utc_now() and job.get("state") == "EXECUTING" and job.get("active_child_id"):
             results.append({"job_id": job["job_id"], "state": job["state"], "skipped": "foreign_lease"})
             continue
         job["lease"] = {

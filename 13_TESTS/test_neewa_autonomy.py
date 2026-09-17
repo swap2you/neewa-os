@@ -275,6 +275,9 @@ class GeneralAutonomyTests(unittest.TestCase):
         self.assertEqual(self.mod.classify_intent("what is the status of connected projects")["intent"], "question")
         self.assertEqual(self.mod.classify_intent("publish this article to the public blog")["approval"], "A2")
         self.assertEqual(self.mod.classify_intent("place a live trade for AAPL")["approval"], "A3")
+        katha = "Prepare a katha with source notes. Do not publish."
+        self.assertEqual(self.mod.classify_intent(katha)["workflow"], "research_report")
+        self.assertEqual(self.mod.classify_intent(katha)["approval"], "A0")
 
     def test_done_gate_rejects_missing_tests(self):
         job = {

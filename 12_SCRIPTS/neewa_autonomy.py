@@ -123,16 +123,35 @@ def autonomy_root(explicit: Path | None = None) -> Path:
     return path
 
 
+def contains_negated(blob: str, term: str) -> bool:
+    return bool(re.search(rf"\b(?:do not|don't|without|never|no)\b.{{0,40}}\b{re.escape(term)}\b", blob))
+
+
+def action_needed_from_text(blob: str) -> str:
+    lower = blob.lower()
+    for hint in A3_HINTS:
+        if hint in lower and not contains_negated(lower, hint.split()[-1]):
+            return "A3"
+    for hint in A2_HINTS:
+        if hint in lower:
+            token = hint.split()[-1]
+            if contains_negated(lower, token):
+                continue
+            return "A2"
+    return "A0"
+
+
 def classify_intent(text: str) -> dict:
     lower = text.lower()
-    if any(h in lower for h in A3_HINTS):
+    needed = action_needed_from_text(lower)
+    if needed == "A3":
         return {
             "intent": "financial_execution",
             "workflow": "owner_gate",
             "approval": "A3",
             "reason": "reserved owner-controlled financial action",
         }
-    if any(h in lower for h in A2_HINTS):
+    if needed == "A2":
         return {
             "intent": "publication",
             "workflow": "prepare_then_gate",
@@ -408,15 +427,11 @@ def authorize_execution(
     del owner_decision  # mutable job files are not an approval channel
     blob = f"{prompt}\n{repo}".lower()
     needed = "A1" if write else "A0"
-    for hint in A3_HINTS:
-        if hint in blob:
-            needed = "A3"
-            break
-    if needed != "A3":
-        for hint in A2_HINTS:
-            if hint in blob:
-                needed = "A2"
-                break
+    needed_from_text = action_needed_from_text(blob)
+    if needed_from_text == "A3":
+        needed = "A3"
+    elif needed_from_text == "A2":
+        needed = "A2"
     policy = load_policy()
     repo_norm = repo.replace("/", "\\").lower()
     try:

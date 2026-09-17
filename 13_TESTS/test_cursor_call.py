@@ -87,7 +87,7 @@ class CursorCallTests(unittest.TestCase):
                 jobs,
             )
         self.assertEqual(result["status"], "BLOCKED")
-        self.assertNotEqual(result["status"], "complete")
+        self.assertNotEqual(result["status"], "COMPLETED")
         self.assertIn("not installed", result["reason"].lower())
 
     def test_denied_repo_is_blocked(self):

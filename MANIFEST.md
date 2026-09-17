@@ -122,6 +122,7 @@
 - `12_SCRIPTS/morning_brief.py`
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_ops.py`
+- `12_SCRIPTS/neewa_orchestrate.py`
 - `12_SCRIPTS/neewa_voice_readiness.sh`
 - `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`
@@ -134,6 +135,7 @@
 - `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_home_plugin.py`
 - `13_TESTS/test_neewa_ops.py`
+- `13_TESTS/test_neewa_orchestrate.py`
 - `13_TESTS/test_neewa_wake_phrases.py`
 - `13_TESTS/test_project_portfolio.py`
 - `13_TESTS/test_resource_governor.py`
@@ -184,9 +186,13 @@
 - `AI-OPS/delivery/CHIEF_OF_STAFF.md`
 - `AI-OPS/delivery/NEEWA_JARVIS_V1_SPEC.md`
 - `AI-OPS/delivery/NEEWA_WORK_ORDER.md`
+- `AI-OPS/delivery/ORCHESTRATION.md`
+- `AI-OPS/delivery/ORCHESTRATION_ACCEPTANCE.md`
+- `AI-OPS/delivery/PROJECT_ACCESS.md`
 - `AI-OPS/delivery/RELEASE_REPORT.md`
 - `AI-OPS/delivery/RUNBOOK.md`
 - `AI-OPS/delivery/VOICE_PROVIDER_MATRIX.md`
+- `AI-OPS/delivery/WORKER_REGISTRY.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1-review.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-jarvis-v1.md`
 - `AI-OPS/delivery/work-orders/WO-20260916-workspace-inventory.md`

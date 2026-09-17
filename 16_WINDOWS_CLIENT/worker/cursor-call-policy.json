@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "interface": "Cursor Agent CLI noninteractive print mode",
+  "cli_version_verified": "2026.09.15-d2fe57e",
   "cli_names": ["agent", "agent.cmd", "cursor-agent", "cursor-agent.cmd"],
   "cli_rel_paths": [
     "%LOCALAPPDATA%\\cursor-agent\\agent.cmd",
@@ -11,9 +12,12 @@
   ],
   "print_flag": "--print",
   "output_format": "json",
-  "sandbox": "enabled",
+  "sandbox": "omit_on_windows",
+  "sandbox_windows_note": "Agent CLI 2026.09.15-d2fe57e rejects --sandbox enabled on Windows (macOS/Linux only). Do not persist sandbox disable.",
+  "headless_workspace_trust": true,
+  "never_pass": ["--yolo", "--approve-mcps", "--sandbox disabled", "--add-dir"],
   "default_timeout_sec": 180,
-  "max_timeout_sec": 300,
+  "max_timeout_sec": 600,
   "workspace_root": "C:\\Development\\Workspace",
   "sandbox_repo": "%USERPROFILE%\\NEEWA-Personal\\cursor-sandbox",
   "approved_repo_names": [
@@ -35,7 +39,7 @@
     "OratsUtil",
     "ChakraOptionsWatch"
   ],
-  "sensitive_prompt_substrings": [
+  "blocked_intent_substrings": [
     "git push",
     "force push",
     "gh secret",
@@ -45,12 +49,20 @@
     "id_rsa",
     "BEGIN PRIVATE KEY",
     "live trade",
-    "place order"
+    "place order",
+    "npm publish",
+    "terraform apply",
+    "kubectl delete",
+    "aws configure",
+    "purchase",
+    "deploy to production"
   ],
   "notes": [
     "cursor.cmd is the IDE launcher, not the agent CLI.",
-    "Missing or unauthenticated agent CLI must return BLOCKED, never complete.",
+    "Missing or unauthenticated agent CLI must return BLOCKED with failure_class AUTH_REQUIRED or CLI_MISSING, never COMPLETED.",
     "Do not invoke cmd.exe or powershell with a caller-supplied command string.",
+    "--trust is headless workspace trust for an already-approved repo. It is not all-drive access.",
+    "--force is used only for authorized A1 writes. Read-only jobs use --mode ask.",
     "A2/A3 remain owner-gated. Routine A1 development on approved repos does not re-prompt."
   ]
 }

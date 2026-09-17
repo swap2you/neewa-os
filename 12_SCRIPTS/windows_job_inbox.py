@@ -75,6 +75,10 @@ def enqueue(
     if approval in {"A2", "A3"}:
         raise ValueError("A2/A3 jobs cannot be enqueued for unattended Windows execution")
     ensure_dirs(root)
+    for folder in ("inbox", "processing", "done", "failed"):
+        existing = root / folder / f"{job_id}.json"
+        if existing.is_file():
+            raise ValueError(f"duplicate job_id {job_id} already exists in {folder}")
     payload = {
         "schema_version": 1,
         "job_id": job_id,
@@ -106,6 +110,7 @@ def main() -> int:
     parser.add_argument("--prompt")
     parser.add_argument("--timeout-sec", type=int)
     parser.add_argument("--write", action="store_true")
+    parser.add_argument("--expected-path", action="append", dest="expected_paths")
     args = parser.parse_args()
     root = Path(args.root)
     ensure_dirs(root)
@@ -121,6 +126,8 @@ def main() -> int:
             extra["timeout_sec"] = args.timeout_sec
         if args.write:
             extra["write"] = True
+        if args.expected_paths:
+            extra["expected_paths"] = args.expected_paths
         path = enqueue(args.job_id, args.action, args.approval, root, extra or None)
         print(path)
         return 0

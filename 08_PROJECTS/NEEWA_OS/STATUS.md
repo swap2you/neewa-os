@@ -1,7 +1,7 @@
 # NEEWA OS Status
 
 State: A0/A1 OPERATIONAL — A2/A3 INTEGRATIONS PENDING
-Last verified: 2026-09-17 (Conversation inventory complete; Conversation cursor_call reached Agent CLI and returned BLOCKED — not authenticated)
+Last verified: 2026-09-17 (Cursor Agent CLI authenticated; Conversation orchestration live)
 
 Verified baseline:
 - repository integrity, governance, canonical registries, job lifecycle, budget and Done Gate controls;

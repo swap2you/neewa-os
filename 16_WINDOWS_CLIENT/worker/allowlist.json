@@ -14,7 +14,7 @@
   ],
   "approved_root_modes": {
     "%USERPROFILE%\\NEEWA-Personal": "read_write_jobs",
-    "C:\\Development\\Workspace": "read_only_personal_inventory"
+    "C:\\Development\\Workspace": "inventory_readonly_cursor_a1_approved_repos_only"
   },
   "denied_roots": [
     "%USERPROFILE%\\.ssh",
@@ -36,8 +36,8 @@
     "ping": "A0",
     "capability_inventory": "A0",
     "personal_artifact": "A1",
-    "portfolio_inventory": "A1",
-    "workspace_inventory": "A1",
+    "portfolio_inventory": "A0",
+    "workspace_inventory": "A0",
     "cursor_call": "A1"
   },
   "cursor_call": {

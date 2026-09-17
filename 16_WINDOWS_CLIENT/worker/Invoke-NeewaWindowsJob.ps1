@@ -37,8 +37,9 @@ if (Test-Path -LiteralPath $stampFile) {
 }
 
 $artifact = $null
-$status = 'complete'
+$status = 'COMPLETED'
 $reason = $null
+$cursorResult = $null
 switch ($action) {
   'ping' {
     $artifact = Join-Path $jobsDir "$($job.job_id)-ping.txt"
@@ -82,7 +83,8 @@ switch ($action) {
     $artifact = $cursorResult.artifact
     $status = [string]$cursorResult.status
     $reason = $cursorResult.reason
-    if ($status -notin @('complete', 'FAILED', 'BLOCKED')) { $status = 'FAILED' }
+    if ($status -eq 'complete') { $status = 'COMPLETED' }
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
   }
 }
 $result = [pscustomobject]@{
@@ -91,6 +93,7 @@ $result = [pscustomobject]@{
   reason = $reason
   artifact = $artifact
   host = $env:COMPUTERNAME
+  failure_class = $(if ($cursorResult) { $cursorResult.failure_class } else { $null })
 }
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $stampFile -Encoding utf8
 return $result

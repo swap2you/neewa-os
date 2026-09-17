@@ -34,13 +34,15 @@ one installed on `neewa-edge-01`.
   Restricted to approved personal repositories. Routine A1 development does not
   re-prompt. Sensitive prompts (`git push`, live trade, secrets) return
   `BLOCKED`. Missing or unauthenticated CLI returns `BLOCKED`, never `complete`.
-  Timeout cancels the process. No caller-supplied shell string is executed.
+  Timeout cancels the process tree. No caller-supplied shell string is executed.
+  Conversation uses `12_SCRIPTS/neewa_orchestrate.py` so NEEWA can submit,
+  wait, and report without the owner pasting into Cursor.
 
 A2/A3 jobs are refused. Unknown actions return `FAILED`.
 
-NEEWA requests this from `neewa-core-01` by enqueueing JSON on the Docker
-workspace inbox (`windows-jobs/inbox`) using `12_SCRIPTS/windows_job_inbox.py`
-`--action workspace_inventory --approval A1`. The Windows worker polls that
+NEEWA requests this from `neewa-core-01` by running
+`12_SCRIPTS/neewa_orchestrate.py` (or `windows_job_inbox.py`) against the
+Docker workspace inbox (`windows-jobs/inbox`). The Windows worker polls that
 inbox over outbound Tailscale SSH. Cursor remains the Git writer.
 
 Local evidence packs live under `evidence/LOCAL_WINDOWS_BRIDGE/<timestamp>/`.

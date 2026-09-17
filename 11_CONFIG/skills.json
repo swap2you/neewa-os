@@ -10,6 +10,11 @@
       "id": "hermes-agent",
       "status": "installed",
       "scope": "Hermes operations"
+    },
+    {
+      "id": "windows-worker-bridge",
+      "status": "installed-and-verified",
+      "scope": "Conversation orchestration, Windows inbox, cursor_call"
     }
   ]
 }

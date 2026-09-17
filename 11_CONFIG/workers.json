@@ -1,12 +1,20 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
+  "git_writer": "Cursor",
+  "default_development_worker": "cursor-agent-cli",
+  "notes": [
+    "Only verified programmable interfaces are routable.",
+    "Desktop GUI presence is not a programmable worker.",
+    "Do not copy tokens between products."
+  ],
   "workers": [
     {
       "id": "neewa-chief",
       "class": "chief-agent",
       "runtime": "Hermes",
       "status": "active",
-      "location": "neewa-core-01"
+      "location": "neewa-core-01",
+      "operations": ["coordinate", "submit_job", "report"]
     },
     {
       "id": "hermes-delegated-worker",
@@ -23,28 +31,64 @@
       "location": "loopback"
     },
     {
-      "id": "neewa-edge-01",
+      "id": "neewa-windows-worker",
       "class": "windows-edge",
-      "runtime": "Hermes Desktop + cua-driver 0.28.2 + governed Windows worker",
+      "runtime": "governed outbound SSH poller",
       "status": "active-local-worker",
       "location": "neewa-edge-01",
       "transport": "outbound Tailscale SSH poll",
-      "computer_use": "local cua-driver; not the Ubuntu sandbox"
+      "operations": ["ping", "capability_inventory", "workspace_inventory", "portfolio_inventory", "personal_artifact", "cursor_call"],
+      "public_listener": false
+    },
+    {
+      "id": "cursor-agent-cli",
+      "class": "coding-worker",
+      "runtime": "Cursor Agent CLI",
+      "status": "verified",
+      "executable": "%LOCALAPPDATA%\\cursor-agent\\agent.cmd",
+      "version": "2026.09.15-d2fe57e",
+      "noninteractive": "agent --print --output-format json --workspace <approved> --sandbox enabled",
+      "auth": "browser agent login (official); CURSOR_API_KEY not used",
+      "approved_workspace": "allowlisted personal repos plus NEEWA-Personal\\cursor-sandbox",
+      "operations": ["code_implementation", "code_review", "tests_in_approved_repo"],
+      "billing": "uses existing Cursor account; no extra API key created",
+      "notes": "cursor.cmd is the IDE launcher and is not this worker"
+    },
+    {
+      "id": "cua-driver",
+      "class": "computer-use",
+      "runtime": "cua-driver 0.28.2",
+      "status": "active-local-worker",
+      "location": "neewa-edge-01 interactive session",
+      "operations": ["local_gui_in_session"],
+      "notes": "Not a remote unattended inbox worker"
     },
     {
       "id": "codex",
       "class": "coding-worker",
-      "status": "gui-present-cli-not-on-path"
+      "status": "gui-present-cli-not-on-path",
+      "evidence": "%USERPROFILE%\\.codex exists; codex executable not on PATH",
+      "routable": false
     },
     {
       "id": "claude-code",
       "class": "coding-worker",
-      "status": "gui-present-cli-not-installed"
+      "status": "gui-or-logs-present-cli-not-installed",
+      "evidence": "%LOCALAPPDATA%\\claude\\Logs only; claude executable not on PATH",
+      "routable": false
     },
     {
       "id": "gemini-cli",
       "class": "coding-worker",
-      "status": "not-installed"
+      "status": "dotdir-present-cli-not-on-path",
+      "evidence": "%USERPROFILE%\\.gemini exists; gemini executable not on PATH",
+      "routable": false
+    },
+    {
+      "id": "claude-cowork",
+      "class": "coding-worker",
+      "status": "no-documented-remote-automation-verified",
+      "routable": false
     }
   ]
 }

@@ -30,19 +30,25 @@ if ($cursor) {
   Add-Cap 'Cursor IDE CLI' 'AVAILABLE' "$($cursor.Source) $ver"
 } else { Add-Cap 'Cursor IDE CLI' 'NOT INSTALLED' 'Desktop app may exist without CLI on PATH' }
 
-$agent = Find-Cmd @('agent', 'agent.cmd', 'cursor-agent')
-if (-not $agent) {
-  foreach ($p in @(
-      (Join-Path $env:USERPROFILE '.local\bin\agent.exe'),
-      (Join-Path $env:USERPROFILE '.local\bin\agent.cmd')
-    )) {
-    if (Test-Path $p) { $agent = Get-Item $p; break }
+$agentCmd = Join-Path $env:LOCALAPPDATA 'cursor-agent\agent.cmd'
+if (Test-Path -LiteralPath $agentCmd) {
+  $verOut = Join-Path $env:TEMP 'neewa-agent-ver.out'
+  $verErr = Join-Path $env:TEMP 'neewa-agent-ver.err'
+  $p = Start-Process -FilePath $agentCmd -ArgumentList @('--version') -PassThru -NoNewWindow -RedirectStandardOutput $verOut -RedirectStandardError $verErr
+  if (-not $p.WaitForExit(8000)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
+  $ver = if (Test-Path $verOut) { (Get-Content -Raw $verOut).Trim() } else { 'unknown' }
+  $stOut = Join-Path $env:TEMP 'neewa-agent-st.out'
+  $stErr = Join-Path $env:TEMP 'neewa-agent-st.err'
+  $p2 = Start-Process -FilePath $agentCmd -ArgumentList @('status') -PassThru -NoNewWindow -RedirectStandardOutput $stOut -RedirectStandardError $stErr
+  if (-not $p2.WaitForExit(8000)) { Stop-Process -Id $p2.Id -Force -ErrorAction SilentlyContinue }
+  $st = if (Test-Path $stOut) { (Get-Content -Raw $stOut).Trim() } else { '' }
+  if ($st -match '(?i)not logged in|authentication required') {
+    Add-Cap 'Cursor Agent CLI' 'AUTH REQUIRED' "$agentCmd $ver"
+    Add-Cap 'cursor_call' 'AUTH REQUIRED' 'A1 agent --print; worker reports AUTH_REQUIRED/BLOCKED'
+  } else {
+    Add-Cap 'Cursor Agent CLI' 'AVAILABLE' "$agentCmd $ver"
+    Add-Cap 'cursor_call' 'AVAILABLE' 'A1 agent --print on approved personal repos'
   }
-}
-if ($agent) {
-  $src = if ($agent.Source) { $agent.Source } else { $agent.FullName }
-  $ver = (& $src --version) 2>$null | Select-Object -First 1
-  Add-Cap 'Cursor Agent CLI' 'AVAILABLE' "$src $ver"
 } else {
   Add-Cap 'Cursor Agent CLI' 'NOT INSTALLED' 'required for cursor_call (agent --print); cursor.cmd is not this interface'
 }
@@ -76,7 +82,6 @@ else { Add-Cap 'Personal workspace' 'PERMISSION REQUIRED' "create $personal for 
 $workspace = 'C:\Development\Workspace'
 if (Test-Path -LiteralPath $workspace) {
   Add-Cap 'Workspace inventory' 'AVAILABLE' 'read-only personal allowlist via workspace_inventory'
-  Add-Cap 'cursor_call' 'AVAILABLE' 'A1 agent --print on approved personal repos; missing CLI is BLOCKED'
 } else {
   Add-Cap 'Workspace inventory' 'PERMISSION REQUIRED' $workspace
 }

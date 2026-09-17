@@ -1,27 +1,53 @@
 # NEEWA Windows worker bridge
 
-When the owner asks from NEEWA Conversation for a Windows workspace inventory
-or a Cursor coding task, use the existing outbound inbox. Do not open a
-listener and do not request a raw Windows shell.
+When the owner asks from NEEWA Conversation to inventory Windows projects,
+delegate coding, check job status, or summarize work, use this skill.
+Do not say Windows execution is unavailable. Do not open a listener.
+Do not request a raw Windows shell. Do not ask the owner to paste the
+task into Cursor.
 
 Inside the Hermes Docker sandbox the worker-visible inbox is
-`/workspace/windows-jobs`. The enqueue script prefers that bind-mount
-automatically. Do not write a private overlay under `/home/ubuntu/.hermes/...`
-inside the container.
+`/workspace/windows-jobs`. `12_SCRIPTS/neewa_orchestrate.py` writes records
+and jobs there automatically.
 
-## Inventory (no Cursor)
-
-```
-python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py enqueue --job-id JOB-<utc>-WS --action workspace_inventory --approval A1
-python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py status
-```
-
-Read the JSON under `/workspace/windows-jobs/done/` after the Windows worker polls.
-
-## Cursor call
+## Show connected projects
 
 ```
-python3 /opt/neewa/neewa-os/12_SCRIPTS/windows_job_inbox.py enqueue --job-id JOB-<utc>-CC --action cursor_call --approval A1 --repo "<approved personal repo>" --prompt "<task>" --write
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py submit --capability project_inventory --objective "show connected personal projects" --job-id JOB-<utc>-WS --approval A0
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py wait --job-id JOB-<utc>-WS --timeout-sec 90
 ```
 
-Approved personal repos only. Missing Cursor Agent CLI is BLOCKED.
+## Delegate coding to Cursor (approved personal repo or cursor-sandbox)
+
+```
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py submit \
+  --capability code_implementation \
+  --job-id JOB-<utc>-CC \
+  --objective "<one sentence>" \
+  --repo "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox" \
+  --prompt "<task>" \
+  --write \
+  --timeout-sec 300 \
+  --expected-path "<relative file>"
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py wait --job-id JOB-<utc>-CC --timeout-sec 360
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py get --job-id JOB-<utc>-CC
+```
+
+Then tell the owner: job_id, state, selected_worker, artifact paths, and
+whether validation passed. COMPLETED requires real files, not a model claim.
+
+BLOCKED with AUTH_REQUIRED means Cursor Agent CLI login is needed.
+FAILED means the worker ran and the task did not meet validation.
+Do not report FAILED or BLOCKED as success.
+
+## What is working on / completed work
+
+```
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_orchestrate.py list
+```
+
+Science Quest lives under KidsProjects (`ACCESS_APPROVED` parent). It is not
+a separately connected production project.
+
+A0/A1 approved-repo work does not need a new owner confirmation.
+A2/A3 (publish, deploy, spend, secrets, trades) stay blocked.

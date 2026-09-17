@@ -6,6 +6,11 @@ States:
 Exceptional:
 `BLOCKED`, `OWNER_DECISION`, `PAUSED`, `FAILED`, `CANCELLED`.
 
+Windows Conversation bridge (durable inbox records) uses:
+`QUEUED -> DISPATCHED -> RUNNING -> VALIDATING -> COMPLETED`
+with `BLOCKED`, `FAILED`, `CANCELLED`. See `AI-OPS/delivery/ORCHESTRATION.md`.
+`COMPLETED` maps to `DONE` for repository job files when evidence is copied.
+
 ## Rules
 - One accountable owner/chief agent per job.
 - One primary implementation worker per write scope.

@@ -15,9 +15,12 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["tailscale_funnel"], False)
         self.assertIn(r"%USERPROFILE%\NEEWA-Personal", data["approved_roots"])
         self.assertIn(r"C:\Development\Workspace", data["approved_roots"])
-        self.assertEqual(data["approved_root_modes"][r"C:\Development\Workspace"], "read_only_personal_inventory")
+        self.assertEqual(
+            data["approved_root_modes"][r"C:\Development\Workspace"],
+            "inventory_readonly_cursor_a1_approved_repos_only",
+        )
         self.assertIn("workspace_inventory", data["actions"])
-        self.assertEqual(data["actions"]["workspace_inventory"], "A1")
+        self.assertEqual(data["actions"]["workspace_inventory"], "A0")
         self.assertIn("cursor_call", data["actions"])
         self.assertEqual(data["actions"]["cursor_call"], "A1")
         self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")

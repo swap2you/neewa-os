@@ -19,7 +19,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "NEEWA-OS",
       "workspace_path": "C:\\Development\\Workspace\\NEEWA-OS",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-NEEWA"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-NEEWA",
+      "access_stage": "CONNECTED",
+      "a1_development": true
     },
     {
       "id": "PRJ-WANI",
@@ -30,7 +32,9 @@
       "kind": "registry_defined_only",
       "workspace_name": null,
       "workspace_path": null,
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-WANI"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-WANI",
+      "access_stage": "DISCOVERED",
+      "a1_development": false
     },
     {
       "id": "PRJ-AAROHAN",
@@ -41,7 +45,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "aarohan-careeros",
       "workspace_path": "C:\\Development\\Workspace\\aarohan-careeros",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-AAROHAN"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-AAROHAN",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-REVENUE",
@@ -52,7 +58,9 @@
       "kind": "registry_defined_only",
       "workspace_name": null,
       "workspace_path": null,
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-REVENUE"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-REVENUE",
+      "access_stage": "DISCOVERED",
+      "a1_development": false
     },
     {
       "id": "PRJ-BHAVA",
@@ -63,7 +71,9 @@
       "kind": "registry_defined_only",
       "workspace_name": null,
       "workspace_path": null,
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-BHAVA"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-BHAVA",
+      "access_stage": "DISCOVERED",
+      "a1_development": false
     },
     {
       "id": "PRJ-CHAKRAOPS",
@@ -74,7 +84,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "ChakraOps",
       "workspace_path": "C:\\Development\\Workspace\\ChakraOps",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-CHAKRAOPS-DEV",
@@ -85,7 +97,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "ChakraOps-dev",
       "workspace_path": "C:\\Development\\Workspace\\ChakraOps-dev",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS-DEV"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS-DEV",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-DEVOTIONAL",
@@ -96,7 +110,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "DevotionalRepo",
       "workspace_path": "C:\\Development\\Workspace\\DevotionalRepo",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-DEVOTIONAL"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-DEVOTIONAL",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-KIDS",
@@ -107,7 +123,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "KidsProjects",
       "workspace_path": "C:\\Development\\Workspace\\KidsProjects",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-KIDS"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-KIDS",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-MANAN",
@@ -118,7 +136,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "manan",
       "workspace_path": "C:\\Development\\Workspace\\manan",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-MANAN"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-MANAN",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-SOCIAL",
@@ -129,7 +149,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "SocialMediaManager",
       "workspace_path": "C:\\Development\\Workspace\\SocialMediaManager",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-SOCIAL"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-SOCIAL",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     },
     {
       "id": "PRJ-ZUME",
@@ -140,7 +162,9 @@
       "kind": "inventoried_personal",
       "workspace_name": "Zume",
       "workspace_path": "C:\\Development\\Workspace\\Zume",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-ZUME"
+      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-ZUME",
+      "access_stage": "ACCESS_APPROVED",
+      "a1_development": true
     }
   ],
   "skipped": [

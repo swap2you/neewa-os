@@ -251,9 +251,42 @@ if ($DryRun) {
   $exited = $true
   $proc = $null
 } else {
-  $proc = Start-Process -FilePath $cli -ArgumentList $argList -WorkingDirectory $repo -PassThru -NoNewWindow -RedirectStandardOutput $stdoutFile -RedirectStandardError $stderrFile
+  $filePath = $cli
+  $startArgs = @($argList)
+  if ($cli -match '(?i)agent\.cmd$') {
+    $ps1 = Join-Path (Split-Path -Parent $cli) 'cursor-agent.ps1'
+    if (Test-Path -LiteralPath $ps1) {
+      $filePath = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+      $startArgs = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $ps1) + @($argList)
+    }
+  }
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $filePath
+  $psi.WorkingDirectory = $repo
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $argListProp = $psi.GetType().GetProperty('ArgumentList')
+  if ($argListProp) {
+    foreach ($a in $startArgs) { [void]$psi.ArgumentList.Add([string]$a) }
+  } else {
+    $psi.Arguments = (($startArgs | ForEach-Object {
+      $s = [string]$_
+      if ($s -match '[\s"]') { '"' + ($s -replace '"', '\"') + '"' } else { $s }
+    }) -join ' ')
+  }
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+  [void]$proc.Start()
   [System.IO.File]::WriteAllText($pidPath, [string]$proc.Id, [System.Text.UTF8Encoding]::new($false))
   $exited = $proc.WaitForExit($timeoutSec * 1000)
+  if ($exited) {
+    $stdoutText = $proc.StandardOutput.ReadToEnd()
+    $stderrText = $proc.StandardError.ReadToEnd()
+    [System.IO.File]::WriteAllText($stdoutFile, $stdoutText, [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::WriteAllText($stderrFile, $stderrText, [System.Text.UTF8Encoding]::new($false))
+  }
 }
 if (-not $exited) {
   Stop-ProcessTree -ProcessId $proc.Id

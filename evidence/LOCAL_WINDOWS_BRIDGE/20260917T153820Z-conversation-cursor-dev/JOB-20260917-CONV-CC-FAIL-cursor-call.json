@@ -1,0 +1,15 @@
+{
+  "job_id": "JOB-20260917-CONV-CC-FAIL",
+  "action": "cursor_call",
+  "status": "BLOCKED",
+  "reason": "repo is on the denied list",
+  "artifact": null,
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "selected_worker": "cursor-agent-cli",
+  "git_writer": "Cursor",
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "write": false,
+  "failure_class": "DENIED_REPO"
+}

@@ -1,0 +1,26 @@
+{
+  "job_id": "JOB-20260917-CONV-CC-005",
+  "action": "cursor_call",
+  "status": "COMPLETED",
+  "reason": null,
+  "artifact": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-005-cursor-call.json",
+  "host": "LAPTOP-HKGLJEE8",
+  "worker": "neewa-windows-worker",
+  "selected_worker": "cursor-agent-cli",
+  "git_writer": "Cursor",
+  "public_listener": false,
+  "unrestricted_shell": false,
+  "write": true,
+  "repo": "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox",
+  "artifact_paths": [
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\sample.json",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\project_health.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\test_project_health.py",
+    "C:\\Users\\swap2\\NEEWA-Personal\\cursor-sandbox\\health_report.json"
+  ],
+  "log": "C:\\Users\\swap2\\NEEWA-Personal\\jobs\\JOB-20260917-CONV-CC-005-cursor-call.log",
+  "exit_code": 0,
+  "duration_sec": 51,
+  "stdout_tail": "{\"type\":\"result\",\"subtype\":\"success\",\"is_error\":false,\"duration_ms\":46692,\"duration_api_ms\":46692,\"result\":\"I'll inspect the project files and run `project_health.py` so `health_report.json` is produced from `sample.json`, then verify tests still pass.Running the script, then the tests.`project_health.py` wrote `health_report.json` from `sample.json` (3 projects). All 5 unit tests passed.\",\"session_id\":\"7133c7de-d13b-455c-b441-f56c49d6776d\",\"request_id\":\"9d0efd27-fb20-44cb-8c90-c05280f0c879\",\"usage\":{\"inputTokens\":22959,\"outputTokens\":526,\"cacheReadTokens\":26752,\"cacheWriteTokens\":0}}\n",
+  "cli": "C:\\Users\\swap2\\AppData\\Local\\cursor-agent\\agent.cmd"
+}

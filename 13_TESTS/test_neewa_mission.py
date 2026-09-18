@@ -513,6 +513,18 @@ class MissionObservabilityTests(unittest.TestCase):
                     host_workspace=host_ws,
                 )
             )
+            overlay = Path(tmp) / "fake-host-workspace"
+            overlay.mkdir()
+            self.assertTrue(
+                self.inbox.in_conversation_sandbox(
+                    sandbox_workspace=sandbox_ws, host_workspace=overlay
+                )
+            )
+            self.assertFalse(
+                self.inbox.in_conversation_sandbox(
+                    sandbox_workspace=sandbox_ws, host_workspace=sandbox_ws
+                )
+            )
 
     def test_recovery_after_runner_restart(self):
         with tempfile.TemporaryDirectory() as tmp:

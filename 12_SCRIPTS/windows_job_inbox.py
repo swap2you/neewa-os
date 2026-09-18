@@ -19,18 +19,37 @@ HOST_WORKSPACE = HOST_ROOT.parent
 SANDBOX_WORKSPACE = SANDBOX_ROOT.parent
 
 
+def _same_directory(left: Path, right: Path) -> bool:
+    try:
+        if not left.is_dir() or not right.is_dir():
+            return False
+        if left.resolve() == right.resolve():
+            return True
+        left_stat = left.stat()
+        right_stat = right.stat()
+        return left_stat.st_dev == right_stat.st_dev and left_stat.st_ino == right_stat.st_ino
+    except OSError:
+        return False
+
+
 def in_conversation_sandbox(
     *,
     sandbox_workspace: Path | None = None,
     host_workspace: Path | None = None,
 ) -> bool:
-    """True when /workspace exists and the Ubuntu host path is not mounted."""
+    """True when /workspace exists and is not the Ubuntu host directory.
+
+    An empty host-shaped overlay inside the container must not count as the
+    real mount. Compare identity with /workspace instead of existence alone.
+    """
     sandbox_workspace = sandbox_workspace or SANDBOX_WORKSPACE
     host_workspace = host_workspace or HOST_WORKSPACE
     try:
-        return sandbox_workspace.is_dir() and not host_workspace.is_dir()
+        if not sandbox_workspace.is_dir():
+            return False
+        return not _same_directory(sandbox_workspace, host_workspace)
     except OSError:
-        return False
+        return sandbox_workspace.is_dir()
 
 
 def is_unmounted_host_inbox(

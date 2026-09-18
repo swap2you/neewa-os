@@ -15,6 +15,7 @@ if (-not $created) {
 try {
   $here = Split-Path -Parent $MyInvocation.MyCommand.Path
   $invoke = Join-Path $here 'Invoke-NeewaWindowsJob.ps1'
+  . (Join-Path $here 'Resolve-NeewaResultFolder.ps1')
   $localInbox = Join-Path $env:USERPROFILE 'NEEWA-Personal\inbox'
   New-Item -ItemType Directory -Force -Path $localInbox | Out-Null
 
@@ -32,8 +33,15 @@ try {
 
   function Submit-RemoteResult($jobFile, $result) {
     $name = Split-Path -Leaf $jobFile
+    if ($result -is [System.Array]) {
+      $result = @($result | Where-Object { $_ -ne $null } | Select-Object -Last 1)
+      if ($result.Count -eq 1) { $result = $result[0] }
+    }
+    if ($result -is [string]) {
+      try { $result = $result | ConvertFrom-Json } catch { }
+    }
     $payload = $result | ConvertTo-Json -Depth 8 -Compress
-    $destDir = if ($result.status -in @('complete', 'COMPLETED')) { 'done' } else { 'failed' }
+    $destDir = Resolve-NeewaResultFolder $result
     $remoteJson = "$RemoteInbox/$destDir/$name"
     $payload | ssh -o BatchMode=yes $RemoteHost "cat > $remoteJson"
     if ($result.artifact -and (Test-Path -LiteralPath $result.artifact)) {

@@ -188,7 +188,9 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/assets/neewa.yaml`
 - `16_WINDOWS_CLIENT/dist/NEEWA-Windows-Bootstrap.zip`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/Apply-NeewaDesktopPatch.ps1`
+- `16_WINDOWS_CLIENT/hermes-desktop-patches/Apply-NeewaMissionIpc.ps1`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
+- `16_WINDOWS_CLIENT/hermes-desktop-patches/electron/neewa-mission-ipc.ts`
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaGovernedGit.ps1`
@@ -200,6 +202,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/New-WorkspaceInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/README.md`
 - `16_WINDOWS_CLIENT/worker/Register-NeewaWindowsStartup.ps1`
+- `16_WINDOWS_CLIENT/worker/Resolve-NeewaResultFolder.ps1`
 - `16_WINDOWS_CLIENT/worker/Start-CuaDriver.ps1`
 - `16_WINDOWS_CLIENT/worker/Start-NeewaWindowsWorker.ps1`
 - `16_WINDOWS_CLIENT/worker/allowlist.json`

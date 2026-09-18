@@ -62,6 +62,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "Invoke-NeewaScopedRepair.ps1",
             "Invoke-NeewaGovernedGit.ps1",
             "NeewaPersonalWorkspace.ps1",
+            "Resolve-NeewaResultFolder.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
 
@@ -125,6 +126,42 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(allow["git_writer"], "Cursor")
         self.assertFalse(allow["unrestricted_shell"])
         self.assertFalse(allow["public_listener"])
+        self.assertIn("Resolve-NeewaResultFolder", worker)
+        self.assertIn("done", Path(WORKER / "Resolve-NeewaResultFolder.ps1").read_text(encoding="utf-8"))
+
+    def test_result_folder_routes_completed_failed_and_blocked(self):
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present")
+        script = WORKER / "Resolve-NeewaResultFolder.ps1"
+        cases = (
+            ('{"status":"COMPLETED"}', "done"),
+            ('{"status":"complete"}', "done"),
+            ('{"status":"FAILED"}', "failed"),
+            ('{"status":"BLOCKED"}', "failed"),
+        )
+        for payload, expected in cases:
+            completed = subprocess.run(
+                ["powershell", "-NoProfile", "-File", str(script), payload],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+            self.assertEqual(completed.stdout.strip(), expected, completed.stderr or payload)
+        array_json = '[{"noise":true},{"status":"COMPLETED"}]'
+        completed = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                f". '{script}'; Resolve-NeewaResultFolder ('{array_json}' | ConvertFrom-Json)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(completed.stdout.strip(), "done", completed.stderr)
 
     def test_cursor_call_keeps_approved_child_workspace(self):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")

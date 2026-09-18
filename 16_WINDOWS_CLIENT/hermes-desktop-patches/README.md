@@ -25,6 +25,10 @@ Workspace: `%LOCALAPPDATA%\hermes\hermes-agent` (Hermes 0.21.3 source that build
 | `apps/desktop/src/lib/wake-client-capture.ts` | Non-sensitive PCM counters on `window.__NEEWA_WAKE_HEALTH__`; optional double-clap on the **same** ScriptProcessor (no second getUserMedia). |
 | `apps/desktop/src/store/wake-word.ts` | Dispatch `hermes:neewa-clap` from that stream. |
 
+## Home mission IPC
+
+`Apply-NeewaMissionIpc.ps1` installs `window.hermesDesktop.neewa.submitMission` and `missionStatus`. They invoke `12_SCRIPTS/neewa_home_bridge.py` over Electron IPC (no public listener). Rebuild/pack Hermes, then relaunch `Hermes.exe`.
+
 ## Rebuild / apply
 
 From `apps/desktop`:

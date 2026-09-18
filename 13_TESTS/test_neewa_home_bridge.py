@@ -49,6 +49,40 @@ class HomeBridgeTests(unittest.TestCase):
             self.assertEqual(created["mission"]["origin"], "chatbot")
             os.environ.pop("NEEWA_HOME_SNAPSHOT_DIR", None)
 
+    def test_json_stdin_dispatch_and_remote_skip_with_explicit_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            os.environ["NEEWA_HOME_SNAPSHOT_DIR"] = str(Path(tmp) / "snap")
+            created = BRIDGE.dispatch_json(
+                {
+                    "command": "submit",
+                    "objective": "Add a local note in the personal sandbox. Do not deploy.",
+                    "origin": "home",
+                    "workspace": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                    "root": str(Path(tmp) / "jobs"),
+                }
+            )
+            self.assertEqual(created["status"], "CREATED", created)
+            mid = created["mission_id"]
+            st = BRIDGE.dispatch_json({"command": "status", "mission_id": mid, "root": str(Path(tmp) / "jobs")})
+            self.assertEqual(st["mission_id"], mid)
+            self.assertEqual(st["state"], "CREATED")
+            self.assertEqual(st["final_result"], "CREATED")
+            attached = BRIDGE.snapshot_from_mission(
+                {"mission_id": mid, "state": "OWNER_REVIEW", "terminal_result": "OWNER_REVIEW"},
+                {
+                    "validation": {"independent_rerun": "PASS"},
+                    "validation_child_id": "CC-VAL",
+                    "council": {"roles": {"RELEASE_CONTROLLER": {"decision": "HOLD"}}},
+                },
+            )
+            self.assertEqual(attached["independent_rerun"], "PASS")
+            self.assertEqual(attached["validation_child_id"], "CC-VAL")
+            self.assertEqual(attached["final_result"], "OWNER_REVIEW")
+            unknown = BRIDGE.dispatch_json({"command": "explode"})
+            self.assertEqual(unknown["status"], "BLOCKED")
+            self.assertFalse(BRIDGE.should_dispatch_remote(Path(tmp)))
+            os.environ.pop("NEEWA_HOME_SNAPSHOT_DIR", None)
+
 
 class AppHealthTests(unittest.TestCase):
     def test_incident_is_sanitized_and_not_authorization(self):

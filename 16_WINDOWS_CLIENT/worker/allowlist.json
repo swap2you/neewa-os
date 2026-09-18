@@ -53,7 +53,9 @@
     "git_create_pull_request": "A2",
     "git_update_pull_request": "A2",
     "git_review_pull_request": "A1",
-    "git_merge_approved_pull_request": "A2"
+    "git_merge_approved_pull_request": "A2",
+    "home_mission_submit": "A1",
+    "home_mission_status": "A0"
   },
   "cursor_call": {
     "interface": "agent --print --output-format json --workspace <approved_repo>",

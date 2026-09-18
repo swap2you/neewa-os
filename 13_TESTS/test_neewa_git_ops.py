@@ -35,7 +35,7 @@ class GovernedGitTests(unittest.TestCase):
                 {
                     "id": "probe",
                     "authorized_local_path": str(self.repo),
-                    "authorized_remote": "",
+                    "authorized_remote": "https://github.com/swap2you/probe.git",
                     "permitted_feature_branch_prefixes": ["feat/", "fix/"],
                     "protected_branches": ["main"],
                     "standing_operations": [
@@ -105,6 +105,30 @@ class GovernedGitTests(unittest.TestCase):
         )
         self.assertEqual(blocked["status"], "BLOCKED")
 
+    def _live(self, number="1", sha=None):
+        return {"number": number, "headRefOid": sha or self.sha, "state": "OPEN"}
+
+    def _receipt(self, **kwargs):
+        row = GIT.VAL.build_receipt(
+            repository_identity=kwargs.get("repository_identity", "https://github.com/swap2you/probe.git"),
+            pr_number=kwargs.get("pr_number", "1"),
+            head_sha=kwargs.get("head_sha", self.sha),
+            test_command=kwargs.get("test_command", "python -m unittest"),
+            test_exit_code=kwargs.get("test_exit_code", 0),
+            tests_passed=kwargs.get("tests_passed", True),
+            executor=kwargs.get("executor", GIT.VAL.VALIDATOR_EXECUTOR),
+            revoked=kwargs.get("revoked", False),
+            approval_expires_at=kwargs.get("approval_expires_at"),
+        )
+        if "result" in kwargs:
+            row["result"] = kwargs["result"]
+            row["fingerprint"] = GIT.VAL.fingerprint(row)
+        if kwargs.get("tamper"):
+            row["result"] = "PASS"
+        path = self.tmp / f"{row['receipt_id']}.json"
+        path.write_text(json.dumps(row), encoding="utf-8")
+        return path, row
+
     def test_merge_rejects_implementer_claimed(self):
         blocked = GIT.dispatch(
             {
@@ -133,6 +157,7 @@ class GovernedGitTests(unittest.TestCase):
                 "action": "git_merge_approved_pull_request",
                 "repo": str(self.repo),
                 "pr_number": "1",
+                "_live_pr": self._live(),
             }
         )
         self.assertEqual(missing["status"], "BLOCKED")
@@ -148,6 +173,101 @@ class GovernedGitTests(unittest.TestCase):
         )
         self.assertEqual(hold["status"], "BLOCKED")
         self.assertEqual(hold["failure_reason"], "COUNCIL_HOLD")
+
+    def test_merge_rejects_caller_pass_stale_fail_and_wrong_identity(self):
+        caller_pass = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "independent_rerun": "PASS",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(caller_pass["failure_reason"], "INDEPENDENT_VALIDATION_REQUIRED")
+        conflict = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "independent_rerun": "PASS",
+                "independent_validation": "FAIL",
+            }
+        )
+        self.assertEqual(conflict["failure_reason"], "CONFLICTING_VALIDATION_FIELDS")
+        path, _ = self._receipt(tests_passed=False, test_exit_code=1)
+        failed = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "validation_receipt_path": str(path),
+                "repository_identity": "https://github.com/swap2you/probe.git",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(failed["failure_reason"], "INDEPENDENT_VALIDATION_FAILED")
+        stale_path, _ = self._receipt(head_sha="deadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
+        stale = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "validation_receipt_path": str(stale_path),
+                "repository_identity": "https://github.com/swap2you/probe.git",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(stale["failure_reason"], "RECEIPT_SHA_MISMATCH")
+        wrong_pr, _ = self._receipt(pr_number="99")
+        mismatch = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "validation_receipt_path": str(wrong_pr),
+                "repository_identity": "https://github.com/swap2you/probe.git",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(mismatch["failure_reason"], "RECEIPT_PR_MISMATCH")
+        revoked_path, _ = self._receipt(revoked=True)
+        revoked = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "validation_receipt_path": str(revoked_path),
+                "repository_identity": "https://github.com/swap2you/probe.git",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(revoked["failure_reason"], "VALIDATION_REVOKED")
+        sha_job = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "expected_local_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(sha_job["failure_reason"], "PR_SHA_MISMATCH")
+        inside = self.repo / "fake-receipt.json"
+        good_path, row = self._receipt()
+        inside.write_text(good_path.read_text(encoding="utf-8"), encoding="utf-8")
+        in_repo = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "validation_receipt_path": str(inside),
+                "repository_identity": "https://github.com/swap2you/probe.git",
+                "_live_pr": self._live(),
+            }
+        )
+        self.assertEqual(in_repo["failure_reason"], "RECEIPT_IN_REPOSITORY")
+
 
     def test_receipt_has_required_fields(self):
         row = GIT.receipt(operation="git_fetch", status="COMPLETED", repository=str(self.repo))

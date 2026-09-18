@@ -44,6 +44,8 @@ POLICY = ROOT / "16_WINDOWS_CLIENT" / "worker" / "cursor-call-policy.json"
 BASELINE_LOCK = ROOT / "AI-OPS" / "delivery" / "autonomy-baseline" / "BASELINE_LOCK.json"
 SOURCE_PACK = ROOT / "14_REFERENCE" / "devotional_sources" / "SOURCE_PACK.md"
 
+INDEPENDENT_VALIDATION_ORIGINS = {"conversation", "mission-supervisor", "home", "chatbot"}
+
 PARENT_STATES = (
     "INTAKE",
     "CLASSIFIED",
@@ -1310,6 +1312,13 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
         "implicit contract",
     )
 
+    receipt = design.get("validation_receipt") if isinstance(design.get("validation_receipt"), dict) else {}
+    independent_pass = (
+        bool(receipt.get("ok"))
+        and str(receipt.get("result") or "").upper() == "PASS"
+        and str(receipt.get("executor") or "") == "neewa-independent-validator"
+        and str(receipt.get("role") or "") == "INDEPENDENT_TEST_VALIDATOR"
+    )
     material = [f for f in findings if f["severity"] == "material"]
     revised = dict(design)
     if material:
@@ -1367,12 +1376,13 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
                 "independence_class": "deterministic_only",
             },
             "INDEPENDENT_TEST_VALIDATOR": {
-                "decision": "REQUIRED",
-                "identity": "cursor-agent-cli independent_validation child",
+                "decision": "PASS" if independent_pass else "REQUIRED",
+                "identity": "neewa-independent-validator",
                 "implementer_claimed_insufficient": True,
+                "github_user": False,
             },
             "RELEASE_CONTROLLER": {
-                "decision": "HOLD_FOR_INDEPENDENT_VALIDATION",
+                "decision": "MERGE_ELIGIBLE" if independent_pass and not material else "HOLD_FOR_INDEPENDENT_VALIDATION",
                 "identity": "neewa_autonomy.release_controller",
                 "production_deploy": False,
             },
@@ -2559,7 +2569,7 @@ def advance_job(
         job["validation"] = job.get("validation") or {}
         if job.get("workflow") == "research_report":
             job["validation"]["independent_rerun"] = "LOCAL_CORPUS"
-        elif job.get("origin") in {"conversation", "mission-supervisor"} and job.get("workflow") == "sdlc":
+        elif job.get("origin") in INDEPENDENT_VALIDATION_ORIGINS and job.get("workflow") == "sdlc":
             if not job.get("validation_child_id"):
                 last = job.get("last_child") or {}
                 identity = job.get("project_identity") or {}
@@ -2660,10 +2670,7 @@ def advance_job(
         if str(rc) not in job["artifacts"]:
             job["artifacts"].append(str(rc))
         failures = evaluate_autonomy_done(job)
-        if job["validation"].get("independent_rerun") == "UNVERIFIED" and job.get("origin") in {
-            "conversation",
-            "mission-supervisor",
-        }:
+        if job["validation"].get("independent_rerun") == "UNVERIFIED" and job.get("origin") in INDEPENDENT_VALIDATION_ORIGINS:
             failures.append("independent validation UNVERIFIED")
         if job["validation"].get("independent_rerun") == "FAIL":
             failures.append("independent validation failed")

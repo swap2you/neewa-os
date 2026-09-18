@@ -15,6 +15,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 AUTH = SourceFileLoader("neewa_authorization_git", str(SCRIPTS / "neewa_authorization.py")).load_module()
+VAL = SourceFileLoader("neewa_validation_receipt_git", str(SCRIPTS / "neewa_validation_receipt.py")).load_module()
 AUTHORIZED = AUTH.AUTHORIZED
 decide = AUTH.decide
 find_repository = AUTH.find_repository
@@ -507,14 +508,33 @@ def git_review_pull_request(job: dict) -> dict:
 
 def independent_validation_token(job: dict) -> str:
     validation = job.get("validation") if isinstance(job.get("validation"), dict) else {}
+    tokens = []
     for key in ("independent_rerun", "independent_validation", "independent_result"):
         value = job.get(key)
         if value:
-            return str(value).strip().upper()
+            tokens.append(str(value).strip().upper())
         nested = validation.get(key) if validation else None
         if nested:
-            return str(nested).strip().upper()
-    return ""
+            tokens.append(str(nested).strip().upper())
+    if not tokens:
+        return ""
+    unique = set(tokens)
+    if len(unique) > 1:
+        return "CONFLICT"
+    return tokens[0]
+
+
+def fetch_pull_request(path: Path, number: str) -> dict:
+    viewed = run_gh(
+        ["pr", "view", str(number), "--json", "number,url,state,headRefOid,baseRefName,headRefName,headRepository,headRepositoryOwner"],
+        path,
+    )
+    if viewed.returncode != 0:
+        return {"error": (viewed.stderr or viewed.stdout or "gh pr view failed")[:400]}
+    try:
+        return json.loads(viewed.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"error": "INVALID_PR_JSON"}
 
 
 def git_merge_approved_pull_request(job: dict) -> dict:
@@ -522,6 +542,15 @@ def git_merge_approved_pull_request(job: dict) -> dict:
     if path is None:
         return blocked
     token = independent_validation_token(job)
+    if token == "CONFLICT":
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="CONFLICTING_VALIDATION_FIELDS",
+            mission_id=job.get("mission_id"),
+        )
     if token in {"IMPLEMENTER_CLAIMED", "CLAIM", "SELF"}:
         return receipt(
             operation_id=job.get("job_id"),
@@ -530,16 +559,6 @@ def git_merge_approved_pull_request(job: dict) -> dict:
             status="BLOCKED",
             failure_reason="IMPLEMENTER_CLAIMED_INSUFFICIENT",
             mission_id=job.get("mission_id"),
-        )
-    if token != "PASS":
-        return receipt(
-            operation_id=job.get("job_id"),
-            repository=str(path),
-            operation="git_merge_approved_pull_request",
-            status="BLOCKED",
-            failure_reason="INDEPENDENT_VALIDATION_REQUIRED",
-            mission_id=job.get("mission_id"),
-            verification={"independent_validation": token or "MISSING"},
         )
     council = job.get("council") if isinstance(job.get("council"), dict) else {}
     roles = council.get("roles") if isinstance(council.get("roles"), dict) else {}
@@ -554,6 +573,92 @@ def git_merge_approved_pull_request(job: dict) -> dict:
             mission_id=job.get("mission_id"),
         )
     number = str(job.get("pr_number") or "")
+    if not number:
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="MISSING_PR",
+            mission_id=job.get("mission_id"),
+        )
+    live = job.get("_live_pr") if isinstance(job.get("_live_pr"), dict) else fetch_pull_request(path, number)
+    if live.get("error"):
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="PR_IDENTITY_UNAVAILABLE",
+            mission_id=job.get("mission_id"),
+            verification={"error": live.get("error")},
+        )
+    if str(live.get("number") or "") != number:
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="PR_IDENTITY_MISMATCH",
+            mission_id=job.get("mission_id"),
+        )
+    head_sha = str(live.get("headRefOid") or "")
+    expected_sha = str(job.get("expected_local_sha") or job.get("head_sha") or "")
+    if expected_sha and head_sha and not (
+        head_sha.lower().startswith(expected_sha.lower()) or expected_sha.lower().startswith(head_sha.lower()[: len(expected_sha)])
+    ):
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="PR_SHA_MISMATCH",
+            source_sha=expected_sha,
+            destination_sha=head_sha,
+            mission_id=job.get("mission_id"),
+        )
+    receipt_path = job.get("validation_receipt_path")
+    if not receipt_path:
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="INDEPENDENT_VALIDATION_REQUIRED",
+            mission_id=job.get("mission_id"),
+            verification={"independent_validation": token or "MISSING", "caller_pass_insufficient": True},
+        )
+    try:
+        bound = VAL.load_receipt(receipt_path)
+    except (OSError, json.JSONDecodeError):
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="MISSING_RECEIPT",
+            mission_id=job.get("mission_id"),
+        )
+    row = find_repository(str(path), load_registry()) or {}
+    repo_id = str(row.get("authorized_remote") or row.get("repository_identity") or job.get("repository_identity") or "")
+    checked = VAL.verify_receipt(
+        bound,
+        repository_identity=repo_id,
+        pr_number=number,
+        head_sha=head_sha,
+        repo_path=path,
+        receipt_path=Path(str(receipt_path)),
+    )
+    if not checked.get("ok"):
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason=checked.get("reason"),
+            mission_id=job.get("mission_id"),
+            verification={"receipt": checked, "pr_head": head_sha},
+        )
     merged = run_gh(["pr", "merge", number, "--merge", "--delete-branch=false"], path)
     # --delete-branch=false might not exist; retry without it
     if merged.returncode != 0 and "unknown" in (merged.stderr or "").lower():

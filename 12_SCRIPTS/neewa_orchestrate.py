@@ -257,6 +257,8 @@ def submit(
     approval: str | None = None,
     inbox_root: Path | None = None,
     markers: list[str] | None = None,
+    project_lifecycle: str | None = None,
+    workspace_root: str | None = None,
 ) -> dict:
     choice = select_worker(capability)
     if not choice.get("available"):
@@ -324,6 +326,10 @@ def submit(
         extra["expected_paths"] = expected_paths
     if markers:
         extra["markers"] = markers
+    if project_lifecycle:
+        extra["project_lifecycle"] = project_lifecycle
+    if workspace_root:
+        extra["workspace_root"] = workspace_root
     if write or choice.get("write") is True:
         extra["write"] = True
     elif choice.get("write") is False:
@@ -368,6 +374,9 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                         "cli",
                         "exit_code",
                         "duration_sec",
+                        "project_lifecycle",
+                        "bootstrap",
+                        "repo",
                     ):
                         if extra.get(key) not in (None, "", []):
                             payload[key] = extra[key]
@@ -414,6 +423,12 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             record["preflight"] = payload.get("preflight")
         if payload.get("authorization"):
             record["authorization"] = payload.get("authorization")
+        if payload.get("project_lifecycle"):
+            record["project_lifecycle"] = payload.get("project_lifecycle")
+        if payload.get("bootstrap"):
+            record["bootstrap"] = payload.get("bootstrap")
+        if payload.get("repo"):
+            record["repo"] = payload.get("repo")
         record["validation"] = {
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),

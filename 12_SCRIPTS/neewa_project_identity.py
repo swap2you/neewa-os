@@ -397,6 +397,42 @@ def expected_paths_for_identity(identity: dict, *, include_release: bool = False
     return paths
 
 
+def resolve_project_lifecycle(
+    objective: str,
+    *,
+    identity: dict | None = None,
+    design: dict | None = None,
+) -> str:
+    """Classify create_new vs modify_existing from the requested operation.
+
+    Directory existence is not consulted. Existing-repo designs stay modify_existing.
+    """
+    identity = identity or {}
+    design = design or {}
+    text = objective or ""
+    if design.get("create_new_package") is False:
+        return "modify_existing"
+    if re.search(r"(?i)\bexisting repository\b|\bdo not create a new\b|\bin the EXISTING\b", text):
+        return "modify_existing"
+    if re.search(
+        r"(?i)\bbuild exactly one new\b|\bcreate (?:a |an |exactly one )?new\b|"
+        r"\bnew\s+(?:isolated\s+)?(?:python|cli|project|application|package)\b|"
+        r"\bbuild a new\b|\bstart a new\b",
+        text,
+    ):
+        return "create_new"
+    if design.get("create_new_package") is True:
+        return "create_new"
+    if is_workspace_root_path(identity.get("workspace_root")) and identity.get("source") in {
+        "explicit_name",
+        "path_basename",
+        "generated",
+        "persisted",
+    }:
+        return "create_new"
+    return "modify_existing"
+
+
 def public_identity(identity: dict | None) -> dict:
     src = identity or {}
     return {
@@ -404,6 +440,7 @@ def public_identity(identity: dict | None) -> dict:
         "workspace_root": src.get("workspace_root"),
         "project_path": src.get("project_path"),
         "source": src.get("source"),
+        "lifecycle": src.get("lifecycle"),
         "normalization": src.get("normalization") or {},
         "allowed": src.get("allowed", True),
         "reason": src.get("reason"),

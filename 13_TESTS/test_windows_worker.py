@@ -190,6 +190,82 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertFalse(data["denied"])
         self.assertFalse(data["root"])
 
+    def _run_preflight(self, job: dict, out_dir: Path, policy: Path) -> dict:
+        job_path = out_dir / "job.json"
+        job_path.write_text(json.dumps(job), encoding="utf-8")
+        command = (
+            f"& '{WORKER / 'Invoke-NeewaRepoPreflight.ps1'}' "
+            f"-JobFile '{job_path}' -OutDir '{out_dir}' -PolicyFile '{policy}' "
+            f"| ConvertTo-Json -Depth 8"
+        )
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertTrue(completed.stdout.strip(), completed.stderr)
+        return json.loads(completed.stdout)
+
+    def test_repo_preflight_create_new_does_not_require_git(self):
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            sandbox = root / "cursor-sandbox"
+            sandbox.mkdir()
+            workspace = root / "workspace"
+            workspace.mkdir()
+            policy = json.loads((WORKER / "cursor-call-policy.json").read_text(encoding="utf-8"))
+            policy["sandbox_repo"] = str(sandbox)
+            policy["workspace_root"] = str(workspace)
+            policy["personal_roots"] = [str(sandbox), str(workspace)]
+            policy_path = root / "policy.json"
+            policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            out = root / "pf"
+            out.mkdir()
+            target = sandbox / "preflight_new"
+            first = self._run_preflight(
+                {
+                    "job_id": "JOB-TEST-PF-CREATE",
+                    "action": "repo_preflight",
+                    "repo": str(target),
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                out,
+                policy_path,
+            )
+            self.assertEqual(first["status"], "COMPLETED", first)
+            self.assertTrue(first["preflight"]["identity_ok"])
+            self.assertFalse(first["preflight"]["git_ok"])
+            self.assertTrue(target.is_dir())
+            second = self._run_preflight(
+                {
+                    "job_id": "JOB-TEST-PF-CREATE-2",
+                    "action": "repo_preflight",
+                    "repo": str(target),
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                out,
+                policy_path,
+            )
+            self.assertEqual(second["preflight"]["bootstrap_result"], "reused_empty")
+            missing_existing = self._run_preflight(
+                {
+                    "job_id": "JOB-TEST-PF-MISSING-EXISTING",
+                    "action": "repo_preflight",
+                    "repo": str(sandbox / "never_made"),
+                    "project_lifecycle": "modify_existing",
+                },
+                out,
+                policy_path,
+            )
+            self.assertEqual(missing_existing["status"], "FAILED")
+            self.assertEqual(missing_existing.get("failure_class"), "MISSING_REPO")
+            self.assertFalse((sandbox / "never_made").exists())
+
 
 if __name__ == "__main__":
     unittest.main()

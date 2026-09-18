@@ -412,6 +412,7 @@ def create_parent_job(
         "project_identity": IDENTITY.public_identity(
             IDENTITY.resolve_project_identity(objective, workspace=workspace)
         ),
+        "project_lifecycle": None,
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "lease": None,
         "timeout_sec": 600,
@@ -428,6 +429,11 @@ def create_parent_job(
         "created_at": utc_now(),
         "updated_at": utc_now(),
     }
+    identity = job["project_identity"] or {}
+    lifecycle = IDENTITY.resolve_project_lifecycle(objective, identity=identity)
+    identity["lifecycle"] = lifecycle
+    job["project_identity"] = IDENTITY.public_identity(identity)
+    job["project_lifecycle"] = lifecycle
     path = autonomy_root(root) / f"{job['job_id']}.json"
     save_json(path, job)
     job["_path"] = str(path)
@@ -909,6 +915,13 @@ def attach_project_identity(job: dict) -> dict:
         persisted=job.get("project_identity"),
     )
     job["project_identity"] = IDENTITY.public_identity(identity)
+    lifecycle = IDENTITY.resolve_project_lifecycle(
+        job.get("parent_objective") or "",
+        identity=identity,
+    )
+    identity["lifecycle"] = lifecycle
+    job["project_identity"] = IDENTITY.public_identity(identity)
+    job["project_lifecycle"] = lifecycle
     project_path = identity.get("project_path")
     if (
         identity.get("allowed")
@@ -1064,6 +1077,7 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "stack": stack,
             "stack_label": requirements.get("stack_label") or stack,
             "create_new_package": False,
+            "project_lifecycle": "modify_existing",
             "test_command": requirements.get("test_command"),
             "summary": (
                 f"Scoped change in the existing {stack} repository. "
@@ -1118,6 +1132,7 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
         "create_new_package": True,
         "test_command": requirements.get("test_command") or "python -m unittest",
         "project_identity": IDENTITY.public_identity(identity),
+        "project_lifecycle": IDENTITY.resolve_project_lifecycle(objective, identity=identity, design={"create_new_package": True}),
         "created_at": utc_now(),
     }
 
@@ -1812,6 +1827,9 @@ def _submit_cursor(
             project_id=job.get("project_id"),
             approval="A1",
             inbox_root=inbox_root,
+            project_lifecycle=job.get("project_lifecycle")
+            or (job.get("project_identity") or {}).get("lifecycle"),
+            workspace_root=(job.get("project_identity") or {}).get("workspace_root"),
         )
     except ValueError as exc:
         settle_reservation(job, reservation.get("this_reservation"))
@@ -2251,6 +2269,9 @@ def advance_job(
                 project_id=job.get("project_id"),
                 markers=inspect.get("catalog_markers") or inspect.get("markers") or [],
                 inbox_root=inbox_root,
+                project_lifecycle=job.get("project_lifecycle")
+                or (job.get("project_identity") or {}).get("lifecycle"),
+                workspace_root=(job.get("project_identity") or {}).get("workspace_root"),
             )
             if submitted.get("state") == "BLOCKED":
                 job["failure_reason"] = submitted.get("failure_reason") or "windows preflight blocked"
@@ -2281,6 +2302,10 @@ def advance_job(
             transition(job, "FAILED", "REPO_IDENTITY")
             return job
         job["windows_preflight"] = preflight
+        if record.get("bootstrap"):
+            job["project_bootstrap"] = record.get("bootstrap")
+        elif preflight.get("bootstrap"):
+            job["project_bootstrap"] = preflight.get("bootstrap")
         inspect = job.get("workspace_inspect") or {}
         inspect["windows_preflight"] = preflight
         inspect["host_can_see_workspace"] = inspect.get("host_can_see_workspace")
@@ -2345,6 +2370,10 @@ def advance_job(
                 save_job(job)
                 return job
             usage = (record or {}).get("usage")
+            if record.get("bootstrap"):
+                job["project_bootstrap"] = record.get("bootstrap")
+            if record.get("project_lifecycle"):
+                job["project_lifecycle"] = record.get("project_lifecycle")
             if _is_blocked_child(record):
                 return apply_blocked_child(job, record)
             if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:

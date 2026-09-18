@@ -56,13 +56,24 @@ class CursorCallTests(unittest.TestCase):
         self.assertNotIn("cursor.cmd", policy["cli_names"])
         self.assertIn("OratsUtil", policy["denied_name_equals"])
 
-    def _run_cursor_script(self, job: dict, cli_override: str, jobs_dir: Path) -> dict:
+    def _run_cursor_script(
+        self,
+        job: dict,
+        cli_override: str,
+        jobs_dir: Path,
+        *,
+        policy_path: Path | None = None,
+        dry_run: bool = False,
+    ) -> dict:
         job_path = jobs_dir / "job.json"
         job_path.write_text(json.dumps(job), encoding="utf-8")
+        policy_arg = f" -PolicyPath '{policy_path}'" if policy_path else ""
+        dry_arg = " -DryRun" if dry_run else ""
         command = (
             f"$job = Get-Content -Raw -LiteralPath '{job_path}' | ConvertFrom-Json; "
             f"& '{WORKER / 'Invoke-NeewaCursorCall.ps1'}' -Job $job "
-            f"-JobsDir '{jobs_dir}' -CliPathOverride '{cli_override}' | ConvertTo-Json -Depth 8"
+            f"-JobsDir '{jobs_dir}' -CliPathOverride '{cli_override}'{policy_arg}{dry_arg} "
+            f"| ConvertTo-Json -Depth 8"
         )
         completed = subprocess.run(
             ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
@@ -72,6 +83,19 @@ class CursorCallTests(unittest.TestCase):
         )
         self.assertTrue(completed.stdout.strip(), completed.stderr)
         return json.loads(completed.stdout)
+
+    def _isolated_policy(self, tmp: Path) -> tuple[Path, Path]:
+        policy = json.loads(POLICY.read_text(encoding="utf-8"))
+        sandbox = tmp / "cursor-sandbox"
+        sandbox.mkdir(parents=True, exist_ok=True)
+        workspace = tmp / "workspace"
+        workspace.mkdir(parents=True, exist_ok=True)
+        policy["sandbox_repo"] = str(sandbox)
+        policy["workspace_root"] = str(workspace)
+        policy["personal_roots"] = [str(sandbox), str(workspace)]
+        path = tmp / "policy.json"
+        path.write_text(json.dumps(policy), encoding="utf-8")
+        return path, sandbox
 
     def test_missing_cli_is_blocked_not_success(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -232,6 +256,176 @@ class CursorCallTests(unittest.TestCase):
         self.assertIn("sensitive", (deploy.get("reason") or "").lower())
         self.assertEqual(purchase["status"], "BLOCKED")
         self.assertIn("sensitive", (purchase.get("reason") or "").lower())
+
+    def test_create_new_bootstraps_absent_directory(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            target = sandbox / "fresh_tool"
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-ABSENT",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(target),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(result["status"], "COMPLETED", result)
+            self.assertTrue(target.is_dir())
+            self.assertEqual(result.get("repo"), str(target.resolve()) if target.exists() else result.get("repo"))
+            self.assertEqual((result.get("bootstrap") or {}).get("bootstrap_result"), "created")
+            self.assertEqual((result.get("bootstrap") or {}).get("target_directory_state"), "empty")
+            self.assertTrue((result.get("bootstrap") or {}).get("identity_ok"))
+            again = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-REPEAT",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(target),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual((again.get("bootstrap") or {}).get("bootstrap_result"), "reused_empty")
+            self.assertEqual(list(target.iterdir()), [])
+
+    def test_create_new_reuses_empty_and_rejects_nonempty(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            empty = sandbox / "empty_tool"
+            empty.mkdir()
+            reused = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-EMPTY",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(empty),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual((reused.get("bootstrap") or {}).get("bootstrap_result"), "reused_empty")
+            nonempty = sandbox / "used_tool"
+            nonempty.mkdir()
+            sentinel = nonempty / "used_tool.py"
+            sentinel.write_text("keep-me", encoding="utf-8")
+            blocked = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-NONEMPTY",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(nonempty),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(blocked["status"], "FAILED")
+            self.assertEqual(blocked.get("failure_class"), "PROJECT_ALREADY_EXISTS")
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep-me")
+            self.assertFalse((blocked.get("bootstrap") or {}).get("created"))
+
+    def test_modify_existing_does_not_create_missing_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            missing = sandbox / "existing_app"
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-MISSING-EXISTING",
+                    "prompt": "Add a note to README. Do not publish.",
+                    "repo": str(missing),
+                    "write": True,
+                    "project_lifecycle": "modify_existing",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(result["status"], "FAILED")
+            self.assertEqual(result.get("failure_class"), "MISSING_REPO")
+            self.assertFalse(missing.exists())
+
+    def test_create_new_rejects_denied_traversal_and_outside_roots(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            outside = Path(tmp) / "outside" / "sneaky"
+            outside_parent = outside.parent
+            outside_parent.mkdir()
+            denied = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-OUTSIDE",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(outside),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(denied["status"], "BLOCKED")
+            self.assertFalse(outside.exists())
+            traversal = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-TRAV",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": str(sandbox / "child" / ".." / ".." / "outside2"),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "workspace_root": str(sandbox),
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertIn(traversal["status"], {"BLOCKED", "FAILED"})
+            self.assertFalse((Path(tmp) / "outside2").exists())
+            orats = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-BOOTSTRAP-DENIED",
+                    "prompt": "Build a helper CLI with unit tests. Do not publish.",
+                    "repo": r"C:\Development\Workspace\OratsUtil\new_tool",
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(orats["status"], "BLOCKED")
 
 
 if __name__ == "__main__":

@@ -83,6 +83,27 @@ if (-not $repo) {
   return $r
 }
 
+$lifecycle = [string]$Job.project_lifecycle
+if (-not $lifecycle) { $lifecycle = 'modify_existing' }
+$wsRoot = [string]$Job.workspace_root
+$bootstrap = Invoke-ProjectBootstrap -Repo $repo -Lifecycle $lifecycle -WorkspaceRoot $wsRoot
+if (-not [bool]$bootstrap.identity_ok) {
+  $r = New-PreflightResult 'FAILED' $bootstrap.reason $false @{
+    approved_path = $repo
+    exists = $false
+    git_ok = $false
+    identity_ok = $false
+    failure_class = $bootstrap.failure_class
+    project_lifecycle = $lifecycle
+    bootstrap = $bootstrap
+    target_directory_state = $bootstrap.target_directory_state
+    bootstrap_result = $bootstrap.bootstrap_result
+  }
+  $r.failure_class = $bootstrap.failure_class
+  [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+  return $r
+}
+
 $exists = Test-Path -LiteralPath $repo
 $gitDir = Join-Path $repo '.git'
 $gitOk = $exists -and (Test-Path -LiteralPath $gitDir)
@@ -122,11 +143,16 @@ if ($gitOk) {
   $dirty = [bool]((& git -C $repo status --porcelain 2>$null | Out-String).Trim())
 }
 
-$identityOk = $exists -and $gitOk
-if ($markers.Count -gt 0 -and $found.Count -eq 0) { $identityOk = $false }
+$identityOk = $exists
+if ($lifecycle -eq 'modify_existing') {
+  $identityOk = $exists -and $gitOk
+  if ($markers.Count -gt 0 -and $found.Count -eq 0) { $identityOk = $false }
+}
 $reason = $null
 $status = 'COMPLETED'
-if (-not $exists) {
+if ($lifecycle -eq 'create_new') {
+  $reason = $null
+} elseif (-not $exists) {
   $status = 'FAILED'
   $reason = "approved repo path is missing on Windows: $repo"
   $identityOk = $false
@@ -152,6 +178,10 @@ $extra = [ordered]@{
   relevant_files = ($relevant -join ',')
   identity_ok = $identityOk
   reason = $reason
+  project_lifecycle = $lifecycle
+  bootstrap = $bootstrap
+  target_directory_state = $bootstrap.target_directory_state
+  bootstrap_result = $bootstrap.bootstrap_result
 }
 $r = New-PreflightResult $status $reason $identityOk $extra
 [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))

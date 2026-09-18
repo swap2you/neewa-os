@@ -93,6 +93,17 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             "exit_code": 0,
             "duration_sec": 90,
             "artifact_paths": _canonical_artifacts(),
+            "project_lifecycle": "create_new",
+            "repo": DATE_TOOL_PATH,
+            "bootstrap": {
+                "lifecycle": "create_new",
+                "target_path": DATE_TOOL_PATH,
+                "target_directory_state": "empty",
+                "bootstrap_result": "created",
+                "identity_ok": True,
+                "created": True,
+                "git_required": False,
+            },
             "validation": {"stdout_tail": _test_stdout(), "result": "PASS"},
             "usage": {"inputTokens": 1200, "outputTokens": 180},
         }
@@ -129,6 +140,8 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
 
             job = self._create(root)
             self._assert_identity(job)
+            self.assertEqual(job.get("project_lifecycle"), "create_new")
+            self.assertEqual((job.get("project_identity") or {}).get("lifecycle"), "create_new")
             classified = self.mod.classify_intent(DATE_TOOL_OBJECTIVE)
             self.assertEqual(classified["intent"], "software")
             self.assertEqual(classified["workflow"], "sdlc")
@@ -161,6 +174,10 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             self.assertEqual(len(submits), 2)
             self.assertTrue(all(item.get("approval") == "A1" for item in submits))
             self.assertTrue(all(item.get("repo") == DATE_TOOL_PATH for item in submits))
+            self.assertTrue(all(item.get("project_lifecycle") == "create_new" for item in submits))
+            self.assertEqual(finished.get("project_lifecycle"), "create_new")
+            self.assertEqual((finished.get("project_bootstrap") or {}).get("bootstrap_result"), "created")
+            self.assertEqual((finished.get("project_bootstrap") or {}).get("target_directory_state"), "empty")
             child_prompt = submits[0]["prompt"]
             child_gate = self.mod.authorize_execution(
                 approval_level="A1",

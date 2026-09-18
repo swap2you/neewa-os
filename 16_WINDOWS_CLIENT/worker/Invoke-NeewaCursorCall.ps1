@@ -228,10 +228,19 @@ function New-CursorResult($status, $reason, $artifact, $extra) {
   }
   if ($authorization) { $obj['authorization'] = $authorization }
   if ($extra) { foreach ($k in $extra.Keys) { $obj[$k] = $extra[$k] } }
+  if ($bootstrap) {
+    $obj['project_lifecycle'] = $lifecycle
+    $obj['bootstrap'] = $bootstrap
+    if (-not $obj.Contains('preflight')) { $obj['preflight'] = $bootstrap }
+    if (-not $obj.Contains('repo') -and $repo) { $obj['repo'] = $repo }
+  }
   return [pscustomobject]$obj
 }
 
 $authorization = $null
+$bootstrap = $null
+$lifecycle = $null
+$repo = $null
 $artifact = Join-Path $JobsDir "$jobId-cursor-call.json"
 $logPath = Join-Path $JobsDir "$jobId-cursor-call.log"
 $argsPath = Join-Path $JobsDir "$jobId-cursor-call.args.txt"
@@ -277,8 +286,31 @@ if (-not $repo) {
   $r.artifact = $artifact
   return $r
 }
+$lifecycle = [string]$Job.project_lifecycle
+if (-not $lifecycle) { $lifecycle = 'modify_existing' }
+$workspaceRoot = [string]$Job.workspace_root
+$bootstrap = Invoke-ProjectBootstrap -Repo $repo -Lifecycle $lifecycle -WorkspaceRoot $workspaceRoot
+function Add-Bootstrap($obj) {
+  $ht = [ordered]@{}
+  if ($obj -is [hashtable]) { foreach ($k in $obj.Keys) { $ht[$k] = $obj[$k] } }
+  else { foreach ($p in $obj.PSObject.Properties) { $ht[$p.Name] = $p.Value } }
+  $ht['project_lifecycle'] = $lifecycle
+  $ht['bootstrap'] = $bootstrap
+  $ht['preflight'] = $bootstrap
+  $ht['repo'] = $repo
+  return $ht
+}
+if (-not [bool]$bootstrap.identity_ok) {
+  $status = if ($bootstrap.failure_class -in @('UNAPPROVED_PATH','DENIED_REPO','PATH_TRAVERSAL')) { 'BLOCKED' } else { 'FAILED' }
+  $r = New-CursorResult $status $bootstrap.reason $null (Add-Bootstrap @{
+    failure_class = $bootstrap.failure_class
+  })
+  [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+  $r.artifact = $artifact
+  return $r
+}
 if (-not (Test-Path -LiteralPath $repo)) {
-  $r = New-CursorResult 'FAILED' "approved repo path is missing: $repo" $null $null
+  $r = New-CursorResult 'FAILED' "approved repo path is missing: $repo" $null (Add-Bootstrap @{ failure_class = 'MISSING_REPO' })
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact
   return $r

@@ -1652,6 +1652,21 @@ class WorkspaceRootIdentityTests(unittest.TestCase):
         self.assertEqual(plan["project_path"], DATE_TOOL_PATH)
 
 
+    def test_date_tool_lifecycle_is_create_new(self):
+        row = self.ident.resolve_project_identity(
+            DATE_TOOL_OBJECTIVE, workspace=SANDBOX_ROOT
+        )
+        self.assertEqual(
+            self.ident.resolve_project_lifecycle(DATE_TOOL_OBJECTIVE, identity=row),
+            "create_new",
+        )
+        existing = self.ident.resolve_project_lifecycle(
+            "In KidsProjects/ScienceQuest, add one sentence to docs/KNOWN_LIMITATIONS.md",
+            design={"create_new_package": False},
+        )
+        self.assertEqual(existing, "modify_existing")
+
+
 class OrchestrateUsageTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_orchestrate_usage", str(ORCH)).load_module()

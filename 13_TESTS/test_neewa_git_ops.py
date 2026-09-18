@@ -268,6 +268,19 @@ class GovernedGitTests(unittest.TestCase):
         )
         self.assertEqual(in_repo["failure_reason"], "RECEIPT_IN_REPOSITORY")
 
+    def test_zero_exit_receipt_is_pass(self):
+        path, row = self._receipt(test_exit_code=0, tests_passed=True)
+        checked = GIT.VAL.verify_receipt(
+            row,
+            repository_identity="https://github.com/swap2you/probe.git",
+            pr_number="1",
+            head_sha=self.sha,
+            repo_path=self.repo,
+            receipt_path=path,
+        )
+        self.assertTrue(checked["ok"], checked)
+        self.assertEqual(checked["result"], "PASS")
+
 
     def test_receipt_has_required_fields(self):
         row = GIT.receipt(operation="git_fetch", status="COMPLETED", repository=str(self.repo))

@@ -177,7 +177,11 @@ def verify_receipt(
     if receipt_path and repo_path and receipt_inside_repo(receipt_path, repo_path):
         return {"ok": False, "reason": "RECEIPT_IN_REPOSITORY"}
     result = str(receipt.get("result") or "").upper()
-    if result == "FAIL" or not receipt.get("tests_passed") or int(receipt.get("test_exit_code") or 1) != 0:
+    try:
+        exit_code = int(receipt.get("test_exit_code"))
+    except (TypeError, ValueError):
+        exit_code = 1
+    if result == "FAIL" or receipt.get("tests_passed") is not True or exit_code != 0:
         return {"ok": False, "reason": "INDEPENDENT_VALIDATION_FAILED", "result": result}
     if result != "PASS":
         return {"ok": False, "reason": "INDEPENDENT_VALIDATION_REQUIRED", "result": result}

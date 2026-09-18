@@ -115,8 +115,6 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `11_CONFIG/watchdog.example.yaml`
 - `11_CONFIG/workers.json`
 - `12_SCRIPTS/README.md`
-- `12_SCRIPTS/_diag_observability.sh`
-- `12_SCRIPTS/_diag_sandbox_view.sh`
 - `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
 - `12_SCRIPTS/bootstrap.sh`
@@ -137,6 +135,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_orchestrate.py`
 - `12_SCRIPTS/neewa_project_identity.py`
+- `12_SCRIPTS/neewa_scoped_repair.py`
 - `12_SCRIPTS/neewa_voice_readiness.sh`
 - `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`
@@ -157,6 +156,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/test_neewa_wake_phrases.py`
 - `13_TESTS/test_project_portfolio.py`
 - `13_TESTS/test_resource_governor.py`
+- `13_TESTS/test_scoped_repair.py`
 - `13_TESTS/test_windows_package.py`
 - `13_TESTS/test_windows_worker.py`
 - `13_TESTS/test_workspace_inventory.py`
@@ -183,6 +183,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaRepoPreflight.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaScopedRepair.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
 - `16_WINDOWS_CLIENT/worker/NeewaPersonalWorkspace.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
@@ -246,3 +247,5 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `MORNING_REPORT.md`
 - `README.md`
 - `START_HERE.md`
+- `neewa_os.py`
+- `test_neewa_os.py`

@@ -287,6 +287,25 @@ function Invoke-ProjectBootstrap {
   return [pscustomobject]$result
 }
 
+function Test-ScopedRepairAuthorized([string]$fullRequested) {
+  if (-not $fullRequested) { return $false }
+  $lower = $fullRequested.ToLowerInvariant()
+  if ($lower -notmatch '\\scoped-repair(\\|$)') { return $true }
+  $py = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+  if (-not $py) { return $false }
+  $mod = Join-Path $PSScriptRoot '..\..\12_SCRIPTS\neewa_scoped_repair.py'
+  if (-not (Test-Path -LiteralPath $mod)) { return $false }
+  try {
+    $out = & $py.Source $mod 'authorize-cursor' '--workspace' $fullRequested
+    if ($LASTEXITCODE -ne 0) { return $false }
+    $parsed = $out | ConvertFrom-Json
+    return [bool]$parsed.authorization.allowed
+  } catch {
+    return $false
+  }
+}
+
 function Resolve-ApprovedRepo([string]$requested) {
   if (-not $requested) { return $null }
   if ($requested -match '\.\.') { return $null }
@@ -305,6 +324,7 @@ function Resolve-ApprovedRepo([string]$requested) {
     if (-not ($isExact -or $isChild)) { continue }
     if ($workspaceRoot -and $fullRequested.Equals($workspaceRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
     if (Test-ReparseEscape $fullRequested $root) { return $null }
+    if (-not (Test-ScopedRepairAuthorized $fullRequested)) { return $null }
     return $fullRequested
   }
   return $null

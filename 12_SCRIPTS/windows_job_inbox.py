@@ -119,6 +119,10 @@ ALLOWED = {
     "workspace_inventory",
     "cursor_call",
     "repo_preflight",
+    "create_scoped_repair_workspace",
+    "review_scoped_repair_patch",
+    "apply_scoped_repair_patch",
+    "cleanup_scoped_repair_workspace",
 }
 
 

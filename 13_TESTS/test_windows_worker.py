@@ -28,6 +28,14 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["actions"]["cursor_call"], "A1")
         self.assertIn("repo_preflight", data["actions"])
         self.assertEqual(data["actions"]["repo_preflight"], "A0")
+        self.assertIn("create_scoped_repair_workspace", data["actions"])
+        self.assertEqual(data["actions"]["create_scoped_repair_workspace"], "A1")
+        self.assertIn("review_scoped_repair_patch", data["actions"])
+        self.assertEqual(data["actions"]["review_scoped_repair_patch"], "A0")
+        self.assertIn("apply_scoped_repair_patch", data["actions"])
+        self.assertEqual(data["actions"]["apply_scoped_repair_patch"], "A1")
+        self.assertIn("cleanup_scoped_repair_workspace", data["actions"])
+        self.assertEqual(data["actions"]["cleanup_scoped_repair_workspace"], "A1")
         self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")
         self.assertIn("employer repositories and documents", data["denied_roots"])
         self.assertIn(r"C:\Development\Workspace\api-fintech-automation-platform", data["denied_roots"])
@@ -46,6 +54,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "cursor-call-policy.json",
             "Invoke-NeewaCursorCall.ps1",
             "Invoke-NeewaRepoPreflight.ps1",
+            "Invoke-NeewaScopedRepair.ps1",
             "NeewaPersonalWorkspace.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
@@ -81,6 +90,7 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn("workspace_inventory", src)
         self.assertIn("cursor_call", src)
         self.assertIn("repo_preflight", src)
+        self.assertIn("create_scoped_repair_workspace", src)
         self.assertNotIn("0.0.0.0", src)
 
     def test_workspace_inventory_is_read_only_and_excludes_employer(self):
@@ -130,6 +140,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertIn("A missing path on the Linux core host is not consulted", src)
         invoke = (WORKER / "Invoke-NeewaWindowsJob.ps1").read_text(encoding="utf-8")
         self.assertIn("'repo_preflight'", invoke)
+        self.assertIn("'create_scoped_repair_workspace'", invoke)
+        self.assertIn("Invoke-NeewaScopedRepair.ps1", invoke)
 
     def test_repo_preflight_identifies_neewa_os(self):
         if not shutil.which("powershell"):

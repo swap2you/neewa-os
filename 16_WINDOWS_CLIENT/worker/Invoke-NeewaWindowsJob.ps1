@@ -94,6 +94,14 @@ switch ($action) {
     if ($status -eq 'complete') { $status = 'COMPLETED' }
     if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
   }
+  { $_ -in @('create_scoped_repair_workspace', 'review_scoped_repair_patch', 'apply_scoped_repair_patch', 'cleanup_scoped_repair_workspace') } {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaScopedRepair.ps1') -JobFile $JobPath -OutDir $jobsDir
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -eq 'complete') { $status = 'COMPLETED' }
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
 }
 $result = [pscustomobject]@{
   job_id = $job.job_id

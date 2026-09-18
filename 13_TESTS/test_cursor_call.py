@@ -427,6 +427,136 @@ class CursorCallTests(unittest.TestCase):
             )
             self.assertEqual(orats["status"], "BLOCKED")
 
+    def _seed_implemented_project(self, target: Path) -> Path:
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "sample.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+        (target / "test_sample.py").write_text(
+            "import unittest\nimport sample\n\n"
+            "class SampleTests(unittest.TestCase):\n"
+            "    def test_add(self):\n"
+            "        self.assertEqual(sample.add(1, 2), 3)\n",
+            encoding="utf-8",
+        )
+        sentinel = target / "keep-me.txt"
+        sentinel.write_text("keep-me", encoding="utf-8")
+        return sentinel
+
+    def test_independent_validation_accepts_nonempty_implemented_project(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            target = sandbox / "validated_tool"
+            sentinel = self._seed_implemented_project(target)
+            before = {path.name: path.read_text(encoding="utf-8") for path in target.iterdir() if path.is_file()}
+            job = {
+                "job_id": "JOB-TEST-VALIDATE-OK",
+                "prompt": "Independently rerun tests. Do not publish.",
+                "repo": str(target),
+                "write": False,
+                "project_lifecycle": "create_new",
+                "execution_phase": "independent_validation",
+                "workspace_root": str(sandbox),
+                "implementation_completed": True,
+                "implementation_repo": str(target.resolve()),
+                "expected_paths": ["sample.py", "test_sample.py"],
+                "test_command": "python -m unittest",
+            }
+            result = self._run_cursor_script(
+                job,
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+            )
+            self.assertEqual(result["status"], "COMPLETED", result)
+            self.assertEqual(result.get("execution_phase"), "independent_validation")
+            self.assertEqual((result.get("bootstrap") or {}).get("bootstrap_result"), "validation_existing")
+            self.assertFalse((result.get("bootstrap") or {}).get("created"))
+            self.assertTrue((result.get("independent_test") or {}).get("passed"), result)
+            self.assertEqual((result.get("independent_test") or {}).get("command"), "python -m unittest")
+            self.assertEqual((result.get("independent_test") or {}).get("exit_code"), 0)
+            self.assertIs(result.get("cursor_started"), False)
+            again = self._run_cursor_script(
+                {**job, "job_id": "JOB-TEST-VALIDATE-REPEAT"},
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+            )
+            self.assertEqual((again.get("bootstrap") or {}).get("bootstrap_result"), "validation_existing")
+            self.assertFalse((again.get("bootstrap") or {}).get("created"))
+            after = {path.name: path.read_text(encoding="utf-8") for path in target.iterdir() if path.is_file()}
+            self.assertEqual(before, after)
+            self.assertEqual(sentinel.read_text(encoding="utf-8"), "keep-me")
+
+    def test_independent_validation_rejects_missing_mismatch_and_incomplete(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            target = sandbox / "validated_tool"
+            self._seed_implemented_project(target)
+            missing = sandbox / "never_made"
+            missing_result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-VALIDATE-MISSING",
+                    "prompt": "Independently rerun tests. Do not publish.",
+                    "repo": str(missing),
+                    "write": False,
+                    "project_lifecycle": "create_new",
+                    "execution_phase": "independent_validation",
+                    "workspace_root": str(sandbox),
+                    "implementation_completed": True,
+                    "implementation_repo": str(missing),
+                    "expected_paths": ["sample.py"],
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+            )
+            self.assertEqual(missing_result["status"], "FAILED")
+            self.assertEqual(missing_result.get("failure_class"), "MISSING_REPO")
+            self.assertFalse(missing.exists())
+            mismatch = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-VALIDATE-MISMATCH",
+                    "prompt": "Independently rerun tests. Do not publish.",
+                    "repo": str(target),
+                    "write": False,
+                    "project_lifecycle": "create_new",
+                    "execution_phase": "independent_validation",
+                    "workspace_root": str(sandbox),
+                    "implementation_completed": True,
+                    "implementation_repo": str(sandbox / "other_tool"),
+                    "expected_paths": ["sample.py", "test_sample.py"],
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+            )
+            self.assertEqual(mismatch["status"], "FAILED")
+            self.assertEqual(mismatch.get("failure_class"), "PROJECT_PATH_MISMATCH")
+            incomplete = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-VALIDATE-INCOMPLETE",
+                    "prompt": "Independently rerun tests. Do not publish.",
+                    "repo": str(target),
+                    "write": True,
+                    "project_lifecycle": "create_new",
+                    "execution_phase": "independent_validation",
+                    "workspace_root": str(sandbox),
+                    "implementation_completed": False,
+                    "expected_paths": ["sample.py", "test_sample.py"],
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+            )
+            self.assertEqual(incomplete["status"], "FAILED")
+            self.assertEqual(incomplete.get("failure_class"), "INCOMPLETE_IMPLEMENTATION")
+            self.assertEqual((target / "keep-me.txt").read_text(encoding="utf-8"), "keep-me")
+
 
 if __name__ == "__main__":
     unittest.main()

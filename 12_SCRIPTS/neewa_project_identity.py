@@ -433,6 +433,31 @@ def resolve_project_lifecycle(
     return "modify_existing"
 
 
+PHASE_IMPLEMENTATION = "implementation"
+PHASE_INDEPENDENT_VALIDATION = "independent_validation"
+BOOTSTRAP_COMPLETE_RESULTS = {"created", "reused_empty", "existing_reused"}
+
+
+def bootstrap_already_complete(job: dict | None) -> bool:
+    boot = (job or {}).get("project_bootstrap") or {}
+    return bool(boot.get("identity_ok")) and str(boot.get("bootstrap_result") or "") in BOOTSTRAP_COMPLETE_RESULTS
+
+
+def resolve_execution_phase(job: dict | None, *, requested: str | None = None) -> str:
+    phase = (requested or (job or {}).get("execution_phase") or "").strip()
+    if phase == PHASE_INDEPENDENT_VALIDATION:
+        return PHASE_INDEPENDENT_VALIDATION
+    return PHASE_IMPLEMENTATION
+
+
+def win_paths_equal(left: str | None, right: str | None) -> bool:
+    if not left or not right:
+        return False
+    a = win_display(left).rstrip("\\/").lower()
+    b = win_display(right).rstrip("\\/").lower()
+    return a == b
+
+
 def public_identity(identity: dict | None) -> dict:
     src = identity or {}
     return {

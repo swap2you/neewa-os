@@ -136,7 +136,40 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
 
             def harvest(job_id, inbox_root=None):
                 harvests.append(job_id)
-                return self._completed_child(job_id)
+                child = self._completed_child(job_id)
+                if str(job_id).endswith("-CC02"):
+                    child["execution_phase"] = "independent_validation"
+                    child["cursor_started"] = False
+                    child["cli"] = "python -m unittest"
+                    child["write"] = False
+                    child["usage"] = None
+                    child["bootstrap"] = {
+                        "lifecycle": "create_new",
+                        "execution_phase": "independent_validation",
+                        "target_path": DATE_TOOL_PATH,
+                        "target_directory_state": "nonempty",
+                        "bootstrap_result": "validation_existing",
+                        "identity_ok": True,
+                        "created": False,
+                        "git_required": False,
+                    }
+                    evidence = {
+                        "command": "python -m unittest",
+                        "cwd": DATE_TOOL_PATH,
+                        "exit_code": 0,
+                        "passed": True,
+                        "stdout": "Ran 5 tests in 0.02s\nOK",
+                        "stderr": "",
+                    }
+                    child["independent_test"] = evidence
+                    child["test_results"] = evidence
+                    child["validation"] = {
+                        "stdout_tail": _test_stdout(),
+                        "result": "PASS",
+                    }
+                else:
+                    child["execution_phase"] = "implementation"
+                return child
 
             job = self._create(root)
             self._assert_identity(job)
@@ -175,9 +208,19 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             self.assertTrue(all(item.get("approval") == "A1" for item in submits))
             self.assertTrue(all(item.get("repo") == DATE_TOOL_PATH for item in submits))
             self.assertTrue(all(item.get("project_lifecycle") == "create_new" for item in submits))
+            self.assertEqual(submits[0].get("execution_phase"), "implementation")
+            self.assertTrue(submits[0].get("write"))
+            self.assertEqual(submits[1].get("execution_phase"), "independent_validation")
+            self.assertFalse(submits[1].get("write"))
+            self.assertTrue(submits[1].get("implementation_completed"))
+            self.assertEqual(submits[1].get("implementation_repo"), DATE_TOOL_PATH)
             self.assertEqual(finished.get("project_lifecycle"), "create_new")
             self.assertEqual((finished.get("project_bootstrap") or {}).get("bootstrap_result"), "created")
             self.assertEqual((finished.get("project_bootstrap") or {}).get("target_directory_state"), "empty")
+            self.assertEqual(
+                ((finished.get("independent_validation") or {}).get("bootstrap") or {}).get("bootstrap_result"),
+                "validation_existing",
+            )
             child_prompt = submits[0]["prompt"]
             child_gate = self.mod.authorize_execution(
                 approval_level="A1",
@@ -189,7 +232,17 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             self.assertTrue(child_gate["allowed"], child_gate)
             self.assertEqual(child_gate["needed"], "A1")
             self.assertEqual(child_gate["reason"], "ALLOW")
-            self.assertEqual((finished.get("authorization") or {}).get("child", {}).get("needed"), "A1")
+            self.assertEqual((finished.get("authorization") or {}).get("parent", {}).get("needed"), "A1")
+            self.assertEqual((finished.get("authorization") or {}).get("child", {}).get("needed"), "A0")
+            validation_gate = self.mod.authorize_execution(
+                approval_level="A1",
+                owner_decision=None,
+                prompt=submits[1]["prompt"],
+                repo=DATE_TOOL_PATH,
+                write=False,
+            )
+            self.assertTrue(validation_gate["allowed"], validation_gate)
+            self.assertEqual(validation_gate["needed"], "A0")
 
             expected = finished.get("expected_paths") or []
             self.assertTrue(expected)
@@ -271,6 +324,51 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(third["state"], "FAILED")
             self.assertEqual(len(submits), 1)
+
+    def test_validation_child_failure_closes_parent_without_retry(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            submits: list[dict] = []
+
+            def submit(**kwargs):
+                submits.append(kwargs)
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+
+            def harvest(job_id, inbox_root=None):
+                if str(job_id).endswith("-CC02"):
+                    return {
+                        "job_id": job_id,
+                        "state": "FAILED",
+                        "execution_phase": "independent_validation",
+                        "failure_class": "MISSING_IMPLEMENTATION_ARTIFACTS",
+                        "failure_reason": "missing implementation artifacts: neewa_date_tool_acceptance.py",
+                        "cursor_started": False,
+                        "repo": DATE_TOOL_PATH,
+                        "bootstrap": {
+                            "bootstrap_result": "none",
+                            "identity_ok": False,
+                            "created": False,
+                            "failure_class": "MISSING_IMPLEMENTATION_ARTIFACTS",
+                        },
+                    }
+                child = self._completed_child(job_id)
+                child["execution_phase"] = "implementation"
+                return child
+
+            finished = self.mod.run_until_idle(
+                self._create(root), root=root, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(finished["state"], "FAILED")
+            self.assertEqual(finished.get("failure_class"), "MISSING_IMPLEMENTATION_ARTIFACTS")
+            self.assertEqual(len(submits), 2)
+            self.assertEqual(submits[1].get("execution_phase"), "independent_validation")
+            self.assertEqual((finished.get("project_bootstrap") or {}).get("bootstrap_result"), "created")
+            self.assertEqual(finished["budget"]["reserved_usd"], 0.0)
+            again = self.mod.run_until_idle(
+                finished, root=root, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertEqual(again["state"], "FAILED")
+            self.assertEqual(len(submits), 2)
 
     def test_blocked_child_closes_parent(self):
         with tempfile.TemporaryDirectory() as tmp:

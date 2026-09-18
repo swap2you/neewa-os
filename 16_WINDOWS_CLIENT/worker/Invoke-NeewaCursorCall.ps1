@@ -228,6 +228,7 @@ function New-CursorResult($status, $reason, $artifact, $extra) {
   }
   if ($authorization) { $obj['authorization'] = $authorization }
   if ($extra) { foreach ($k in $extra.Keys) { $obj[$k] = $extra[$k] } }
+  if ($phase) { $obj['execution_phase'] = $phase }
   if ($bootstrap) {
     $obj['project_lifecycle'] = $lifecycle
     $obj['bootstrap'] = $bootstrap
@@ -240,6 +241,7 @@ function New-CursorResult($status, $reason, $artifact, $extra) {
 $authorization = $null
 $bootstrap = $null
 $lifecycle = $null
+$phase = $null
 $repo = $null
 $artifact = Join-Path $JobsDir "$jobId-cursor-call.json"
 $logPath = Join-Path $JobsDir "$jobId-cursor-call.log"
@@ -288,13 +290,21 @@ if (-not $repo) {
 }
 $lifecycle = [string]$Job.project_lifecycle
 if (-not $lifecycle) { $lifecycle = 'modify_existing' }
+$phase = [string]$Job.execution_phase
+if (-not $phase) { $phase = 'implementation' }
 $workspaceRoot = [string]$Job.workspace_root
-$bootstrap = Invoke-ProjectBootstrap -Repo $repo -Lifecycle $lifecycle -WorkspaceRoot $workspaceRoot
+$bootstrapComplete = $false
+if ($Job.PSObject.Properties['bootstrap_complete'] -and $Job.bootstrap_complete) { $bootstrapComplete = [bool]$Job.bootstrap_complete }
+$implCompleted = $false
+if ($Job.PSObject.Properties['implementation_completed'] -and $Job.implementation_completed) { $implCompleted = [bool]$Job.implementation_completed }
+$implRepo = [string]$Job.implementation_repo
+$bootstrap = Invoke-ProjectBootstrap -Repo $repo -Lifecycle $lifecycle -WorkspaceRoot $workspaceRoot -ExecutionPhase $phase -BootstrapComplete $bootstrapComplete -ExpectedPaths $expected -ImplementationRepo $implRepo -ImplementationCompleted $implCompleted
 function Add-Bootstrap($obj) {
   $ht = [ordered]@{}
   if ($obj -is [hashtable]) { foreach ($k in $obj.Keys) { $ht[$k] = $obj[$k] } }
   else { foreach ($p in $obj.PSObject.Properties) { $ht[$p.Name] = $p.Value } }
   $ht['project_lifecycle'] = $lifecycle
+  $ht['execution_phase'] = $phase
   $ht['bootstrap'] = $bootstrap
   $ht['preflight'] = $bootstrap
   $ht['repo'] = $repo
@@ -325,6 +335,49 @@ foreach ($rel in $expected) {
   }
   if (-not (Test-RelPathInside $repo ([string]$rel))) {
     $r = New-CursorResult 'BLOCKED' "expected path escapes the approved repository: $rel" $null @{ failure_class = 'PATH_ESCAPE' }
+    [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+    $r.artifact = $artifact
+    return $r
+  }
+}
+
+if ($phase -eq 'independent_validation') {
+  $write = $false
+  $testCmd = [string]$Job.test_command
+  if (-not $testCmd) { $testCmd = 'python -m unittest' }
+  if ($testCmd -match '^python(?:3)?\s+-m\s+unittest\b') {
+    $tests = Invoke-ProductUnittest -Repo $repo -TestCommand $testCmd
+    $stdoutCombined = ([string]$tests.stdout) + "`n" + ([string]$tests.stderr)
+    $jsonPayload = @{
+      exit_code = $tests.exit_code
+      passed = [bool]$tests.passed
+      stdout = [string]$tests.stdout
+      stderr = [string]$tests.stderr
+      command = $tests.command
+      cwd = $tests.cwd
+    }
+    $stdoutTail = $stdoutCombined
+    if ($stdoutTail.Length -gt 3500) { $stdoutTail = $stdoutTail.Substring($stdoutTail.Length - 3500) }
+    $stdoutTail = $stdoutTail + "`nTEST_JSON:" + ($jsonPayload | ConvertTo-Json -Compress)
+    $status = if ([bool]$tests.passed) { 'COMPLETED' } else { 'FAILED' }
+    $reason = $null
+    $failureClass = $null
+    if (-not [bool]$tests.passed) {
+      $reason = if ($tests.failure_class) { [string]$tests.stderr } else { "independent product tests failed with exit $($tests.exit_code)" }
+      $failureClass = $(if ($tests.failure_class) { $tests.failure_class } else { 'INDEPENDENT_TEST_FAIL' })
+    }
+    $r = New-CursorResult $status $reason $null (Add-Bootstrap @{
+      failure_class = $failureClass
+      selected_worker = 'neewa-windows-worker'
+      cli = $tests.command
+      repo = $repo
+      exit_code = $tests.exit_code
+      write = $false
+      cursor_started = $false
+      independent_test = $jsonPayload
+      test_results = $jsonPayload
+      stdout_tail = $stdoutTail
+    })
     [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
     $r.artifact = $artifact
     return $r

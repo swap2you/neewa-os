@@ -1665,6 +1665,21 @@ class WorkspaceRootIdentityTests(unittest.TestCase):
             design={"create_new_package": False},
         )
         self.assertEqual(existing, "modify_existing")
+        self.assertEqual(
+            self.ident.resolve_execution_phase({}, requested="independent_validation"),
+            "independent_validation",
+        )
+        self.assertEqual(self.ident.resolve_execution_phase({}, requested="implementation"), "implementation")
+        self.assertTrue(
+            self.ident.bootstrap_already_complete(
+                {"project_bootstrap": {"identity_ok": True, "bootstrap_result": "created"}}
+            )
+        )
+        self.assertFalse(
+            self.ident.bootstrap_already_complete(
+                {"project_bootstrap": {"identity_ok": True, "bootstrap_result": "validation_existing"}}
+            )
+        )
 
 
 class OrchestrateUsageTests(unittest.TestCase):

@@ -71,15 +71,74 @@ function Get-ImplementationArtifacts([string]$dir) {
   return $found
 }
 
+function Invoke-ProductUnittest {
+  param(
+    [string]$Repo,
+    [string]$TestCommand = 'python -m unittest'
+  )
+  $result = [ordered]@{
+    command = $TestCommand
+    cwd = $Repo
+    exit_code = $null
+    passed = $false
+    stdout = ''
+    stderr = ''
+    failure_class = $null
+  }
+  if ($TestCommand -notmatch '^python(?:3)?\s+-m\s+unittest\b') {
+    $result.stderr = "test command is not allowlisted: $TestCommand"
+    $result.failure_class = 'UNAPPROVED_TEST_COMMAND'
+    return [pscustomobject]$result
+  }
+  $py = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+  if (-not $py) {
+    $result.stderr = 'python interpreter is not installed'
+    $result.failure_class = 'PYTHON_MISSING'
+    return [pscustomobject]$result
+  }
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $py.Source
+  $psi.WorkingDirectory = $Repo
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $argListProp = $psi.GetType().GetProperty('ArgumentList')
+  if ($argListProp) {
+    [void]$psi.ArgumentList.Add('-m')
+    [void]$psi.ArgumentList.Add('unittest')
+  } else {
+    $psi.Arguments = '-m unittest'
+  }
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+  [void]$proc.Start()
+  $stdout = $proc.StandardOutput.ReadToEnd()
+  $stderr = $proc.StandardError.ReadToEnd()
+  [void]$proc.WaitForExit()
+  $result.exit_code = [int]$proc.ExitCode
+  $result.stdout = [string]$stdout
+  $result.stderr = [string]$stderr
+  $result.passed = ($proc.ExitCode -eq 0)
+  return [pscustomobject]$result
+}
+
 function Invoke-ProjectBootstrap {
   param(
     [string]$Repo,
     [string]$Lifecycle = 'modify_existing',
-    [string]$WorkspaceRoot = ''
+    [string]$WorkspaceRoot = '',
+    [string]$ExecutionPhase = 'implementation',
+    [bool]$BootstrapComplete = $false,
+    [string[]]$ExpectedPaths = @(),
+    [string]$ImplementationRepo = '',
+    [bool]$ImplementationCompleted = $false
   )
   if ([System.IO.File]::Exists($Repo)) {
     return [pscustomobject]@{
       lifecycle = $Lifecycle
+      execution_phase = $ExecutionPhase
       target_path = $Repo
       workspace_root = $WorkspaceRoot
       target_directory_state = 'nonempty'
@@ -98,6 +157,7 @@ function Invoke-ProjectBootstrap {
   $state = if (-not $exists) { 'missing' } elseif ($artifacts.Count -gt 0) { 'nonempty' } else { 'empty' }
   $result = [ordered]@{
     lifecycle = $Lifecycle
+    execution_phase = $ExecutionPhase
     target_path = $Repo
     workspace_root = $WorkspaceRoot
     target_directory_state = $state
@@ -105,12 +165,66 @@ function Invoke-ProjectBootstrap {
     parent_exists = $false
     created = $false
     identity_ok = $false
-    git_required = ($Lifecycle -eq 'modify_existing')
+    git_required = ($Lifecycle -eq 'modify_existing' -and $ExecutionPhase -ne 'independent_validation')
     reason = $null
     failure_class = $null
   }
   $parent = [System.IO.Path]::GetDirectoryName($Repo.TrimEnd('\', '/'))
   $result.parent_exists = [bool]($parent -and [System.IO.Directory]::Exists($parent))
+  if ($ExecutionPhase -eq 'independent_validation') {
+    if (-not $ImplementationCompleted) {
+      $result.reason = 'independent validation requires a completed implementation child'
+      $result.failure_class = 'INCOMPLETE_IMPLEMENTATION'
+      return [pscustomobject]$result
+    }
+    if ($ImplementationRepo) {
+      $want = [System.IO.Path]::GetFullPath($ImplementationRepo)
+      $have = [System.IO.Path]::GetFullPath($Repo)
+      if (-not $have.Equals($want, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $result.reason = "canonical project path does not match implementation path: $Repo"
+        $result.failure_class = 'PROJECT_PATH_MISMATCH'
+        return [pscustomobject]$result
+      }
+    }
+    if (-not $exists) {
+      $result.reason = "approved repo path is missing: $Repo"
+      $result.failure_class = 'MISSING_REPO'
+      return [pscustomobject]$result
+    }
+    $missing = @()
+    foreach ($rel in @($ExpectedPaths)) {
+      $item = [string]$rel
+      if (-not $item) { continue }
+      if ($item -match '\.\.') {
+        $result.reason = 'path traversal is not allowed'
+        $result.failure_class = 'PATH_TRAVERSAL'
+        return [pscustomobject]$result
+      }
+      $full = [System.IO.Path]::GetFullPath((Join-Path $Repo $item))
+      $rootPrefix = $Repo.TrimEnd('\') + '\'
+      if (-not $full.StartsWith($rootPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $result.reason = "expected path escapes the approved repository: $item"
+        $result.failure_class = 'PATH_ESCAPE'
+        return [pscustomobject]$result
+      }
+      if (-not [System.IO.File]::Exists($full) -and -not [System.IO.Directory]::Exists($full)) {
+        $missing += $item
+      }
+    }
+    if ((@($ExpectedPaths) | Where-Object { $_ }).Count -gt 0 -and $missing.Count -gt 0) {
+      $result.reason = 'missing implementation artifacts: ' + ($missing -join ', ')
+      $result.failure_class = 'MISSING_IMPLEMENTATION_ARTIFACTS'
+      return [pscustomobject]$result
+    }
+    if ((@($ExpectedPaths) | Where-Object { $_ }).Count -eq 0 -and $state -ne 'nonempty') {
+      $result.reason = "independent validation requires implementation artifacts: $Repo"
+      $result.failure_class = 'MISSING_IMPLEMENTATION_ARTIFACTS'
+      return [pscustomobject]$result
+    }
+    $result.bootstrap_result = 'validation_existing'
+    $result.identity_ok = $true
+    return [pscustomobject]$result
+  }
   if ($Lifecycle -ne 'create_new') {
     if (-not $exists) {
       $result.reason = "approved repo path is missing: $Repo"
@@ -124,6 +238,16 @@ function Invoke-ProjectBootstrap {
   if ($Repo -match '\.\.') {
     $result.reason = 'path traversal is not allowed'
     $result.failure_class = 'PATH_TRAVERSAL'
+    return [pscustomobject]$result
+  }
+  if ($BootstrapComplete) {
+    if (-not $exists) {
+      $result.reason = "approved repo path is missing after bootstrap: $Repo"
+      $result.failure_class = 'MISSING_REPO'
+      return [pscustomobject]$result
+    }
+    $result.bootstrap_result = 'existing_reused'
+    $result.identity_ok = $true
     return [pscustomobject]$result
   }
   if (-not $result.parent_exists) {

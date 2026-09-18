@@ -259,6 +259,12 @@ def submit(
     markers: list[str] | None = None,
     project_lifecycle: str | None = None,
     workspace_root: str | None = None,
+    execution_phase: str | None = None,
+    bootstrap_complete: bool | None = None,
+    implementation_completed: bool | None = None,
+    implementation_child_id: str | None = None,
+    implementation_repo: str | None = None,
+    test_command: str | None = None,
 ) -> dict:
     choice = select_worker(capability)
     if not choice.get("available"):
@@ -330,10 +336,19 @@ def submit(
         extra["project_lifecycle"] = project_lifecycle
     if workspace_root:
         extra["workspace_root"] = workspace_root
-    if write or choice.get("write") is True:
-        extra["write"] = True
-    elif choice.get("write") is False:
-        extra["write"] = False
+    if execution_phase:
+        extra["execution_phase"] = execution_phase
+    if bootstrap_complete:
+        extra["bootstrap_complete"] = True
+    if implementation_completed:
+        extra["implementation_completed"] = True
+    if implementation_child_id:
+        extra["implementation_child_id"] = implementation_child_id
+    if implementation_repo:
+        extra["implementation_repo"] = implementation_repo
+    if test_command:
+        extra["test_command"] = test_command
+    extra["write"] = bool(write)
 
     path = INBOX_MOD.enqueue(job_id, action, approval, root, extra)
     append_state(record, "DISPATCHED", str(path))
@@ -377,6 +392,11 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                         "project_lifecycle",
                         "bootstrap",
                         "repo",
+                        "execution_phase",
+                        "independent_test",
+                        "test_results",
+                        "cursor_started",
+                        "stdout_tail",
                     ):
                         if extra.get(key) not in (None, "", []):
                             payload[key] = extra[key]
@@ -429,6 +449,14 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             record["bootstrap"] = payload.get("bootstrap")
         if payload.get("repo"):
             record["repo"] = payload.get("repo")
+        if payload.get("execution_phase"):
+            record["execution_phase"] = payload.get("execution_phase")
+        if payload.get("independent_test"):
+            record["independent_test"] = payload.get("independent_test")
+        if payload.get("test_results"):
+            record["test_results"] = payload.get("test_results")
+        if payload.get("cursor_started") is False:
+            record["cursor_started"] = False
         record["validation"] = {
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),

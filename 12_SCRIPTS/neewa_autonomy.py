@@ -679,6 +679,12 @@ PRE_START_FAILURES = {
     "BLOCKED_INTENT",
     "CLI_MISSING",
     "UNAUTHORIZED_REPO",
+    "PROJECT_ALREADY_EXISTS",
+    "INCOMPLETE_IMPLEMENTATION",
+    "PROJECT_PATH_MISMATCH",
+    "MISSING_IMPLEMENTATION_ARTIFACTS",
+    "MISSING_REPO",
+    "PATH_TRAVERSAL",
 }
 
 WORKER_SAFETY_RULE = (
@@ -707,6 +713,10 @@ def _usage_measured(usage: dict | None) -> bool:
 
 def cursor_was_started(record: dict | None, usage: dict | None = None) -> bool:
     payload = record or {}
+    if payload.get("cursor_started") is False:
+        return False
+    if str(payload.get("execution_phase") or "") == IDENTITY.PHASE_INDEPENDENT_VALIDATION:
+        return False
     measured = usage if usage is not None else payload.get("usage")
     if _usage_measured(measured if isinstance(measured, dict) else None):
         return True
@@ -1785,6 +1795,9 @@ def _submit_cursor(
     *,
     inbox_root: Path | None,
     orch_submit,
+    execution_phase: str | None = None,
+    write: bool = True,
+    test_command: str | None = None,
 ) -> dict:
     parent_gate = authorize_execution(
         approval_level=job.get("approval_level") or "A1",
@@ -1798,7 +1811,7 @@ def _submit_cursor(
         owner_decision=job.get("owner_decision"),
         prompt=prompt or "",
         repo=(job.get("project_identity") or {}).get("project_path") or job.get("workspace") or "",
-        write=True,
+        write=write,
     )
     job["authorization"] = {
         "parent": SEM.public_authorization(parent_gate),
@@ -1814,22 +1827,32 @@ def _submit_cursor(
     job["expected_paths"] = expected_paths
     seq = len(job.get("child_jobs") or []) + 1
     child_id = f"{job['job_id']}-CC{seq:02d}"
+    phase = IDENTITY.resolve_execution_phase(job, requested=execution_phase)
+    identity = job.get("project_identity") or {}
+    last = job.get("last_child") or {}
+    impl_repo = last.get("repo") or identity.get("project_path") or job.get("workspace")
     try:
         record = orch_submit(
             job_id=child_id,
             capability="code_implementation",
             objective=job["parent_objective"],
-            repo=(job.get("project_identity") or {}).get("project_path") or job.get("workspace"),
+            repo=identity.get("project_path") or job.get("workspace"),
             prompt=prompt,
-            write=True,
+            write=write,
             timeout_sec=job.get("timeout_sec") or 600,
             expected_paths=expected_paths,
             project_id=job.get("project_id"),
             approval="A1",
             inbox_root=inbox_root,
             project_lifecycle=job.get("project_lifecycle")
-            or (job.get("project_identity") or {}).get("lifecycle"),
-            workspace_root=(job.get("project_identity") or {}).get("workspace_root"),
+            or identity.get("lifecycle"),
+            workspace_root=identity.get("workspace_root"),
+            execution_phase=phase,
+            bootstrap_complete=IDENTITY.bootstrap_already_complete(job),
+            implementation_completed=str(last.get("state") or "").upper() == "COMPLETED",
+            implementation_child_id=last.get("job_id"),
+            implementation_repo=impl_repo,
+            test_command=test_command,
         )
     except ValueError as exc:
         settle_reservation(job, reservation.get("this_reservation"))
@@ -1861,8 +1884,9 @@ def finalize_budget(job: dict) -> None:
     decision = budget_decision(job, job.get("assigned_worker") or "cursor-agent-cli")
     job["budget"]["consumed_usd"] = float(decision.get("consumed") or 0.0)
     job["budget"]["reserved_usd"] = 0.0
+    prior = job.get("budget_finalized") or {}
     job["budget_finalized"] = {
-        "at": utc_now(),
+        "at": prior.get("at") or utc_now(),
         "reserved_usd": 0.0,
         "consumed_usd": job["budget"]["consumed_usd"],
     }
@@ -2370,9 +2394,9 @@ def advance_job(
                 save_job(job)
                 return job
             usage = (record or {}).get("usage")
-            if record.get("bootstrap"):
+            if record.get("bootstrap") and str(record.get("execution_phase") or "") != IDENTITY.PHASE_INDEPENDENT_VALIDATION:
                 job["project_bootstrap"] = record.get("bootstrap")
-            if record.get("project_lifecycle"):
+            if record.get("project_lifecycle") and not job.get("project_lifecycle"):
                 job["project_lifecycle"] = record.get("project_lifecycle")
             if _is_blocked_child(record):
                 return apply_blocked_child(job, record)
@@ -2420,7 +2444,14 @@ def advance_job(
             return job
         prompt = build_worker_prompt(job, requirements, design)
         submitted = _submit_cursor(
-            job, prompt, expected, inbox_root=inbox_root, orch_submit=orch_submit
+            job,
+            prompt,
+            expected,
+            inbox_root=inbox_root,
+            orch_submit=orch_submit,
+            execution_phase=IDENTITY.PHASE_IMPLEMENTATION,
+            write=True,
+            test_command=design.get("test_command") or requirements.get("test_command"),
         )
         if submitted.get("state") == "BLOCKED":
             job["failure_reason"] = submitted.get("failure_reason")
@@ -2456,6 +2487,9 @@ def advance_job(
                     job.get("expected_paths") or expected_paths_from_design(design),
                     inbox_root=inbox_root,
                     orch_submit=orch_submit,
+                    execution_phase=IDENTITY.PHASE_IMPLEMENTATION,
+                    write=True,
+                    test_command=design.get("test_command") or requirements.get("test_command"),
                 )
                 if submitted.get("state") == "BLOCKED":
                     job["failure_reason"] = submitted.get("failure_reason")
@@ -2490,6 +2524,22 @@ def advance_job(
             job["validation"]["independent_rerun"] = "LOCAL_CORPUS"
         elif job.get("origin") == "conversation" and job.get("workflow") == "sdlc":
             if not job.get("validation_child_id"):
+                last = job.get("last_child") or {}
+                identity = job.get("project_identity") or {}
+                impl_path = identity.get("project_path") or job.get("workspace")
+                last_repo = last.get("repo") or ((last.get("bootstrap") or {}).get("target_path"))
+                if str(last.get("state") or "").upper() != "COMPLETED":
+                    job["failure_reason"] = "independent validation requires a completed implementation child"
+                    job["failure_class"] = "INCOMPLETE_IMPLEMENTATION"
+                    finalize_budget(job)
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
+                if last_repo and impl_path and not IDENTITY.win_paths_equal(last_repo, impl_path):
+                    job["failure_reason"] = "independent validation project path does not match implementation"
+                    job["failure_class"] = "PROJECT_PATH_MISMATCH"
+                    finalize_budget(job)
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
                 if budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
                     prompt = build_validation_prompt(job, requirements, design)
                     submitted = _submit_cursor(
@@ -2498,6 +2548,9 @@ def advance_job(
                         job.get("expected_paths") or expected_paths_from_design(design),
                         inbox_root=inbox_root,
                         orch_submit=orch_submit,
+                        execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
+                        write=False,
+                        test_command=design.get("test_command") or requirements.get("test_command") or "python -m unittest",
                     )
                     if submitted.get("state") == "BLOCKED":
                         job["validation"]["independent_rerun"] = "UNVERIFIED"
@@ -2524,6 +2577,8 @@ def advance_job(
                         transition(job, "FAILED", "CHILD_TIMEOUT")
                     save_job(job)
                     return job
+                if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+                    return apply_failed_child(job, record)
                 usage = (record or {}).get("usage")
                 record_usage(
                     job,
@@ -2534,6 +2589,13 @@ def advance_job(
                     failure_class=(record or {}).get("failure_class"),
                     cursor_started=cursor_was_started(record, usage),
                 )
+                job["independent_validation"] = {
+                    "execution_phase": IDENTITY.PHASE_INDEPENDENT_VALIDATION,
+                    "bootstrap": (record or {}).get("bootstrap"),
+                    "repo": (record or {}).get("repo"),
+                    "independent_test": (record or {}).get("independent_test")
+                    or (record or {}).get("test_results"),
+                }
                 stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
                 test_ev = parse_test_evidence(stdout, record)
                 job["validation"]["independent_test_evidence"] = test_ev

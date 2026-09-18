@@ -15,6 +15,54 @@ HOST_ROOT = Path(
     "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs"
 )
 SANDBOX_ROOT = Path("/workspace/windows-jobs")
+HOST_WORKSPACE = HOST_ROOT.parent
+SANDBOX_WORKSPACE = SANDBOX_ROOT.parent
+
+
+def in_conversation_sandbox(
+    *,
+    sandbox_workspace: Path | None = None,
+    host_workspace: Path | None = None,
+) -> bool:
+    """True when /workspace exists and the Ubuntu host path is not mounted."""
+    sandbox_workspace = sandbox_workspace or SANDBOX_WORKSPACE
+    host_workspace = host_workspace or HOST_WORKSPACE
+    try:
+        return sandbox_workspace.is_dir() and not host_workspace.is_dir()
+    except OSError:
+        return False
+
+
+def is_unmounted_host_inbox(
+    path: Path | str | None,
+    *,
+    sandbox_workspace: Path | None = None,
+    host_workspace: Path | None = None,
+) -> bool:
+    if not path:
+        return False
+    text = str(path).replace("\\", "/")
+    if "/home/ubuntu/.hermes/sandboxes/" not in text:
+        return False
+    return in_conversation_sandbox(
+        sandbox_workspace=sandbox_workspace, host_workspace=host_workspace
+    )
+
+
+def path_mapping() -> dict:
+    return {
+        "canonical_inbox": str(resolve_inbox_root()),
+        "sandbox_inbox": str(SANDBOX_ROOT),
+        "host_inbox": str(HOST_ROOT),
+        "in_conversation_sandbox": in_conversation_sandbox(),
+        "note": (
+            "Conversation must use /workspace/windows-jobs. That bind-mount is "
+            "the same host directory "
+            "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs. "
+            "The host-shaped path is not mounted inside the sandbox; creating it "
+            "there would be an invisible overlay."
+        ),
+    }
 
 
 def resolve_inbox_root(

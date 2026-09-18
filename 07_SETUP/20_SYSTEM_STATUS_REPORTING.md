@@ -47,5 +47,9 @@ For any voice question, read `/opt/neewa/status/voice.json` and cite `generated_
 - Scheduled no-agent Hermes cron jobs: `neewa-host-status` (every 10 min) and
   `neewa-voice-readiness` (every 15 min) refresh the read-only snapshots on the host.
 - Sandbox mounts (read-only): `/opt/neewa/neewa-os` and `/opt/neewa/status`.
+- Autonomy runner facts: `/opt/neewa/status/autonomy.json` (host-written) and
+  `/workspace/windows-jobs/autonomy/conversation-status.json` (bind-mount).
+  Conversation runs `neewa_autonomy.py mission-preflight`. Do not use
+  `systemctl` or the unmounted host path `/home/ubuntu/.hermes/sandboxes/...`.
 
 No public exposure, no secrets, no host mutation — the probe is read-only.

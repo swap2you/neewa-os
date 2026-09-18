@@ -7,8 +7,32 @@ Do not request a raw Windows shell. Do not ask the owner to paste the
 task into Cursor. Do not ask the owner to pick a worker or approve routine A1 steps.
 
 Inside the Hermes Docker sandbox the worker-visible inbox is
-`/workspace/windows-jobs`. `12_SCRIPTS/neewa_orchestrate.py` writes records
-and jobs there automatically.
+`/workspace/windows-jobs`. That bind-mount is the same host directory
+`/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs`.
+The host-shaped path is **not mounted** in the sandbox. Do not inspect
+`/home/ubuntu/.hermes/sandboxes/...` and do not run `systemctl`. Creating
+the host path inside the container would be an invisible overlay.
+
+`systemctl` is absent in Conversation. Host runner health comes from
+`/workspace/windows-jobs/autonomy/runner-heartbeat.json` and
+`conversation-status.json`, plus the read-only snapshot
+`/opt/neewa/status/autonomy.json` when present.
+
+Before any overnight or unattended software mission, run preflight:
+
+```
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py mission-preflight
+```
+
+Use that JSON. Do not ask the owner to copy host diagnostics.
+`submission_safe=true` means the canonical bind-mount is writable, the
+runner heartbeat is fresh, the NEEWA ceiling can reserve the conservative
+Cursor estimate, and no host overlay is being used. Provider remaining
+credits are reported `UNKNOWN` unless an authoritative API exists; do not
+invent a balance. `systemctl` unavailable-in-sandbox is expected.
+
+`12_SCRIPTS/neewa_orchestrate.py` writes records and jobs to
+`/workspace/windows-jobs` automatically.
 
 Standing authorization: ordinary personal work under
 `C:\Development\Workspace\<project>` and `%USERPROFILE%\NEEWA-Personal`

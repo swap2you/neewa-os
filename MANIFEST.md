@@ -115,6 +115,8 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `11_CONFIG/watchdog.example.yaml`
 - `11_CONFIG/workers.json`
 - `12_SCRIPTS/README.md`
+- `12_SCRIPTS/_diag_observability.sh`
+- `12_SCRIPTS/_diag_sandbox_view.sh`
 - `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
 - `12_SCRIPTS/bootstrap.sh`

@@ -11,6 +11,9 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import shutil
+import subprocess
 import uuid
 from datetime import datetime, timezone
 from importlib.machinery import SourceFileLoader
@@ -93,6 +96,20 @@ PREFERRED_ADVISORS = (
 )
 MAX_REPAIR_CYCLES = 3
 DEFAULT_KIND = "sdlc"
+HEARTBEAT_STALE_SEC = 120
+WORKER_PENDING_STALE_SEC = 900
+STATUS_DIR = Path(os.environ.get("NEEWA_STATUS_DIR", "/opt/neewa/status"))
+HOST_SNAPSHOT = STATUS_DIR / "autonomy.json"
+
+
+class DuplicateMission(Exception):
+    def __init__(self, existing: dict):
+        self.existing = existing
+        super().__init__(f"active mission already exists: {existing.get('mission_id')}")
+
+
+class HostPathUnmounted(ValueError):
+    pass
 
 
 def utc_now() -> str:
@@ -116,8 +133,15 @@ def _auto_mod():
 
 
 def autonomy_root(explicit: Path | None, auto=None) -> Path:
+    inbox_mod = SourceFileLoader(
+        "windows_job_inbox_mission", str(ROOT / "12_SCRIPTS" / "windows_job_inbox.py")
+    ).load_module()
     if explicit:
         path = explicit
+        if inbox_mod.is_unmounted_host_inbox(path):
+            raise HostPathUnmounted(
+                "HOST_PATH_UNMOUNTED: Conversation must use /workspace/windows-jobs/autonomy"
+            )
         path.mkdir(parents=True, exist_ok=True)
         (path / "work").mkdir(exist_ok=True)
         return path
@@ -186,6 +210,353 @@ def save_mission(mission: dict, root: Path | None = None) -> Path:
     return path
 
 
+def objective_key(text: str | None) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def find_active_duplicate(root: Path, objective: str, *, exclude_id: str | None = None) -> dict | None:
+    key = objective_key(objective)
+    if not key:
+        return None
+    for mission in list_missions(root):
+        if mission.get("state") in TERMINAL:
+            continue
+        if exclude_id and mission.get("mission_id") == exclude_id:
+            continue
+        if objective_key(mission.get("owner_objective")) == key:
+            return mission
+    return None
+
+
+def _parse_utc(stamp: str | None) -> datetime | None:
+    if not stamp:
+        return None
+    try:
+        return datetime.strptime(str(stamp), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _age_sec(stamp: str | None, now: datetime | None = None) -> int | None:
+    parsed = _parse_utc(stamp)
+    if not parsed:
+        return None
+    now = now or datetime.now(timezone.utc)
+    return max(0, int((now - parsed).total_seconds()))
+
+
+def _read_json(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        return load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def _host_systemd_state(unit: str = "neewa-autonomy-runner.service") -> str | None:
+    if shutil.which("systemctl") is None:
+        return None
+    try:
+        completed = subprocess.run(
+            ["systemctl", "--user", "is-active", unit],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return (completed.stdout or completed.stderr or "unknown").strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _deployed_versions() -> dict:
+    host = _read_json(STATUS_DIR / "latest.json") or {}
+    repo = (host.get("repository") or {}) if host else {}
+    sha = repo.get("head")
+    source = "host-snapshot" if sha else None
+    if not sha:
+        try:
+            sha = subprocess.check_output(
+                ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+                text=True,
+                timeout=5,
+            ).strip()
+            source = "git"
+        except (OSError, subprocess.SubprocessError):
+            sha = "UNKNOWN"
+            source = "unavailable"
+    return {
+        "repo": str(ROOT),
+        "sha": sha,
+        "branch": repo.get("branch"),
+        "source": source,
+        "host_snapshot_at": host.get("generated_at"),
+    }
+
+
+def _provider_credits() -> dict:
+    return {
+        "remaining": "UNKNOWN",
+        "source": "none",
+        "reason": (
+            "No configured provider exposes an authoritative remaining-credit "
+            "or hard quota API. Nous subscription quota is unknown. "
+            "openai-api is credential_pending. Do not invent a balance."
+        ),
+        "authoritative_balance": False,
+        "authoritative_hard_limit": False,
+    }
+
+
+def _worker_status(inbox_root: Path) -> dict:
+    if not inbox_root.is_dir():
+        return {
+            "accessible": False,
+            "status": "unavailable",
+            "reason": "inbox root is not a directory",
+            "last_receipt_at": None,
+            "last_receipt_id": None,
+            "last_receipt_age_sec": None,
+            "pending_inbox": 0,
+            "pending_processing": 0,
+        }
+    latest = None
+    latest_mtime = -1.0
+    for folder in ("inbox", "processing", "done", "failed", "records"):
+        directory = inbox_root / folder
+        if not directory.is_dir():
+            continue
+        for path in directory.glob("*.json"):
+            try:
+                mtime = path.stat().st_mtime
+            except OSError:
+                continue
+            if mtime > latest_mtime:
+                latest_mtime = mtime
+                latest = path
+    pending_inbox = len(list((inbox_root / "inbox").glob("*.json"))) if (inbox_root / "inbox").is_dir() else 0
+    pending_processing = (
+        len(list((inbox_root / "processing").glob("*.json"))) if (inbox_root / "processing").is_dir() else 0
+    )
+    last_at = None
+    last_id = None
+    age = None
+    if latest is not None:
+        last_id = latest.stem
+        last_at = datetime.fromtimestamp(latest_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        age = _age_sec(last_at)
+    if pending_inbox or pending_processing:
+        status = "stale_pending" if (age is None or age > WORKER_PENDING_STALE_SEC) else "active"
+    elif latest is None:
+        status = "unknown"
+    else:
+        status = "idle"
+    return {
+        "accessible": True,
+        "status": status,
+        "inbox": str(inbox_root),
+        "last_receipt_at": last_at,
+        "last_receipt_id": last_id,
+        "last_receipt_age_sec": age,
+        "pending_inbox": pending_inbox,
+        "pending_processing": pending_processing,
+    }
+
+
+def _budget_status(*, auto=None) -> dict:
+    auto = auto or _auto_mod()
+    budgets = load_json(BUDGETS) if BUDGETS.is_file() else {}
+    defaults = budgets.get("job_defaults") or {}
+    ceiling = defaults.get("max_cost")
+    estimate = (budgets.get("conservative_estimates_usd") or {}).get("cursor_call")
+    probe = {"budget": {"ceiling": ceiling, "consumed_usd": 0.0, "reserved_usd": 0.0, "invocations": []}}
+    decision = auto.budget_decision(probe, "cursor-agent-cli")
+    credits = _provider_credits()
+    hard_limit = ceiling is not None and estimate is not None
+    return {
+        "mission_ceiling_usd": ceiling,
+        "conservative_cursor_estimate_usd": estimate,
+        "remaining_ceiling_usd": decision.get("remaining"),
+        "enforcement": "NEEWA_CEILING_CONSERVATIVE" if hard_limit else "NONE",
+        "provider_credits_remaining": credits["remaining"],
+        "provider_credits": credits,
+        "block_when_cost_unknown": bool(budgets.get("block_when_cost_unknown")),
+        "decision_reason": decision.get("reason"),
+        "allows_next_cursor_call": bool(decision.get("allows")) and hard_limit,
+    }
+
+
+def mission_preflight(
+    *,
+    root: Path | None = None,
+    inbox_root: Path | None = None,
+    auto=None,
+    now: datetime | None = None,
+    systemd_state: str | None = None,
+    publish: bool = False,
+) -> dict:
+    """Conversation-visible status. Uses bind-mount evidence, not systemctl inside Docker."""
+    inbox_mod = SourceFileLoader(
+        "windows_job_inbox_preflight", str(ROOT / "12_SCRIPTS" / "windows_job_inbox.py")
+    ).load_module()
+    mapping = inbox_mod.path_mapping()
+    blockers = []
+    warnings = []
+    now = now or datetime.now(timezone.utc)
+    try:
+        jobs_root = autonomy_root(root, auto=auto)
+        storage = {
+            "accessible": True,
+            "path": str(jobs_root),
+            "canonical": True,
+        }
+    except HostPathUnmounted as exc:
+        jobs_root = None
+        storage = {"accessible": False, "path": str(root), "canonical": False, "reason": str(exc)}
+        blockers.append("HOST_PATH_UNMOUNTED")
+    except OSError as exc:
+        jobs_root = None
+        storage = {"accessible": False, "path": str(root) if root else None, "reason": str(exc)}
+        blockers.append("AUTONOMY_STORAGE_INACCESSIBLE")
+
+    explicit_inbox = inbox_root
+    if explicit_inbox is None:
+        inbox_root = Path(mapping["canonical_inbox"]) if not root else (Path(root).parent if root else Path(mapping["canonical_inbox"]))
+        if jobs_root is not None:
+            inbox_root = jobs_root.parent
+    else:
+        inbox_root = explicit_inbox
+    worker = _worker_status(inbox_root)
+    if not worker.get("accessible"):
+        blockers.append("WINDOWS_WORKER_INBOX_UNAVAILABLE")
+    elif worker.get("status") == "stale_pending":
+        warnings.append("WINDOWS_WORKER_STALE_PENDING")
+
+    heartbeat = _read_json(jobs_root / "runner-heartbeat.json") if jobs_root else None
+    heartbeat_at = (heartbeat or {}).get("at")
+    heartbeat_age = _age_sec(heartbeat_at, now)
+    host_snapshot = _read_json(HOST_SNAPSHOT)
+    snapshot_age = _age_sec((host_snapshot or {}).get("generated_at"), now)
+    if systemd_state is None:
+        systemd_state = _host_systemd_state()
+    if systemd_state is None and host_snapshot:
+        systemd_state = (host_snapshot.get("runner") or {}).get("systemd")
+    runner_fresh = heartbeat_age is not None and heartbeat_age <= HEARTBEAT_STALE_SEC
+    if heartbeat is None:
+        blockers.append("RUNNER_HEARTBEAT_MISSING")
+        runner_state = "missing-heartbeat"
+    elif not runner_fresh:
+        blockers.append("RUNNER_HEARTBEAT_STALE")
+        runner_state = "stale-heartbeat"
+    elif systemd_state == "active" or systemd_state is None:
+        runner_state = "active"
+    else:
+        runner_state = systemd_state
+        warnings.append(f"SYSTEMD_{systemd_state.upper()}")
+
+    missions = list_missions(jobs_root) if jobs_root else []
+    active_missions = [
+        {
+            "mission_id": m["mission_id"],
+            "state": m.get("state"),
+            "active_job_id": m.get("active_job_id"),
+            "kind": m.get("kind"),
+        }
+        for m in missions
+        if m.get("state") not in TERMINAL
+    ]
+    active_jobs = []
+    if jobs_root and auto:
+        for job in auto.list_parent_jobs(jobs_root):
+            if job.get("state") not in {"DONE", "BLOCKED", "FAILED", "CANCELLED", "OWNER_REVIEW"}:
+                active_jobs.append({"job_id": job["job_id"], "state": job.get("state"), "mission_id": job.get("mission_id")})
+    elif jobs_root:
+        try:
+            auto_mod = _auto_mod()
+            for job in auto_mod.list_parent_jobs(jobs_root):
+                if job.get("state") not in {"DONE", "BLOCKED", "FAILED", "CANCELLED", "OWNER_REVIEW"}:
+                    active_jobs.append(
+                        {"job_id": job["job_id"], "state": job.get("state"), "mission_id": job.get("mission_id")}
+                    )
+        except Exception:
+            pass
+
+    budget = _budget_status(auto=auto)
+    if not budget.get("allows_next_cursor_call"):
+        blockers.append(budget.get("decision_reason") or "BUDGET_NOT_ENFORCEABLE")
+    if not budget["provider_credits"].get("authoritative_balance"):
+        warnings.append("PROVIDER_CREDITS_UNKNOWN")
+
+    versions = _deployed_versions()
+    submission_safe = not blockers
+    report = {
+        "schema_version": 1,
+        "generated_at": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "submission_safe": submission_safe,
+        "blockers": blockers,
+        "warnings": warnings,
+        "runner": {
+            "state": runner_state,
+            "systemd": systemd_state or "unavailable-in-sandbox",
+            "heartbeat_at": heartbeat_at,
+            "heartbeat_age_sec": heartbeat_age,
+            "heartbeat_stale": bool(heartbeat is None or not runner_fresh),
+            "pid": (heartbeat or {}).get("pid"),
+            "evidence": str(jobs_root / "runner-heartbeat.json") if jobs_root else None,
+        },
+        "autonomy_storage": storage,
+        "path_mapping": mapping,
+        "windows_worker": worker,
+        "active_missions": active_missions,
+        "active_jobs": active_jobs,
+        "versions": versions,
+        "budget": budget,
+        "host_snapshot": {
+            "path": str(HOST_SNAPSHOT),
+            "present": host_snapshot is not None,
+            "generated_at": (host_snapshot or {}).get("generated_at"),
+            "age_sec": snapshot_age,
+        },
+        "note": (
+            "Use /workspace/windows-jobs from Conversation. Do not use the unmounted "
+            "host path and do not require systemctl inside the sandbox."
+        ),
+    }
+    if publish and jobs_root:
+        publish_status_snapshot(report, jobs_root=jobs_root)
+    return report
+
+
+def publish_status_snapshot(
+    report: dict | None = None,
+    *,
+    root: Path | None = None,
+    jobs_root: Path | None = None,
+    inbox_root: Path | None = None,
+    auto=None,
+    **kwargs,
+) -> dict:
+    jobs_root = jobs_root or root
+    report = report or mission_preflight(
+        root=jobs_root, inbox_root=inbox_root, auto=auto, publish=False, **kwargs
+    )
+    if jobs_root is None:
+        try:
+            jobs_root = autonomy_root(None, auto=auto)
+        except (HostPathUnmounted, OSError):
+            jobs_root = None
+    if jobs_root:
+        save_json(jobs_root / "conversation-status.json", report)
+    if STATUS_DIR.is_dir() and os.access(STATUS_DIR, os.W_OK):
+        try:
+            save_json(HOST_SNAPSHOT, report)
+            os.chmod(HOST_SNAPSHOT, 0o644)
+        except OSError:
+            pass
+    return report
+
+
 def transition(mission: dict, state: str, note: str = "", root: Path | None = None) -> dict:
     current = mission.get("state")
     allowed = ALLOWED_TRANSITIONS.get(current) or set()
@@ -220,6 +591,9 @@ def create_mission(
 ) -> dict:
     auto = auto or _auto_mod()
     jobs_root = autonomy_root(root, auto=auto)
+    duplicate = find_active_duplicate(jobs_root, objective)
+    if duplicate:
+        raise DuplicateMission(duplicate)
     if budget_ceiling is None:
         budget_ceiling = float(load_json(BUDGETS)["job_defaults"]["max_cost"])
     mission = {
@@ -877,10 +1251,20 @@ def main() -> int:
     stepp.add_argument("--root")
     stepp.add_argument("--inbox-root")
     adv = sub.add_parser("advisors")
+    prep = sub.add_parser("preflight")
+    prep.add_argument("--root")
+    prep.add_argument("--inbox-root")
     args = parser.parse_args()
     if args.command == "advisors":
         print(json.dumps(discover_advisors(), indent=2))
         return 0
+    if args.command == "preflight":
+        report = mission_preflight(
+            root=Path(args.root) if args.root else None,
+            inbox_root=Path(args.inbox_root) if args.inbox_root else None,
+        )
+        print(json.dumps(report, indent=2))
+        return 0 if report.get("submission_safe") else 2
     root = Path(args.root) if getattr(args, "root", None) else None
     jobs_root = autonomy_root(root)
     if args.command == "submit":

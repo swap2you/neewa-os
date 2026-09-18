@@ -139,6 +139,10 @@ def autonomy_root(explicit: Path | None = None) -> Path:
     else:
         inbox = ORCH.INBOX_MOD.resolve_inbox_root()
         path = inbox / "autonomy"
+    if ORCH.INBOX_MOD.is_unmounted_host_inbox(path):
+        raise ValueError(
+            "HOST_PATH_UNMOUNTED: Conversation must use /workspace/windows-jobs/autonomy"
+        )
     path.mkdir(parents=True, exist_ok=True)
     (path / "work").mkdir(exist_ok=True)
     return path
@@ -2751,6 +2755,14 @@ def runner_once(
             job, root=root, inbox_root=inbox_root, worker_registry=worker_registry, **advance_kwargs
         )
         results.append({"job_id": updated["job_id"], "state": updated["state"]})
+    try:
+        mission_mod.publish_status_snapshot(
+            root=root,
+            inbox_root=inbox_root,
+            auto=sys.modules[__name__],
+        )
+    except Exception:
+        pass
     return results
 
 
@@ -2999,6 +3011,9 @@ def main() -> int:
     mget.add_argument("--root")
     mlist = sub.add_parser("mission-list")
     mlist.add_argument("--root")
+    mpre = sub.add_parser("mission-preflight")
+    mpre.add_argument("--root")
+    mpre.add_argument("--inbox-root")
     madv = sub.add_parser("mission-advisors")
     closep = sub.add_parser("close-misclassified-intake")
     closep.add_argument("--job-id", required=True)
@@ -3113,7 +3128,7 @@ def main() -> int:
             poll_sec=args.poll_sec,
             once=args.once,
         )
-    if args.command in {"mission-submit", "mission-get", "mission-list", "mission-advisors"}:
+    if args.command in {"mission-submit", "mission-get", "mission-list", "mission-advisors", "mission-preflight"}:
         mission_mod = SourceFileLoader(
             "neewa_mission_cli", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
         ).load_module()
@@ -3121,18 +3136,54 @@ def main() -> int:
         if args.command == "mission-advisors":
             print(json.dumps(mission_mod.discover_advisors(), indent=2))
             return 0
-        jobs_root = mission_mod.autonomy_root(jobs_root, auto=sys.modules[__name__])
-        if args.command == "mission-submit":
-            mission = mission_mod.create_mission(
-                args.objective,
-                workspace=args.workspace,
-                project_id=args.project_id,
+        if args.command == "mission-preflight":
+            report = mission_mod.mission_preflight(
                 root=jobs_root,
-                budget_ceiling=args.budget_ceiling,
-                origin=args.origin,
-                kind=args.kind,
+                inbox_root=Path(args.inbox_root) if args.inbox_root else None,
                 auto=sys.modules[__name__],
             )
+            print(json.dumps(report, indent=2))
+            return 0 if report.get("submission_safe") else 2
+        try:
+            jobs_root = mission_mod.autonomy_root(jobs_root, auto=sys.modules[__name__])
+        except mission_mod.HostPathUnmounted as exc:
+            print(json.dumps({"blocked": True, "reason": str(exc), "use": "/workspace/windows-jobs"}, indent=2))
+            return 2
+        if args.command == "mission-submit":
+            preflight = mission_mod.mission_preflight(
+                root=jobs_root,
+                auto=sys.modules[__name__],
+            )
+            production = jobs_root.as_posix().endswith("/windows-jobs/autonomy") or str(jobs_root).endswith(
+                "\\windows-jobs\\autonomy"
+            )
+            if production and args.kind != "diagnostic" and not preflight.get("submission_safe"):
+                print(json.dumps({"blocked": True, "reason": "PREFLIGHT_UNSAFE", "preflight": preflight}, indent=2))
+                return 2
+            try:
+                mission = mission_mod.create_mission(
+                    args.objective,
+                    workspace=args.workspace,
+                    project_id=args.project_id,
+                    root=jobs_root,
+                    budget_ceiling=args.budget_ceiling,
+                    origin=args.origin,
+                    kind=args.kind,
+                    auto=sys.modules[__name__],
+                )
+            except mission_mod.DuplicateMission as exc:
+                print(
+                    json.dumps(
+                        {
+                            "blocked": True,
+                            "reason": "DUPLICATE_ACTIVE_MISSION",
+                            "existing_mission_id": exc.existing.get("mission_id"),
+                            "existing_state": exc.existing.get("state"),
+                        },
+                        indent=2,
+                    )
+                )
+                return 2
             print(json.dumps(mission_mod.public_mission(mission), indent=2))
             return 0
         if args.command == "mission-list":
@@ -3158,17 +3209,35 @@ def main() -> int:
             mission_mod = SourceFileLoader(
                 "neewa_mission_cli", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
             ).load_module()
-            jobs_root = mission_mod.autonomy_root(root, auto=sys.modules[__name__])
-            mission = mission_mod.create_mission(
-                args.objective,
-                workspace=args.workspace,
-                project_id=args.project_id,
-                root=jobs_root,
-                budget_ceiling=args.budget_ceiling,
-                origin=args.origin,
-                kind="sdlc",
-                auto=sys.modules[__name__],
-            )
+            try:
+                jobs_root = mission_mod.autonomy_root(root, auto=sys.modules[__name__])
+            except mission_mod.HostPathUnmounted as exc:
+                print(json.dumps({"blocked": True, "reason": str(exc), "use": "/workspace/windows-jobs"}, indent=2))
+                return 2
+            try:
+                mission = mission_mod.create_mission(
+                    args.objective,
+                    workspace=args.workspace,
+                    project_id=args.project_id,
+                    root=jobs_root,
+                    budget_ceiling=args.budget_ceiling,
+                    origin=args.origin,
+                    kind="sdlc",
+                    auto=sys.modules[__name__],
+                )
+            except mission_mod.DuplicateMission as exc:
+                print(
+                    json.dumps(
+                        {
+                            "blocked": True,
+                            "reason": "DUPLICATE_ACTIVE_MISSION",
+                            "existing_mission_id": exc.existing.get("mission_id"),
+                            "existing_state": exc.existing.get("state"),
+                        },
+                        indent=2,
+                    )
+                )
+                return 2
             print(json.dumps(mission_mod.public_mission(mission), indent=2))
             return 0
         job = create_parent_job(

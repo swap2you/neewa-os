@@ -369,5 +369,175 @@ class MissionSupervisorTests(unittest.TestCase):
             self.assertEqual(mission["failure_reason"], "COST_UNKNOWN")
 
 
+class MissionObservabilityTests(unittest.TestCase):
+    def setUp(self):
+        self.mission = SourceFileLoader("neewa_mission_obs", str(MISSION_PY)).load_module()
+        self.auto = SourceFileLoader("neewa_autonomy_obs", str(AUTO_PY)).load_module()
+        self.inbox = SourceFileLoader(
+            "windows_job_inbox_obs", str(ROOT / "12_SCRIPTS" / "windows_job_inbox.py")
+        ).load_module()
+
+    def _healthy(self, tmp: Path, *, heartbeat_at="2026-09-18T04:10:00Z"):
+        inbox = tmp / "windows-jobs"
+        root = inbox / "autonomy"
+        (inbox / "done").mkdir(parents=True)
+        (inbox / "inbox").mkdir()
+        (inbox / "processing").mkdir()
+        (inbox / "failed").mkdir()
+        self.auto.save_json(root / "runner-heartbeat.json", {"at": heartbeat_at, "pid": 9})
+        (inbox / "done" / "JOB-WORKER-RECEIPT.json").write_text("{}", encoding="utf-8")
+        return inbox, root
+
+    def test_healthy_host_visible_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp))
+            report = self.mission.mission_preflight(
+                root=root,
+                inbox_root=inbox,
+                auto=self.auto,
+                now=self.mission.datetime.strptime("2026-09-18T04:10:10Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=self.mission.timezone.utc
+                ),
+                systemd_state="active",
+            )
+            self.assertTrue(report["submission_safe"], report["blockers"])
+            self.assertEqual(report["runner"]["state"], "active")
+            self.assertFalse(report["runner"]["heartbeat_stale"])
+            self.assertTrue(report["autonomy_storage"]["accessible"])
+            self.assertEqual(report["windows_worker"]["status"], "idle")
+            self.assertEqual(report["budget"]["provider_credits_remaining"], "UNKNOWN")
+            self.assertTrue(report["budget"]["allows_next_cursor_call"])
+
+    def test_stopped_runner_stale_heartbeat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp), heartbeat_at="2026-09-18T03:00:00Z")
+            report = self.mission.mission_preflight(
+                root=root,
+                inbox_root=inbox,
+                auto=self.auto,
+                now=self.mission.datetime.strptime("2026-09-18T04:10:00Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=self.mission.timezone.utc
+                ),
+                systemd_state="inactive",
+            )
+            self.assertFalse(report["submission_safe"])
+            self.assertIn("RUNNER_HEARTBEAT_STALE", report["blockers"])
+
+    def test_missing_heartbeat(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp))
+            (root / "runner-heartbeat.json").unlink()
+            report = self.mission.mission_preflight(
+                root=root, inbox_root=inbox, auto=self.auto, systemd_state="unknown"
+            )
+            self.assertFalse(report["submission_safe"])
+            self.assertIn("RUNNER_HEARTBEAT_MISSING", report["blockers"])
+
+    def test_windows_worker_unavailable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp))
+            report = self.mission.mission_preflight(
+                root=root,
+                inbox_root=Path(tmp) / "missing-worker-inbox",
+                auto=self.auto,
+                now=self.mission.datetime.strptime("2026-09-18T04:10:10Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=self.mission.timezone.utc
+                ),
+                systemd_state="active",
+            )
+            self.assertFalse(report["windows_worker"]["accessible"])
+            self.assertEqual(report["windows_worker"]["status"], "unavailable")
+            self.assertIn("WINDOWS_WORKER_INBOX_UNAVAILABLE", report["blockers"])
+            self.assertFalse(report["submission_safe"])
+
+    def test_unknown_provider_balance_does_not_invent_credits(self):
+        credits = self.mission._provider_credits()
+        self.assertEqual(credits["remaining"], "UNKNOWN")
+        self.assertFalse(credits["authoritative_balance"])
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp))
+            report = self.mission.mission_preflight(
+                root=root,
+                inbox_root=inbox,
+                auto=self.auto,
+                now=self.mission.datetime.strptime("2026-09-18T04:10:10Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=self.mission.timezone.utc
+                ),
+                systemd_state="active",
+            )
+            self.assertEqual(report["budget"]["provider_credits_remaining"], "UNKNOWN")
+            self.assertIn("PROVIDER_CREDITS_UNKNOWN", report["warnings"])
+            self.assertTrue(report["submission_safe"])
+
+    def test_duplicate_mission_submission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            first = self.mission.create_mission(
+                "overnight personal engineering",
+                workspace=SANDBOX,
+                root=root,
+                kind="sdlc",
+                auto=self.auto,
+            )
+            with self.assertRaises(self.mission.DuplicateMission) as raised:
+                self.mission.create_mission(
+                    "overnight personal engineering",
+                    workspace=SANDBOX,
+                    root=root,
+                    kind="sdlc",
+                    auto=self.auto,
+                )
+            self.assertEqual(raised.exception.existing["mission_id"], first["mission_id"])
+
+    def test_unmounted_host_path_is_detected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            sandbox_ws = Path(tmp) / "workspace"
+            sandbox_ws.mkdir()
+            host_ws = Path(tmp) / "absent-host-workspace"
+            self.assertTrue(
+                self.inbox.in_conversation_sandbox(
+                    sandbox_workspace=sandbox_ws, host_workspace=host_ws
+                )
+            )
+            self.assertTrue(
+                self.inbox.is_unmounted_host_inbox(
+                    "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs/autonomy",
+                    sandbox_workspace=sandbox_ws,
+                    host_workspace=host_ws,
+                )
+            )
+            self.assertFalse(
+                self.inbox.is_unmounted_host_inbox(
+                    "/workspace/windows-jobs/autonomy",
+                    sandbox_workspace=sandbox_ws,
+                    host_workspace=host_ws,
+                )
+            )
+
+    def test_recovery_after_runner_restart(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inbox, root = self._healthy(Path(tmp), heartbeat_at="2026-09-18T03:00:00Z")
+            now = self.mission.datetime.strptime("2026-09-18T04:10:00Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                tzinfo=self.mission.timezone.utc
+            )
+            stopped = self.mission.mission_preflight(
+                root=root, inbox_root=inbox, auto=self.auto, now=now, systemd_state="inactive"
+            )
+            self.assertFalse(stopped["submission_safe"])
+            self.auto.save_json(root / "runner-heartbeat.json", {"at": "2026-09-18T04:10:00Z", "pid": 22})
+            recovered = self.mission.mission_preflight(
+                root=root,
+                inbox_root=inbox,
+                auto=self.auto,
+                now=self.mission.datetime.strptime("2026-09-18T04:10:15Z", "%Y-%m-%dT%H:%M:%SZ").replace(
+                    tzinfo=self.mission.timezone.utc
+                ),
+                systemd_state="active",
+            )
+            self.assertTrue(recovered["submission_safe"], recovered["blockers"])
+            self.mission.publish_status_snapshot(recovered, jobs_root=root)
+            self.assertTrue((root / "conversation-status.json").is_file())
+
+
 if __name__ == "__main__":
     unittest.main()

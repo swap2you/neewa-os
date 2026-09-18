@@ -54,6 +54,7 @@ gateway_state="$(usvc hermes-gateway.service)"
 docker_state="$(svc docker.service)"
 tailscaled_state="$(svc tailscaled.service)"
 ollama_state="$(svc ollama.service)"
+autonomy_runner_state="$(usvc neewa-autonomy-runner.service)"
 
 # --- ollama / local model ---
 local_model="qwen3:4b-instruct-2507-q4_K_M"
@@ -133,7 +134,7 @@ read -r -d '' JSON <<EOF || true
   "cpu": {"count": ${cpu_count:-0}},
   "memory_mb": {"total": ${mem_total_mb:-0}, "used": ${mem_used_mb:-0}, "available": ${mem_avail_mb:-0}},
   "disk_root_mb": {"total": ${disk_total_mb:-0}, "used": ${disk_used_mb:-0}, "available": ${disk_avail_mb:-0}, "use_percent": "$(json_escape "${disk_use_pct:-n/a}")"},
-  "services": {"hermes_gateway": "${gateway_state}", "docker": "${docker_state}", "tailscaled": "${tailscaled_state}", "ollama": "${ollama_state}"},
+  "services": {"hermes_gateway": "${gateway_state}", "docker": "${docker_state}", "tailscaled": "${tailscaled_state}", "ollama": "${ollama_state}", "neewa_autonomy_runner": "${autonomy_runner_state}"},
   "local_model": {"name": "${local_model}", "present": ${local_model_present}},
   "tailscale": {"backend": "${ts_backend}", "peer_online": "${ts_peer_online}", "funnel": "$(json_escape "$ts_funnel")", "serve": "$(json_escape "$ts_serve")"},
   "provider": {"primary_model": "$(json_escape "$primary_model")", "provider": "$(json_escape "$provider")", "fallback_entries": ${fallback_count:-0}},
@@ -146,6 +147,7 @@ EOF
 # atomic write
 tmp_json="$(mktemp "${OUT_DIR}/.latest.json.XXXXXX" 2>/dev/null || echo "${JSON_OUT}.tmp")"
 printf '%s\n' "$JSON" > "$tmp_json" && mv -f "$tmp_json" "$JSON_OUT" 2>/dev/null || printf '%s\n' "$JSON" > "$JSON_OUT"
+chmod 644 "$JSON_OUT" 2>/dev/null || true
 
 read -r -d '' TEXT <<EOF || true
 NEEWA SERVER STATUS (actual host: ${host_name}) — ${now_utc}
@@ -154,7 +156,7 @@ Overall: ${overall}
 Uptime(s): ${uptime_s}   Load: ${load_avg}   CPU cores: ${cpu_count}
 Memory: ${mem_used_mb} / ${mem_total_mb} MB used (${mem_avail_mb} MB free)
 Disk /: ${disk_used_mb} / ${disk_total_mb} MB used (${disk_use_pct} used, ${disk_avail_mb} MB free)
-Services: gateway=${gateway_state} docker=${docker_state} tailscaled=${tailscaled_state} ollama=${ollama_state}
+Services: gateway=${gateway_state} docker=${docker_state} tailscaled=${tailscaled_state} ollama=${ollama_state} autonomy_runner=${autonomy_runner_state}
 Local model ${local_model}: present=${local_model_present}
 Tailscale: backend=${ts_backend} peer_online=${ts_peer_online} | ${ts_funnel} | ${ts_serve}
 Provider: primary=${primary_model} via ${provider}; fallback entries=${fallback_count}
@@ -165,6 +167,7 @@ EOF
 
 tmp_txt="$(mktemp "${OUT_DIR}/.latest.txt.XXXXXX" 2>/dev/null || echo "${TEXT_OUT}.tmp")"
 printf '%s\n' "$TEXT" > "$tmp_txt" && mv -f "$tmp_txt" "$TEXT_OUT" 2>/dev/null || printf '%s\n' "$TEXT" > "$TEXT_OUT"
+chmod 644 "$TEXT_OUT" 2>/dev/null || true
 
 if [ "${1:-}" = "--json" ]; then
   cat "$JSON_OUT"

@@ -273,25 +273,26 @@ def _host_systemd_state(unit: str = "neewa-autonomy-runner.service") -> str | No
 def _deployed_versions() -> dict:
     host = _read_json(STATUS_DIR / "latest.json") or {}
     repo = (host.get("repository") or {}) if host else {}
-    sha = repo.get("head")
-    source = "host-snapshot" if sha else None
-    if not sha:
-        try:
-            sha = subprocess.check_output(
-                ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-                text=True,
-                timeout=5,
-            ).strip()
-            source = "git"
-        except (OSError, subprocess.SubprocessError):
-            sha = "UNKNOWN"
-            source = "unavailable"
+    sha = None
+    source = None
+    try:
+        sha = subprocess.check_output(
+            ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
+            text=True,
+            timeout=5,
+        ).strip()
+        source = "git"
+    except (OSError, subprocess.SubprocessError):
+        sha = repo.get("head")
+        source = "host-snapshot" if sha else "unavailable"
+        sha = sha or "UNKNOWN"
     return {
         "repo": str(ROOT),
         "sha": sha,
         "branch": repo.get("branch"),
         "source": source,
         "host_snapshot_at": host.get("generated_at"),
+        "host_snapshot_sha": repo.get("head"),
     }
 
 

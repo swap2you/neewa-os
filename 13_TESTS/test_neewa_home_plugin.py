@@ -131,6 +131,12 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertNotIn("0.0.0.0", self.src)
         self.assertNotIn("tailscale funnel", self.src.lower())
 
+    def test_mission_panel_does_not_bypass_authorization(self):
+        self.assertIn("function MissionPanel", self.src)
+        self.assertIn("Submit engineering objectives through Conversation", self.src)
+        self.assertIn("Home does not bypass authorization", self.src)
+        self.assertIn("__NEEWA_MISSION_SNAPSHOT__", self.src)
+
 
 if __name__ == "__main__":
     unittest.main()

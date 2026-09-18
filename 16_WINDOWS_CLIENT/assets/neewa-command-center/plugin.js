@@ -854,6 +854,32 @@ function CommandRail({ variant }) {
   })
 }
 
+function MissionPanel() {
+  const snap = (typeof window !== 'undefined' && window.__NEEWA_MISSION_SNAPSHOT__) || null
+  return jsxs('div', {
+    className: 'mt-3 w-full max-w-4xl rounded-lg border border-(--ui-border) bg-[#07161c] p-3 text-left text-[0.75rem]',
+    children: [
+      jsx('div', { className: 'font-semibold tracking-wide text-(--ui-accent)', children: 'Engineering missions' }),
+      jsx('div', {
+        className: 'mt-1 text-(--ui-text-tertiary)',
+        children: 'Submit engineering objectives through Conversation (the NEEWA chatbot). Home does not bypass authorization or dispatch unrestricted Git.',
+      }),
+      snap
+        ? jsxs('div', {
+            className: 'mt-2 grid gap-1 text-(--ui-text-secondary)',
+            children: [
+              jsx('div', { children: 'Mission: ' + (snap.mission_id || 'unknown') }),
+              jsx('div', { children: 'State: ' + (snap.state || 'unknown') }),
+              jsx('div', { children: 'Implementation: ' + (snap.implementation_job_id || 'none') }),
+              jsx('div', { children: 'Validation: ' + (snap.validation_child_id || 'none') }),
+              jsx('div', { children: 'PR: ' + (snap.pull_request || 'none') }),
+            ],
+          })
+        : jsx('div', { className: 'mt-2 text-(--ui-text-tertiary)', children: 'No local mission snapshot. Conversation remains the submission path.' }),
+    ],
+  })
+}
+
 function NeewaHome() {
   const gateway = useValue(host.state.gateway)
   const focused = useValue(host.state.focusedSessionId)
@@ -929,6 +955,7 @@ function NeewaHome() {
           jsx(Btn, { children: 'Conversation', onClick: () => { haptic('tap'); openTranscript() } }),
         ],
       }),
+      jsx(MissionPanel, {}),
     ],
   })
 }

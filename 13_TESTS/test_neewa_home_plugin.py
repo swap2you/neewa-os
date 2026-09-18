@@ -136,6 +136,12 @@ class NeewaHomePluginTests(unittest.TestCase):
         self.assertIn("Submit engineering objectives through Conversation", self.src)
         self.assertIn("Home does not bypass authorization", self.src)
         self.assertIn("__NEEWA_MISSION_SNAPSHOT__", self.src)
+        self.assertIn("neewa.mission.submit", self.src)
+        self.assertIn("Submit mission", self.src)
+        self.assertIn("This text does not grant A2/A3", self.src)
+        self.assertIn("captureUiIncident", self.src)
+        self.assertIn("privileged: false", self.src)
+        self.assertNotIn("owner_decision: 'approved'", self.src)
 
 
 if __name__ == "__main__":

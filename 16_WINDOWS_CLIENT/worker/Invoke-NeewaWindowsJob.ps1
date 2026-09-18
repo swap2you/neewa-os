@@ -126,6 +126,21 @@ switch ($action) {
     if ($status -eq 'complete') { $status = 'COMPLETED' }
     if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
   }
+  { $_ -in @('home_mission_submit', 'home_mission_status') } {
+    $py = Get-Command python -ErrorAction SilentlyContinue
+    if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+    if (-not $py) { throw 'python is required for home mission bridge' }
+    $bridge = Join-Path $here '..\..\12_SCRIPTS\neewa_home_bridge.py'
+    $cmd = if ($action -eq 'home_mission_status') { 'status' } else { 'submit' }
+    $argList = @($bridge, $cmd)
+    if ($job.objective) { $argList += @('--objective', [string]$job.objective) }
+    if ($job.origin) { $argList += @('--origin', [string]$job.origin) }
+    if ($job.mission_id) { $argList += @('--mission-id', [string]$job.mission_id) }
+    if ($job.workspace) { $argList += @('--workspace', [string]$job.workspace) }
+    $artifact = Join-Path $jobsDir "$($job.job_id)-home-mission.json"
+    $out = & $py.Source @argList
+    $out | Set-Content -LiteralPath $artifact -Encoding utf8
+  }
   { $_ -in @('git_fetch', 'git_pull', 'git_create_feature_branch', 'git_commit_scoped_changes', 'git_push_feature_branch', 'git_verify_remote_state', 'git_create_pull_request', 'git_update_pull_request', 'git_review_pull_request', 'git_merge_approved_pull_request') } {
     $cursorResult = & (Join-Path $here 'Invoke-NeewaGovernedGit.ps1') -JobFile $JobPath -OutDir $jobsDir
     $artifact = $cursorResult.artifact

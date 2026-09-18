@@ -38,6 +38,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["actions"]["cleanup_scoped_repair_workspace"], "A1")
         self.assertIn("git_push_feature_branch", data["actions"])
         self.assertEqual(data["actions"]["git_push_feature_branch"], "A2")
+        self.assertEqual(data["actions"]["home_mission_submit"], "A1")
+        self.assertEqual(data["actions"]["home_mission_status"], "A0")
         self.assertIn("git_verify_remote_state", data["actions"])
         self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")
         self.assertIn("employer repositories and documents", data["denied_roots"])

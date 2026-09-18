@@ -136,6 +136,8 @@ ALLOWED = {
     "git_update_pull_request",
     "git_review_pull_request",
     "git_merge_approved_pull_request",
+    "home_mission_submit",
+    "home_mission_status",
 }
 
 

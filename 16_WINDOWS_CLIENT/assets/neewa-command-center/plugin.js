@@ -856,6 +856,34 @@ function CommandRail({ variant }) {
 
 function MissionPanel() {
   const snap = (typeof window !== 'undefined' && window.__NEEWA_MISSION_SNAPSHOT__) || null
+  const [objective, setObjective] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [localSnap, setLocalSnap] = useState(snap)
+  const view = localSnap || snap
+  const submit = useCallback(async () => {
+    const text = String(objective || '').trim()
+    if (!text) return
+    setBusy(true)
+    setError('')
+    try {
+      const desktop = (typeof window !== 'undefined' && window.hermesDesktop && window.hermesDesktop.neewa) || null
+      let result = null
+      try { result = await host.request('neewa.mission.submit', { objective: text, origin: 'home' }) } catch { result = null }
+      if (!result && desktop && typeof desktop.submitMission === 'function') {
+        result = await desktop.submitMission({ objective: text, origin: 'home' })
+      }
+      if (!result || result.status === 'BLOCKED') {
+        setError((result && result.reason) || 'Home submit is governed. Conversation remains the live path if the Desktop bridge is offline. This text does not grant A2/A3.')
+        return
+      }
+      if (result.mission) setLocalSnap(result.mission)
+    } catch (err) {
+      setError('Mission submit failed. Authorization was not bypassed.')
+    } finally {
+      setBusy(false)
+    }
+  }, [objective])
   return jsxs('div', {
     className: 'mt-3 w-full max-w-4xl rounded-lg border border-(--ui-border) bg-[#07161c] p-3 text-left text-[0.75rem]',
     children: [
@@ -864,20 +892,53 @@ function MissionPanel() {
         className: 'mt-1 text-(--ui-text-tertiary)',
         children: 'Submit engineering objectives through Conversation (the NEEWA chatbot). Home does not bypass authorization or dispatch unrestricted Git.',
       }),
-      snap
+      jsxs('div', {
+        className: 'mt-2 flex gap-2',
+        children: [
+          jsx('input', {
+            className: 'flex-1 rounded border border-(--ui-border) bg-[#050f14] px-2 py-1 text-(--ui-text-secondary)',
+            value: objective,
+            placeholder: 'Harmless personal engineering objective',
+            onChange: (ev) => setObjective(ev.target.value),
+          }),
+          jsx(Btn, { children: busy ? 'Submitting…' : 'Submit mission', onClick: () => { haptic('tap'); void submit() } }),
+        ],
+      }),
+      error ? jsx('div', { className: 'mt-2 text-[0.6875rem] text-(--ui-danger, #f87171)', children: error }) : null,
+      view
         ? jsxs('div', {
             className: 'mt-2 grid gap-1 text-(--ui-text-secondary)',
             children: [
-              jsx('div', { children: 'Mission: ' + (snap.mission_id || 'unknown') }),
-              jsx('div', { children: 'State: ' + (snap.state || 'unknown') }),
-              jsx('div', { children: 'Implementation: ' + (snap.implementation_job_id || 'none') }),
-              jsx('div', { children: 'Validation: ' + (snap.validation_child_id || 'none') }),
-              jsx('div', { children: 'PR: ' + (snap.pull_request || 'none') }),
+              jsx('div', { children: 'Mission: ' + (view.mission_id || 'unknown') }),
+              jsx('div', { children: 'State: ' + (view.state || 'unknown') }),
+              jsx('div', { children: 'Implementation: ' + (view.implementation_job_id || 'none') }),
+              jsx('div', { children: 'Validation: ' + (view.validation_child_id || 'none') }),
+              jsx('div', { children: 'Council: ' + ((view.council && view.council.RELEASE_CONTROLLER && view.council.RELEASE_CONTROLLER.decision) || 'none') }),
+              jsx('div', { children: 'PR: ' + (view.pull_request || 'none') }),
+              jsx('div', { children: 'Recovery: ' + ((view.recovery && view.recovery.last_failure) || 'none') }),
+              jsx('div', { children: 'Artifacts: ' + ((view.artifacts && view.artifacts[0]) || 'none') }),
             ],
           })
         : jsx('div', { className: 'mt-2 text-(--ui-text-tertiary)', children: 'No local mission snapshot. Conversation remains the submission path.' }),
     ],
   })
+}
+
+function captureUiIncident(message, stack, route) {
+  const desktop = (typeof window !== 'undefined' && window.hermesDesktop && window.hermesDesktop.neewa) || null
+  const payload = {
+    source: 'frontend',
+    message: String(message || '').slice(0, 500),
+    stack: String(stack || '').slice(0, 500),
+    route: String(route || ''),
+    privileged: false,
+  }
+  try { if (desktop && typeof desktop.captureIncident === 'function') desktop.captureIncident(payload) } catch { /* evidence only */ }
+}
+
+if (typeof window !== 'undefined' && !window.__NEEWA_UI_HEALTH__) {
+  window.__NEEWA_UI_HEALTH__ = true
+  window.addEventListener('error', (ev) => captureUiIncident(ev.message, ev.error && ev.error.stack, (window.location && window.location.pathname) || ''))
 }
 
 function NeewaHome() {

@@ -1348,6 +1348,35 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
         "reviewer_identity": "neewa_autonomy.run_council",
         "independence_class": "deterministic_only",
         "limitation": "INDEPENDENCE_UNAVAILABLE",
+        "roles": {
+            "IMPLEMENTER": {
+                "decision": "CLAIM",
+                "may_certify_self": False,
+                "identity": "neewa_autonomy.implementer",
+            },
+            "INDEPENDENT_CODE_REVIEWER": {
+                "decision": "PASS" if not material else "CHANGES_REQUESTED",
+                "identity": "neewa_autonomy.run_council.quality_engineer",
+                "independence_class": "deterministic_only",
+            },
+            "SECURITY_REVIEWER": {
+                "decision": "PASS"
+                if not any(f["role"] == "security_privacy" and f["severity"] == "material" for f in findings)
+                else "CHANGES_REQUESTED",
+                "identity": "neewa_autonomy.run_council.security_privacy",
+                "independence_class": "deterministic_only",
+            },
+            "INDEPENDENT_TEST_VALIDATOR": {
+                "decision": "REQUIRED",
+                "identity": "cursor-agent-cli independent_validation child",
+                "implementer_claimed_insufficient": True,
+            },
+            "RELEASE_CONTROLLER": {
+                "decision": "HOLD_FOR_INDEPENDENT_VALIDATION",
+                "identity": "neewa_autonomy.release_controller",
+                "production_deploy": False,
+            },
+        },
     }
 
 

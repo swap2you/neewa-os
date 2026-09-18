@@ -92,6 +92,27 @@ CAPABILITY_ROUTE = {
         "action": "cleanup_scoped_repair_workspace",
         "approval": "A1",
     },
+    "git_push_feature_branch": {
+        "worker": "neewa-windows-worker",
+        "action": "git_push_feature_branch",
+        "approval": "A2",
+    },
+    "git_verify_remote_state": {
+        "worker": "neewa-windows-worker",
+        "action": "git_verify_remote_state",
+        "approval": "A0",
+        "write": False,
+    },
+    "git_create_pull_request": {
+        "worker": "neewa-windows-worker",
+        "action": "git_create_pull_request",
+        "approval": "A2",
+    },
+    "git_merge_approved_pull_request": {
+        "worker": "neewa-windows-worker",
+        "action": "git_merge_approved_pull_request",
+        "approval": "A2",
+    },
 }
 
 

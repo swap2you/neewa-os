@@ -84,6 +84,14 @@ class ReleaseStateSemanticsTests(unittest.TestCase):
             "check the status of the production rollout",
             "readiness check for production rollout",
             "version-check before release to production",
+            "verify deployment configuration",
+            "deployment verification",
+            "check deployment status",
+            "inspect current release",
+            "validate deployment readiness",
+            "show deployed version",
+            "verify current production version",
+            "inspect release readiness",
         ):
             analysis = self.sem.analyze_objective(text)
             self.assertEqual(analysis["needed"], "A0", text)
@@ -105,6 +113,12 @@ class ReleaseStateSemanticsTests(unittest.TestCase):
             ("promote this release", "deploy"),
             ("release to production", "release"),
             ("release-to-production", "release"),
+            ("deploy the release", "deploy"),
+            ("deploy this to production", "deploy"),
+            ("push and deploy", "deploy"),
+            ("promote this build to production", "deploy"),
+            ("promote this release to production", "deploy"),
+            ("release this build to production", "release"),
         )
         for text, family in cases:
             analysis = self.sem.analyze_objective(text)

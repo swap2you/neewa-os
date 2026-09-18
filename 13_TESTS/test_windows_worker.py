@@ -36,6 +36,9 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertEqual(data["actions"]["apply_scoped_repair_patch"], "A1")
         self.assertIn("cleanup_scoped_repair_workspace", data["actions"])
         self.assertEqual(data["actions"]["cleanup_scoped_repair_workspace"], "A1")
+        self.assertIn("git_push_feature_branch", data["actions"])
+        self.assertEqual(data["actions"]["git_push_feature_branch"], "A2")
+        self.assertIn("git_verify_remote_state", data["actions"])
         self.assertEqual(data["cursor_call"]["ide_launcher_is_not_this"], "cursor.cmd")
         self.assertIn("employer repositories and documents", data["denied_roots"])
         self.assertIn(r"C:\Development\Workspace\api-fintech-automation-platform", data["denied_roots"])
@@ -55,6 +58,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "Invoke-NeewaCursorCall.ps1",
             "Invoke-NeewaRepoPreflight.ps1",
             "Invoke-NeewaScopedRepair.ps1",
+            "Invoke-NeewaGovernedGit.ps1",
             "NeewaPersonalWorkspace.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)

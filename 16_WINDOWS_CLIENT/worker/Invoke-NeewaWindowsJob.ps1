@@ -21,11 +21,35 @@ if ($allowed -notcontains $action) {
 }
 $approval = [string]$job.approval
 if ($approval -in @('A2', 'A3')) {
-  return [pscustomobject]@{
-    job_id = $job.job_id
-    status = 'FAILED'
-    reason = 'A2/A3 requires owner approval; worker refused'
-    artifact = $null
+  $authMod = Join-Path $here '..\..\12_SCRIPTS\neewa_authorization.py'
+  $py = Get-Command python -ErrorAction SilentlyContinue
+  if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
+  $gateOk = $false
+  if ($py -and (Test-Path -LiteralPath $authMod)) {
+    try {
+      $gateOut = & $py.Source $authMod --job-file $JobPath
+      $gate = $gateOut | ConvertFrom-Json
+      if ($gate.decision -eq 'AUTHORIZED') { $gateOk = $true }
+      if (-not $gateOk) {
+        return [pscustomobject]@{
+          job_id = $job.job_id
+          status = 'BLOCKED'
+          reason = "A2/A3 standing authorization missing: $($gate.reason)"
+          artifact = $null
+          authorization = $gate
+        }
+      }
+    } catch {
+      $gateOk = $false
+    }
+  }
+  if (-not $gateOk) {
+    return [pscustomobject]@{
+      job_id = $job.job_id
+      status = 'FAILED'
+      reason = 'A2/A3 requires owner approval; worker refused'
+      artifact = $null
+    }
   }
 }
 $root = Join-Path $env:USERPROFILE 'NEEWA-Personal'
@@ -96,6 +120,14 @@ switch ($action) {
   }
   { $_ -in @('create_scoped_repair_workspace', 'review_scoped_repair_patch', 'apply_scoped_repair_patch', 'cleanup_scoped_repair_workspace') } {
     $cursorResult = & (Join-Path $here 'Invoke-NeewaScopedRepair.ps1') -JobFile $JobPath -OutDir $jobsDir
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -eq 'complete') { $status = 'COMPLETED' }
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
+  { $_ -in @('git_fetch', 'git_pull', 'git_create_feature_branch', 'git_commit_scoped_changes', 'git_push_feature_branch', 'git_verify_remote_state', 'git_create_pull_request', 'git_update_pull_request', 'git_review_pull_request', 'git_merge_approved_pull_request') } {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaGovernedGit.ps1') -JobFile $JobPath -OutDir $jobsDir
     $artifact = $cursorResult.artifact
     $status = [string]$cursorResult.status
     $reason = $cursorResult.reason

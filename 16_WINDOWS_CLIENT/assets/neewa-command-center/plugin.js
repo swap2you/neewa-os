@@ -869,15 +869,24 @@ function MissionPanel() {
     try {
       const desktop = (typeof window !== 'undefined' && window.hermesDesktop && window.hermesDesktop.neewa) || null
       let result = null
-      try { result = await host.request('neewa.mission.submit', { objective: text, origin: 'home' }) } catch { result = null }
-      if (!result && desktop && typeof desktop.submitMission === 'function') {
+      if (desktop && typeof desktop.submitMission === 'function') {
         result = await desktop.submitMission({ objective: text, origin: 'home' })
+      }
+      if (!result) {
+        try { result = await host.request('neewa.mission.submit', { objective: text, origin: 'home' }) } catch { result = null }
       }
       if (!result || result.status === 'BLOCKED') {
         setError((result && result.reason) || 'Home submit is governed. Conversation remains the live path if the Desktop bridge is offline. This text does not grant A2/A3.')
         return
       }
       if (result.mission) setLocalSnap(result.mission)
+      if (desktop && typeof desktop.missionStatus === 'function' && (result.mission_id || (result.mission && result.mission.mission_id))) {
+        const mid = result.mission_id || result.mission.mission_id
+        try {
+          const st = await desktop.missionStatus({ mission_id: mid })
+          if (st && (st.mission_id || st.state)) setLocalSnap(st)
+        } catch { /* status is best-effort */ }
+      }
     } catch (err) {
       setError('Mission submit failed. Authorization was not bypassed.')
     } finally {

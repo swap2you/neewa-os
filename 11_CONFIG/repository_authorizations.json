@@ -34,6 +34,8 @@
       },
       "merge_policy": {
         "autonomous_when_checks_pass": true,
+        "require_independent_validation_pass": true,
+        "implementer_claimed_insufficient": true,
         "strategy": "merge",
         "forbid_force": true
       },

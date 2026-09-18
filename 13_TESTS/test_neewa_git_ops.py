@@ -117,6 +117,38 @@ class GovernedGitTests(unittest.TestCase):
         self.assertEqual(blocked["status"], "BLOCKED")
         self.assertEqual(blocked["failure_reason"], "IMPLEMENTER_CLAIMED_INSUFFICIENT")
 
+    def test_merge_rejects_claimed_alias_and_missing_validation(self):
+        alias = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "independent_validation": "IMPLEMENTER_CLAIMED",
+            }
+        )
+        self.assertEqual(alias["status"], "BLOCKED")
+        self.assertEqual(alias["failure_reason"], "IMPLEMENTER_CLAIMED_INSUFFICIENT")
+        missing = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+            }
+        )
+        self.assertEqual(missing["status"], "BLOCKED")
+        self.assertEqual(missing["failure_reason"], "INDEPENDENT_VALIDATION_REQUIRED")
+        hold = GIT.dispatch(
+            {
+                "action": "git_merge_approved_pull_request",
+                "repo": str(self.repo),
+                "pr_number": "1",
+                "independent_rerun": "PASS",
+                "council": {"roles": {"RELEASE_CONTROLLER": {"decision": "HOLD_FOR_INDEPENDENT_VALIDATION"}}},
+            }
+        )
+        self.assertEqual(hold["status"], "BLOCKED")
+        self.assertEqual(hold["failure_reason"], "COUNCIL_HOLD")
+
     def test_receipt_has_required_fields(self):
         row = GIT.receipt(operation="git_fetch", status="COMPLETED", repository=str(self.repo))
         for key in (

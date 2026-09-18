@@ -505,17 +505,52 @@ def git_review_pull_request(job: dict) -> dict:
     )
 
 
+def independent_validation_token(job: dict) -> str:
+    validation = job.get("validation") if isinstance(job.get("validation"), dict) else {}
+    for key in ("independent_rerun", "independent_validation", "independent_result"):
+        value = job.get(key)
+        if value:
+            return str(value).strip().upper()
+        nested = validation.get(key) if validation else None
+        if nested:
+            return str(nested).strip().upper()
+    return ""
+
+
 def git_merge_approved_pull_request(job: dict) -> dict:
     blocked, path = authorize("git_merge_approved_pull_request", job)
     if path is None:
         return blocked
-    if job.get("independent_rerun") == "IMPLEMENTER_CLAIMED":
+    token = independent_validation_token(job)
+    if token in {"IMPLEMENTER_CLAIMED", "CLAIM", "SELF"}:
         return receipt(
             operation_id=job.get("job_id"),
             repository=str(path),
             operation="git_merge_approved_pull_request",
             status="BLOCKED",
             failure_reason="IMPLEMENTER_CLAIMED_INSUFFICIENT",
+            mission_id=job.get("mission_id"),
+        )
+    if token != "PASS":
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="INDEPENDENT_VALIDATION_REQUIRED",
+            mission_id=job.get("mission_id"),
+            verification={"independent_validation": token or "MISSING"},
+        )
+    council = job.get("council") if isinstance(job.get("council"), dict) else {}
+    roles = council.get("roles") if isinstance(council.get("roles"), dict) else {}
+    release = roles.get("RELEASE_CONTROLLER") if isinstance(roles.get("RELEASE_CONTROLLER"), dict) else {}
+    if str(release.get("decision") or "").startswith("HOLD"):
+        return receipt(
+            operation_id=job.get("job_id"),
+            repository=str(path),
+            operation="git_merge_approved_pull_request",
+            status="BLOCKED",
+            failure_reason="COUNCIL_HOLD",
             mission_id=job.get("mission_id"),
         )
     number = str(job.get("pr_number") or "")

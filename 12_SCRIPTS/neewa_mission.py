@@ -270,11 +270,34 @@ def _host_systemd_state(unit: str = "neewa-autonomy-runner.service") -> str | No
         return None
 
 
+def _read_git_head(root: Path = ROOT) -> tuple[str | None, str | None]:
+    git_dir = root / ".git"
+    head = git_dir / "HEAD"
+    if not head.is_file():
+        return None, None
+    try:
+        text = head.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None, None
+    if text.startswith("ref:"):
+        ref_name = text.split(" ", 1)[1].strip()
+        ref = git_dir / ref_name
+        branch = ref_name.rsplit("/", 1)[-1]
+        if ref.is_file():
+            try:
+                return ref.read_text(encoding="utf-8").strip(), branch
+            except OSError:
+                return None, branch
+        return None, branch
+    return text, None
+
+
 def _deployed_versions() -> dict:
     host = _read_json(STATUS_DIR / "latest.json") or {}
     repo = (host.get("repository") or {}) if host else {}
     sha = None
     source = None
+    branch = repo.get("branch")
     try:
         sha = subprocess.check_output(
             ["git", "-C", str(ROOT), "rev-parse", "HEAD"],
@@ -283,13 +306,18 @@ def _deployed_versions() -> dict:
         ).strip()
         source = "git"
     except (OSError, subprocess.SubprocessError):
-        sha = repo.get("head")
-        source = "host-snapshot" if sha else "unavailable"
-        sha = sha or "UNKNOWN"
+        file_sha, file_branch = _read_git_head(ROOT)
+        if file_sha:
+            sha = file_sha
+            source = "git-files"
+            branch = file_branch or branch
+        else:
+            sha = repo.get("head") or "UNKNOWN"
+            source = "host-snapshot" if repo.get("head") else "unavailable"
     return {
         "repo": str(ROOT),
         "sha": sha,
-        "branch": repo.get("branch"),
+        "branch": branch,
         "source": source,
         "host_snapshot_at": host.get("generated_at"),
         "host_snapshot_sha": repo.get("head"),

@@ -2530,7 +2530,7 @@ def advance_job(
         job["validation"] = job.get("validation") or {}
         if job.get("workflow") == "research_report":
             job["validation"]["independent_rerun"] = "LOCAL_CORPUS"
-        elif job.get("origin") == "conversation" and job.get("workflow") == "sdlc":
+        elif job.get("origin") in {"conversation", "mission-supervisor"} and job.get("workflow") == "sdlc":
             if not job.get("validation_child_id"):
                 last = job.get("last_child") or {}
                 identity = job.get("project_identity") or {}
@@ -2631,7 +2631,10 @@ def advance_job(
         if str(rc) not in job["artifacts"]:
             job["artifacts"].append(str(rc))
         failures = evaluate_autonomy_done(job)
-        if job["validation"].get("independent_rerun") == "UNVERIFIED" and job.get("origin") == "conversation":
+        if job["validation"].get("independent_rerun") == "UNVERIFIED" and job.get("origin") in {
+            "conversation",
+            "mission-supervisor",
+        }:
             failures.append("independent validation UNVERIFIED")
         if job["validation"].get("independent_rerun") == "FAIL":
             failures.append("independent validation failed")

@@ -635,6 +635,47 @@ class GeneralAutonomyTests(unittest.TestCase):
             self.assertEqual(job["validation"].get("independent_rerun"), "PASS")
             self.assertEqual(job["state"], "OWNER_REVIEW")
 
+    def test_mission_supervisor_origin_submits_validation_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            inbox = Path(tmp) / "inboxroot"
+            calls = {"submit": 0}
+            phases = []
+
+            def submit(**kwargs):
+                calls["submit"] += 1
+                phases.append(kwargs.get("execution_phase"))
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED", "selected_worker": "cursor-agent-cli"}
+
+            def harvest(job_id, inbox_root=None):
+                return {
+                    "job_id": job_id,
+                    "state": "COMPLETED",
+                    "selected_worker": "cursor-agent-cli",
+                    "artifact_paths": [
+                        r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
+                    ],
+                    "validation": {
+                        "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0, \"stdout\": \"missing file stderr\\nOK\"}"
+                    },
+                }
+
+            job = self.mod.create_parent_job(
+                CHANGELOG_OBJECTIVE,
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                origin="mission-supervisor",
+            )
+            job = self.mod.run_until_idle(
+                job, root=root, inbox_root=inbox, orch_submit=submit, orch_harvest=harvest
+            )
+            self.assertGreaterEqual(calls["submit"], 2)
+            self.assertIn(self.mod.IDENTITY.PHASE_INDEPENDENT_VALIDATION, phases)
+            self.assertEqual(job["validation"].get("independent_rerun"), "PASS")
+            self.assertNotEqual(job["validation"].get("independent_rerun"), "IMPLEMENTER_CLAIMED")
+            self.assertEqual(job["state"], "OWNER_REVIEW")
+
 
 class PathAndRecoveryTests(unittest.TestCase):
     def setUp(self):
@@ -1024,6 +1065,47 @@ class ActionSemanticsTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.mod.close_misclassified_intake(closed, reason="again")
 
+    def test_release_state_verification_is_inspection_not_deploy(self):
+        cases = [
+            "inspect the release state of the deployed build",
+            "verify the deployed release state read-only",
+            "read-only verification of an already released version",
+            "confirm the published version matches the tag",
+            "inspect the currently deployed SHA",
+            "the app was deployed last week; only verify release state",
+            "verify that version 1.0 is already released",
+        ]
+        for obj in cases:
+            row = self._row(obj)
+            self.assertNotEqual(row["approval"], "A2", obj)
+            self.assertNotIn("deploy", row["requested_families"], obj)
+            self.assertNotIn("publish", row["requested_families"], obj)
+            self.assertNotIn("release", row["requested_families"], obj)
+            analysis = self.mod.SEM.analyze_objective(obj)
+            self.assertEqual(analysis["needed"], "A0", obj)
+
+    def test_consequential_release_actions_remain_owner_gated(self):
+        self.assertEqual(self._row("cut a release for version 2.0")["approval"], "A2")
+        self.assertEqual(self._row("release this version to production")["approval"], "A2")
+        self.assertEqual(self._row("create a GitHub release for v1.0")["approval"], "A2")
+        self.assertIn("release", self._row("cut a release for version 2.0")["requested_families"])
+        self.assertEqual(self._row("deploy this to production")["approval"], "A2")
+        self.assertEqual(self._row("publish this article to the public blog")["approval"], "A2")
+
+    def test_negated_release_instruction_is_not_a_request(self):
+        obj = "do not release this version; only verify the released version"
+        row = self._row(obj)
+        self.assertNotEqual(row["approval"], "A2", row)
+        self.assertIn("release", row["prohibited_actions"])
+        self.assertNotIn("release", row["requested_families"])
+        self.assertEqual(self.mod.SEM.analyze_objective(obj)["needed"], "A0")
+
+    def test_release_candidate_wording_is_not_a_release_request(self):
+        obj = "build tests and a release candidate with requirement traceability"
+        row = self._row(obj)
+        self.assertEqual(row["approval"], "A1")
+        self.assertNotIn("release", row["requested_families"])
+
 
 LOCAL_DATE_SUMMARY_56E_OBJECTIVE = (
     "Build a new isolated personal project named local_date_summary in "
@@ -1144,6 +1226,10 @@ class WorkerAuthAndReconcileTests(unittest.TestCase):
         self.assertFalse(deploy["allowed"])
         self.assertEqual(deploy["needed"], "A2")
         self.assertEqual(deploy.get("matched_rule"), "deploy to production")
+        release = self._gate("cut a release for version 2.0")
+        self.assertFalse(release["allowed"])
+        self.assertEqual(release["needed"], "A2")
+        self.assertIn("release", release.get("requested_families") or [])
         purchase = self._gate("purchase a new domain")
         self.assertFalse(purchase["allowed"])
         self.assertEqual(purchase["needed"], "A2")
@@ -1160,6 +1246,18 @@ class WorkerAuthAndReconcileTests(unittest.TestCase):
         secret = self._gate("store this " + pem)
         self.assertFalse(secret["allowed"])
         self.assertEqual(secret.get("matched_rule"), "BEGIN PRIVATE KEY")
+
+    def test_release_state_verification_authorization_allows(self):
+        prompt = (
+            "In PRJ-NEEWA, perform read-only verification of the already released "
+            "version and report the current release state. Do not cut a release."
+        )
+        gate = self._gate(prompt, write=False)
+        self.assertTrue(gate["allowed"], gate)
+        self.assertIn(gate["needed"], {"A0", "A1"})
+        self.assertEqual(gate["reason"], "ALLOW")
+        self.assertIn("release", gate.get("prohibited_actions") or [])
+        self.assertNotIn("release", gate.get("requested_families") or [])
 
     def test_keys_field_is_not_private_key_rule(self):
         self.assertFalse(

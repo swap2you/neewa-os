@@ -1,7 +1,8 @@
 """Separate requested operations from prohibitions for NEEWA classification.
 
 Keyword presence is not authorization. A prohibition, exclusion, example,
-quoted span, or documentation mention must not become an executable A2/A3
+quoted span, documentation mention, or read-only verification of an already
+released version / release state must not become an executable A2/A3
 objective. Affirmative consequential requests still require their gates.
 """
 from __future__ import annotations
@@ -36,10 +37,44 @@ DOC_CONTEXT = re.compile(
     re.I,
 )
 
+# Explicit inspection / status wording around release or past-tense publish/deploy.
+INSPECT_CONTEXT = re.compile(
+    r"\b(?:"
+    r"read-?only|verif(?:y|ies|ied|ying|ication)|inspect(?:s|ed|ing|ion)?|"
+    r"confirm(?:s|ed|ing)?|check(?:s|ed|ing)?|report(?:s|ed|ing)?|"
+    r"summar(?:y|ize|ise)|status of|show(?:s|ing)?(?:\s+me)?|what is|"
+    r"compare|matches?"
+    r")\b",
+    re.I,
+)
+
+RELEASE_STATE_PHRASE = re.compile(
+    r"\b(?:"
+    r"release[- ]?state|already[- ]released|released version|"
+    r"deployed (?:sha|build|version|release|state|package)|"
+    r"published (?:version|package|release|build|sha|notes)"
+    r")\b",
+    re.I,
+)
+
+STATUS_FORM = re.compile(
+    r"^(?:deployed|published|released|deployment|publication)$",
+    re.I,
+)
+
+STATUS_CONSTRUCTION = re.compile(
+    r"\b(?:was|were|been|is|are|currently|already|previously|recently)\s+"
+    r"(?:deployed|published|released)\b|"
+    r"\b(?:deployed|published|released)\s+"
+    r"(?:sha|build|version|release|state|package|last|yesterday|notes|tag)\b",
+    re.I,
+)
+
 FAMILIES = {
     "publish": {
         "level": "A2",
         "pattern": r"\b(?:publish(?:es|ed|ing)?|publication)\b",
+        "inspect_exempt": True,
     },
     "deploy": {
         "level": "A2",
@@ -48,6 +83,17 @@ FAMILIES = {
             r"production rollout|rollout to production)\b"
         ),
         "doc_exempt": True,
+        "inspect_exempt": True,
+    },
+    "release": {
+        "level": "A2",
+        "pattern": (
+            r"\b(?:cut (?:a |the )?release|create (?:a |the )?(?:github )?release|"
+            r"make (?:a |the )?release|ship (?:a |the )?release|"
+            r"release (?:this|the) (?:version|package|build|app|cli)|"
+            r"release to (?:production|npm|pypi|users))\b"
+        ),
+        "inspect_exempt": True,
     },
     "purchase": {
         "level": "A2",
@@ -142,6 +188,27 @@ def _preceded_by_inline_negation(clause: str, match_start: int) -> bool:
     return True
 
 
+def match_is_inspection_or_status(clause: str, matched: str) -> bool:
+    """True when a family keyword is inspection/status, not a consequential request.
+
+    Explicit read-only verification of an already released version or release
+    state is inspection. Past-tense or adjectival deployed/published/released
+    status is not an affirmative deploy/publish/release request.
+    """
+    blob = (matched or "").strip()
+    if not blob:
+        return False
+    if RELEASE_STATE_PHRASE.search(clause or "") and (
+        INSPECT_CONTEXT.search(clause or "") or STATUS_FORM.fullmatch(blob)
+    ):
+        return True
+    if INSPECT_CONTEXT.search(clause or "") and STATUS_FORM.fullmatch(blob):
+        return True
+    if STATUS_CONSTRUCTION.search(clause or "") and STATUS_FORM.fullmatch(blob):
+        return True
+    return False
+
+
 def analyze_objective(text: str) -> dict:
     raw = text or ""
     unquoted, quoted = strip_quoted(raw)
@@ -162,11 +229,14 @@ def analyze_objective(text: str) -> dict:
                 clause, match.start() - start
             )
             doc_exempt = bool(spec.get("doc_exempt")) and bool(DOC_CONTEXT.search(clause))
+            inspect_exempt = bool(spec.get("inspect_exempt")) and match_is_inspection_or_status(
+                clause, match.group(0)
+            )
             if negated:
                 if name not in prohibited_families:
                     prohibited_families.append(name)
                 continue
-            if doc_exempt:
+            if doc_exempt or inspect_exempt:
                 continue
             if name not in requested_families:
                 requested_families.append(name)

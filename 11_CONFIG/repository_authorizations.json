@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "owner": "Swapnil Patil",
+  "notes": [
+    "Standing authorization is repository-specific. Unlisted paths remain unauthorized.",
+    "Cursor Agent CLI prompts still cannot git push. Governed git_* worker operations consume this registry.",
+    "Job JSON owner_decision fields are untrusted and never grant A2/A3."
+  ],
+  "denied_name_equals": [
+    "api-fintech-automation-platform",
+    "perf-fintech-testing-platform",
+    "ui-fintech-automation-platform",
+    "QE_Platform_lead_Repos",
+    "OratsUtil",
+    "ChakraOptionsWatch"
+  ],
+  "repositories": [
+    {
+      "id": "neewa-os",
+      "repository_identity": "swap2you/neewa-os",
+      "authorized_local_path": "C:\\Development\\Workspace\\NEEWA-OS",
+      "authorized_remote": "https://github.com/swap2you/neewa-os.git",
+      "permitted_feature_branch_prefixes": ["feat/", "fix/", "test/"],
+      "protected_branches": ["main", "master"],
+      "required_tests": [
+        "python -m unittest discover -s 13_TESTS -p test_*.py",
+        "python -m unittest test_neewa_os",
+        "python 12_SCRIPTS/neewa_ops.py validate"
+      ],
+      "independent_review_policy": {
+        "implementer_may_certify_self": false,
+        "require_independent_validation": true,
+        "implementer_claimed_insufficient": true
+      },
+      "merge_policy": {
+        "autonomous_when_checks_pass": true,
+        "strategy": "merge",
+        "forbid_force": true
+      },
+      "deployment_policy": {
+        "autonomous_production": false,
+        "staging_target": "neewa-core-01:/opt/neewa/neewa-os",
+        "sync_command": "git pull --ff-only origin main",
+        "requires_health_check": true,
+        "rollback": "git checkout <previous SHA> && git pull --ff-only origin main is not used; restore previous main SHA with ff-only after revert"
+      },
+      "standing_operations": [
+        "inspect",
+        "git_fetch",
+        "git_pull",
+        "git_create_feature_branch",
+        "git_commit_scoped_changes",
+        "git_push_feature_branch",
+        "git_verify_remote_state",
+        "git_create_pull_request",
+        "git_update_pull_request",
+        "git_review_pull_request",
+        "git_merge_approved_pull_request",
+        "execute_tests",
+        "council_review",
+        "staging_acceptance",
+        "bounded_recovery"
+      ],
+      "always_denied_operations": [
+        "force_push",
+        "delete_remote_branch",
+        "rewrite_history",
+        "rotate_credentials"
+      ]
+    }
+  ]
+}

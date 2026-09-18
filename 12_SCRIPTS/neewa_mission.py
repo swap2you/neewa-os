@@ -46,7 +46,7 @@ ALLOWED_TRANSITIONS = {
     "PLANNING": {"EXECUTING", "WAITING", "BLOCKED", "CANCELLED"},
     "EXECUTING": {"VALIDATING", "RECOVERING", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
     "VALIDATING": {"OWNER_REVIEW", "RECOVERING", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
-    "RECOVERING": {"PLANNING", "EXECUTING", "OWNER_REVIEW", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
+    "RECOVERING": {"PLANNING", "EXECUTING", "VALIDATING", "OWNER_REVIEW", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
     "WAITING": {"PLANNING", "EXECUTING", "RECOVERING", "BLOCKED", "CANCELLED", "FAILED"},
     "OWNER_REVIEW": set(),
     "BLOCKED": set(),
@@ -58,6 +58,16 @@ JOB_SUCCESS = {"OWNER_REVIEW", "DONE", "RELEASE_CANDIDATE"}
 JOB_FAILED = {"FAILED", "CANCELLED"}
 JOB_BLOCKED = {"BLOCKED"}
 JOB_WAITING = {"WAITING"}
+
+
+def job_meets_mission_success(job: dict | None) -> bool:
+    """Mission success requires a success-state job with real independent_validation PASS.
+
+    IMPLEMENTER_CLAIMED is never enough. Does not rewrite historical job records.
+    """
+    if not job or job.get("state") not in JOB_SUCCESS:
+        return False
+    return (job.get("validation") or {}).get("independent_rerun") == "PASS"
 JOB_TERMINAL = {"DONE", "BLOCKED", "FAILED", "CANCELLED"}
 RECOVERABLE = {
     "CHILD_TIMEOUT",
@@ -1018,9 +1028,16 @@ def step_mission(
             job = _resume_owned_job(mission, auto, root)
             if job and job.get("state") not in JOB_TERMINAL | JOB_SUCCESS:
                 return transition(mission, "EXECUTING", "resume existing child; no duplicate dispatch", root)
-            if job and job.get("state") in JOB_SUCCESS:
+            if job and job_meets_mission_success(job):
                 mission["active_job_id"] = job["job_id"]
                 return transition(mission, "VALIDATING", "existing job already succeeded", root)
+            if job and job.get("state") in JOB_SUCCESS:
+                return transition(
+                    mission,
+                    "RECOVERING",
+                    "existing job lacks independent_validation PASS",
+                    root,
+                )
             if job and job.get("state") in JOB_FAILED | JOB_BLOCKED:
                 return transition(mission, "RECOVERING", "existing owned job ended; recover without reopen", root)
         for existing in auto.list_parent_jobs(root):
@@ -1069,8 +1086,15 @@ def step_mission(
             return transition(mission, "FAILED", mission["failure_reason"], root)
         if job.get("state") in JOB_TERMINAL | JOB_SUCCESS and job.get("state") != "WAITING":
             sync_budget_from_job(mission, job)
-            if job.get("state") in JOB_SUCCESS:
+            if job_meets_mission_success(job):
                 return transition(mission, "VALIDATING", f"job {job['job_id']} {job['state']}", root)
+            if job.get("state") in JOB_SUCCESS:
+                return transition(
+                    mission,
+                    "RECOVERING",
+                    f"job {job['job_id']} reached {job['state']} without independent_validation PASS",
+                    root,
+                )
             return transition(mission, "RECOVERING", f"job {job['job_id']} {job['state']}", root)
         available = worker_available
         if available is None:
@@ -1088,7 +1112,14 @@ def step_mission(
         sync_budget_from_job(mission, updated)
         save_mission(mission, root)
         if updated.get("state") in JOB_SUCCESS:
-            return transition(mission, "VALIDATING", f"job reached {updated['state']}", root)
+            if job_meets_mission_success(updated):
+                return transition(mission, "VALIDATING", f"job reached {updated['state']}", root)
+            return transition(
+                mission,
+                "RECOVERING",
+                f"job reached {updated['state']} without independent_validation PASS",
+                root,
+            )
         if updated.get("state") in JOB_FAILED:
             return transition(mission, "RECOVERING", f"job {updated['state']}", root)
         if updated.get("state") in JOB_BLOCKED:
@@ -1128,10 +1159,17 @@ def step_mission(
                 job, inbox_root=inbox_root, orch_harvest=advance_kwargs.get("orch_harvest")
             )
             sync_budget_from_job(mission, job)
-        if job and job.get("state") in JOB_SUCCESS:
+        if job and job_meets_mission_success(job):
             transition(mission, "OWNER_REVIEW", "validation reconciled", root)
             write_report(mission, root)
             return mission
+        if job and job.get("state") in JOB_SUCCESS:
+            return transition(
+                mission,
+                "RECOVERING",
+                "OWNER_REVIEW without independent_validation PASS is not mission success",
+                root,
+            )
         return transition(mission, "RECOVERING", "validation did not hold", root)
 
     if mission["state"] == "RECOVERING":
@@ -1141,7 +1179,7 @@ def step_mission(
                 job, inbox_root=inbox_root, orch_harvest=advance_kwargs.get("orch_harvest")
             )
             sync_budget_from_job(mission, job)
-            if job.get("state") in JOB_SUCCESS:
+            if job_meets_mission_success(job):
                 return transition(mission, "VALIDATING", "reconcile showed success; do not recover", root)
             if job.get("state") not in JOB_TERMINAL | JOB_SUCCESS | JOB_WAITING | JOB_BLOCKED:
                 return transition(mission, "EXECUTING", "child still active; do not recover yet", root)

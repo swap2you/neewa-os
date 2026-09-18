@@ -71,6 +71,48 @@ CAPABILITY_ROUTE = {
         "approval": "A0",
         "write": False,
     },
+    "scoped_repair_workspace": {
+        "worker": "neewa-windows-worker",
+        "action": "create_scoped_repair_workspace",
+        "approval": "A1",
+    },
+    "scoped_repair_review": {
+        "worker": "neewa-windows-worker",
+        "action": "review_scoped_repair_patch",
+        "approval": "A0",
+        "write": False,
+    },
+    "scoped_repair_apply": {
+        "worker": "neewa-windows-worker",
+        "action": "apply_scoped_repair_patch",
+        "approval": "A1",
+    },
+    "scoped_repair_cleanup": {
+        "worker": "neewa-windows-worker",
+        "action": "cleanup_scoped_repair_workspace",
+        "approval": "A1",
+    },
+    "git_push_feature_branch": {
+        "worker": "neewa-windows-worker",
+        "action": "git_push_feature_branch",
+        "approval": "A2",
+    },
+    "git_verify_remote_state": {
+        "worker": "neewa-windows-worker",
+        "action": "git_verify_remote_state",
+        "approval": "A0",
+        "write": False,
+    },
+    "git_create_pull_request": {
+        "worker": "neewa-windows-worker",
+        "action": "git_create_pull_request",
+        "approval": "A2",
+    },
+    "git_merge_approved_pull_request": {
+        "worker": "neewa-windows-worker",
+        "action": "git_merge_approved_pull_request",
+        "approval": "A2",
+    },
 }
 
 
@@ -265,6 +307,10 @@ def submit(
     implementation_child_id: str | None = None,
     implementation_repo: str | None = None,
     test_command: str | None = None,
+    files: list[str] | None = None,
+    expected_base_sha: str | None = None,
+    repository_id: str | None = None,
+    operation_id: str | None = None,
 ) -> dict:
     choice = select_worker(capability)
     if not choice.get("available"):
@@ -291,6 +337,13 @@ def submit(
         raise ValueError("cursor_call requires a prompt")
     if action == "cursor_call" and not repo:
         raise ValueError("cursor_call requires an approved repo")
+    if action == "create_scoped_repair_workspace":
+        if not repo:
+            raise ValueError("create_scoped_repair_workspace requires an approved repo")
+        if not files:
+            raise ValueError("create_scoped_repair_workspace requires files")
+        if not expected_base_sha:
+            raise ValueError("create_scoped_repair_workspace requires expected_base_sha")
 
     project = resolve_project(project_id, repo)
     job_id = job_id or new_job_id("CC" if action == "cursor_call" else "WS")
@@ -348,6 +401,14 @@ def submit(
         extra["implementation_repo"] = implementation_repo
     if test_command:
         extra["test_command"] = test_command
+    if files:
+        extra["files"] = files
+    if expected_base_sha:
+        extra["expected_base_sha"] = expected_base_sha
+    if repository_id:
+        extra["repository_id"] = repository_id
+    if operation_id:
+        extra["operation_id"] = operation_id
     extra["write"] = bool(write)
 
     path = INBOX_MOD.enqueue(job_id, action, approval, root, extra)
@@ -515,6 +576,10 @@ def main() -> int:
     submit_p.add_argument("--timeout-sec", type=int)
     submit_p.add_argument("--write", action="store_true")
     submit_p.add_argument("--expected-path", action="append", dest="expected_paths")
+    submit_p.add_argument("--file", action="append", dest="files")
+    submit_p.add_argument("--base-sha", dest="expected_base_sha")
+    submit_p.add_argument("--repo-id", dest="repository_id")
+    submit_p.add_argument("--operation-id")
     submit_p.add_argument("--root")
     wait_p = sub.add_parser("wait")
     wait_p.add_argument("--job-id", required=True)
@@ -545,6 +610,10 @@ def main() -> int:
             project_id=args.project_id,
             approval=args.approval,
             inbox_root=root,
+            files=getattr(args, "files", None),
+            expected_base_sha=getattr(args, "expected_base_sha", None),
+            repository_id=getattr(args, "repository_id", None),
+            operation_id=getattr(args, "operation_id", None),
         )
         print(json.dumps(record, indent=2))
         return 0 if record.get("state") not in {"BLOCKED", "FAILED"} else 2

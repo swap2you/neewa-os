@@ -135,6 +135,50 @@ class MissionSupervisorTests(unittest.TestCase):
             report = json.loads((root / "work" / mission["mission_id"] / "final-report.json").read_text(encoding="utf-8"))
             self.assertEqual(report["terminal_result"], "OWNER_REVIEW")
 
+    def test_mission_success_requires_independent_validation_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(
+                Path(tmp),
+                kind="sdlc",
+                objective="build a markdown changelog digest CLI with tests",
+            )
+            for _ in range(3):
+                mission = self._step(mission, root)
+            self.assertEqual(mission["state"], "EXECUTING")
+            job = self.auto.resume_job(mission["active_job_id"], root)
+            self.assertEqual(job["origin"], "mission-supervisor")
+
+            claimed = dict(job)
+            claimed["state"] = "OWNER_REVIEW"
+            claimed["validation"] = {"independent_rerun": "IMPLEMENTER_CLAIMED", "tests": "PASS"}
+            self.auto.save_job(claimed)
+            rejected = self._step(mission, root)
+            self.assertEqual(rejected["state"], "RECOVERING")
+            self.assertIn("independent_validation PASS", rejected.get("history", [{}])[-1].get("note", ""))
+
+            passed = self.auto.resume_job(mission["active_job_id"], root)
+            passed["state"] = "OWNER_REVIEW"
+            passed["validation"] = {
+                "independent_rerun": "PASS",
+                "tests": "PASS",
+                "traceability": "PASS",
+                "council": "PASS",
+            }
+            passed["independent_validation"] = {"execution_phase": "independent_validation"}
+            self.auto.save_job(passed)
+            # Mission may be RECOVERING; reconcile success path should move to VALIDATING then OWNER_REVIEW.
+            mission = rejected
+            mission = self._step(mission, root)
+            self.assertEqual(mission["state"], "VALIDATING")
+            mission = self._step(mission, root)
+            self.assertEqual(mission["state"], "OWNER_REVIEW")
+            self.assertTrue(self.mission.job_meets_mission_success(passed))
+            self.assertFalse(
+                self.mission.job_meets_mission_success(
+                    {"state": "OWNER_REVIEW", "validation": {"independent_rerun": "IMPLEMENTER_CLAIMED"}}
+                )
+            )
+
     def _failed_owned_job(self, root, mission, suffix, cls="VALIDATION"):
         job = self.auto.create_parent_job(
             mission["owner_objective"],

@@ -9,7 +9,10 @@ import argparse
 import json
 import os
 from datetime import datetime, timezone
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
 
 HOST_ROOT = Path(
     "/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs"
@@ -119,6 +122,20 @@ ALLOWED = {
     "workspace_inventory",
     "cursor_call",
     "repo_preflight",
+    "create_scoped_repair_workspace",
+    "review_scoped_repair_patch",
+    "apply_scoped_repair_patch",
+    "cleanup_scoped_repair_workspace",
+    "git_fetch",
+    "git_pull",
+    "git_create_feature_branch",
+    "git_commit_scoped_changes",
+    "git_push_feature_branch",
+    "git_verify_remote_state",
+    "git_create_pull_request",
+    "git_update_pull_request",
+    "git_review_pull_request",
+    "git_merge_approved_pull_request",
 }
 
 
@@ -141,7 +158,15 @@ def enqueue(
     if action not in ALLOWED:
         raise ValueError(f"action {action} is not allowlisted")
     if approval in {"A2", "A3"}:
-        raise ValueError("A2/A3 jobs cannot be enqueued for unattended Windows execution")
+        auth_mod = SourceFileLoader(
+            "neewa_authorization_inbox", str(ROOT / "12_SCRIPTS" / "neewa_authorization.py")
+        ).load_module()
+        payload = {"action": action, "approval": approval, **(extra or {})}
+        gate = auth_mod.decide_from_job(payload)
+        if gate.get("decision") != auth_mod.AUTHORIZED:
+            raise ValueError(
+                f"A2/A3 requires standing authorization or owner approval ({gate.get('reason')})"
+            )
     ensure_dirs(root)
     for folder in ("inbox", "processing", "done", "failed"):
         existing = root / folder / f"{job_id}.json"

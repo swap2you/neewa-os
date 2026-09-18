@@ -10,6 +10,10 @@ LOCK="$AUTONOMY/runner.lock"
 mkdir -p "$AUTONOMY"
 exec 9>"$LOCK"
 if ! flock -n 9; then
+  if [ "${NEEWA_RUNNER_SYSTEMD:-}" = "1" ]; then
+    echo "runner lock held; failing so systemd can retry"
+    exit 75
+  fi
   echo "runner already active"
   exit 0
 fi

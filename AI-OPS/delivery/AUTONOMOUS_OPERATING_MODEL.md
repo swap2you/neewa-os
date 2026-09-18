@@ -5,14 +5,19 @@ NEEWA is the coordinator. Cursor is the Git writer. A chat reply is not DONE.
 ## Executable path
 
 Conversation
-→ `neewa_autonomy.py submit` (parent job on the Windows-jobs bind-mount)
-→ host runner `neewa_autonomy_runner.sh` (survives chat disconnect)
+→ `neewa_autonomy.py mission-submit` (persistent mission on the Windows-jobs bind-mount)
+→ user-systemd `neewa-autonomy-runner.service` running `neewa_autonomy_runner.sh`
+→ supervisor state machine, then parent job `JOB-*` created only after persist
 → requirements derived from the objective
 → design from those requirements
 → council inspects the written design (evidence per finding)
 → child `cursor_call` via `neewa_orchestrate.py` and the Windows worker
 → unittest evidence + independent traceability
 → release candidate → OWNER_REVIEW
+→ on recoverable failure: evidence classify → optional one-pass advisor consult → new job (max 3)
+
+Bare `submit` without `--unattended` still creates a parent job for compatibility.
+A chat reply is not DONE. Hermes no-agent cron is not the autonomy runner.
 
 The project-status JSON CLI is a **regression fixture** (`--fixture demo-status` /
 `neewa_autonomy_fixture.py`). It is not the production path.

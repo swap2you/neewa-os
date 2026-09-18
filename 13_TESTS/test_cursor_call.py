@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -69,6 +70,8 @@ class CursorCallTests(unittest.TestCase):
         job_path.write_text(json.dumps(job), encoding="utf-8")
         policy_arg = f" -PolicyPath '{policy_path}'" if policy_path else ""
         dry_arg = " -DryRun" if dry_run else ""
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present; Windows worker script tests run on Windows")
         command = (
             f"$job = Get-Content -Raw -LiteralPath '{job_path}' | ConvertFrom-Json; "
             f"& '{WORKER / 'Invoke-NeewaCursorCall.ps1'}' -Job $job "

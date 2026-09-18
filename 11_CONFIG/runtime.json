@@ -4,6 +4,7 @@
   "mode": "RUN",
   "owner": "Swapnil Patil",
   "max_autonomous_remediation_cycles": 2,
+  "max_mission_repair_cycles": 3,
   "governance": {
     "authority": "AI-OPS/company/OWNER.md",
     "approvals": "AI-OPS/company/APPROVAL_MATRIX.md",

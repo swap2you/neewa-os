@@ -46,17 +46,24 @@ If the request mentions documentation or review together with tests, debugging,
 or repository inspection, still submit an sdlc parent. Classification selects
 the workflow; it does not prevent execution.
 
-Submit a parent job and return the job_id immediately. The host runner advances it.
+Submit a persistent mission and return the mission_id immediately. The host
+user-systemd runner (`neewa-autonomy-runner.service`) advances it after this
+conversation ends. Do not wait in chat. Do not create a second job for the
+same mission.
 
 ```
-python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py submit \
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py mission-submit \
   --objective "<owner software objective>" \
   --project-id <known id or omit> \
   --workspace "<personal Windows repo path>" \
-  --origin conversation \
-  --unattended
-python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py get --job-id JOB-<id>
+  --origin conversation
+python3 /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy.py mission-get --mission-id MISSION-<id>
 ```
+
+`submit --unattended` is an alias that also creates a mission rather than a
+bare parent job. Prefer `mission-submit`. The supervisor persists before
+dispatch, refuses duplicate children, and may start at most three repair
+cycles with new evidence. It does not reopen historical FAILED jobs.
 
 `--project-id` is optional. Unregistered personal folders are valid when
 `--workspace` is under the personal roots and not excluded.

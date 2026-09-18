@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -353,6 +354,7 @@ def create_parent_job(
     root: Path | None = None,
     budget_ceiling: float | None = None,
     origin: str = "controller",
+    mission_id: str | None = None,
 ) -> dict:
     classification = classify_intent(objective)
     resolved = PLANNING.resolve_project(project_id, workspace)
@@ -429,6 +431,8 @@ def create_parent_job(
         "created_at": utc_now(),
         "updated_at": utc_now(),
     }
+    if mission_id:
+        job["mission_id"] = mission_id
     identity = job["project_identity"] or {}
     lifecycle = IDENTITY.resolve_project_lifecycle(objective, identity=identity)
     identity["lifecycle"] = lifecycle
@@ -2689,7 +2693,28 @@ def runner_once(
     }
     save_json(autonomy_root(root) / "runner-lease.json", lease)
     results = []
+    mission_mod = SourceFileLoader(
+        "neewa_mission_runner", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
+    ).load_module()
+    results.extend(
+        mission_mod.supervisor_once(
+            root=root,
+            inbox_root=inbox_root,
+            auto=sys.modules[__name__],
+            worker_registry=worker_registry,
+            **advance_kwargs,
+        )
+    )
     for job in list_parent_jobs(root):
+        if job.get("mission_id"):
+            results.append(
+                {
+                    "job_id": job["job_id"],
+                    "state": job.get("state"),
+                    "skipped": "mission_owned",
+                }
+            )
+            continue
         reserved = float((job.get("budget") or {}).get("reserved_usd") or 0)
         malformed = PLANNING.malformed_expected_paths(job.get("expected_paths") or [])
         if job.get("state") in TERMINAL:
@@ -2907,6 +2932,7 @@ def capability_matrix() -> dict:
             "Gemini CLI routing",
             "remote Cua inbox jobs",
             "Home spoken-voice acceptance",
+            "Claude Opus Council consultation (provider not configured)",
         ],
         "REQUIRES_OWNER_AUTHORIZATION": [
             "A2 publish/deploy/spend",
@@ -2960,6 +2986,20 @@ def main() -> int:
     recp.add_argument("--job-id", required=True)
     recp.add_argument("--root")
     recp.add_argument("--inbox-root")
+    msub = sub.add_parser("mission-submit")
+    msub.add_argument("--objective", required=True)
+    msub.add_argument("--project-id")
+    msub.add_argument("--workspace")
+    msub.add_argument("--root")
+    msub.add_argument("--budget-ceiling", type=float)
+    msub.add_argument("--origin", default="conversation")
+    msub.add_argument("--kind", default="sdlc", choices=("sdlc", "research", "diagnostic"))
+    mget = sub.add_parser("mission-get")
+    mget.add_argument("--mission-id", required=True)
+    mget.add_argument("--root")
+    mlist = sub.add_parser("mission-list")
+    mlist.add_argument("--root")
+    madv = sub.add_parser("mission-advisors")
     closep = sub.add_parser("close-misclassified-intake")
     closep.add_argument("--job-id", required=True)
     closep.add_argument("--root")
@@ -3073,8 +3113,64 @@ def main() -> int:
             poll_sec=args.poll_sec,
             once=args.once,
         )
+    if args.command in {"mission-submit", "mission-get", "mission-list", "mission-advisors"}:
+        mission_mod = SourceFileLoader(
+            "neewa_mission_cli", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
+        ).load_module()
+        jobs_root = Path(args.root) if getattr(args, "root", None) else None
+        if args.command == "mission-advisors":
+            print(json.dumps(mission_mod.discover_advisors(), indent=2))
+            return 0
+        jobs_root = mission_mod.autonomy_root(jobs_root, auto=sys.modules[__name__])
+        if args.command == "mission-submit":
+            mission = mission_mod.create_mission(
+                args.objective,
+                workspace=args.workspace,
+                project_id=args.project_id,
+                root=jobs_root,
+                budget_ceiling=args.budget_ceiling,
+                origin=args.origin,
+                kind=args.kind,
+                auto=sys.modules[__name__],
+            )
+            print(json.dumps(mission_mod.public_mission(mission), indent=2))
+            return 0
+        if args.command == "mission-list":
+            rows = [
+                {
+                    "mission_id": m["mission_id"],
+                    "state": m.get("state"),
+                    "active_job_id": m.get("active_job_id"),
+                    "objective": m.get("owner_objective"),
+                }
+                for m in mission_mod.list_missions(jobs_root)
+            ]
+            print(json.dumps(rows, indent=2))
+            return 0
+        mission = mission_mod.load_mission(args.mission_id, jobs_root)
+        if not mission:
+            raise SystemExit(f"unknown mission {args.mission_id}")
+        print(json.dumps(mission_mod.public_mission(mission), indent=2))
+        return 0
     if args.command == "submit":
         root = Path(args.root) if args.root else None
+        if args.unattended:
+            mission_mod = SourceFileLoader(
+                "neewa_mission_cli", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
+            ).load_module()
+            jobs_root = mission_mod.autonomy_root(root, auto=sys.modules[__name__])
+            mission = mission_mod.create_mission(
+                args.objective,
+                workspace=args.workspace,
+                project_id=args.project_id,
+                root=jobs_root,
+                budget_ceiling=args.budget_ceiling,
+                origin=args.origin,
+                kind="sdlc",
+                auto=sys.modules[__name__],
+            )
+            print(json.dumps(mission_mod.public_mission(mission), indent=2))
+            return 0
         job = create_parent_job(
             args.objective,
             project_id=args.project_id,

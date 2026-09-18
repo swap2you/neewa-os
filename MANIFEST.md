@@ -123,6 +123,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/cron_health.sh`
 - `12_SCRIPTS/edge_readiness.ps1`
 - `12_SCRIPTS/emergency_lockdown.md`
+- `12_SCRIPTS/install_neewa_autonomy_runner.sh`
 - `12_SCRIPTS/morning_brief.py`
 - `12_SCRIPTS/neewa_action_semantics.py`
 - `12_SCRIPTS/neewa_autonomy.py`
@@ -130,6 +131,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/neewa_autonomy_planning.py`
 - `12_SCRIPTS/neewa_autonomy_runner.sh`
 - `12_SCRIPTS/neewa_host_status.sh`
+- `12_SCRIPTS/neewa_mission.py`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_orchestrate.py`
 - `12_SCRIPTS/neewa_project_identity.py`
@@ -137,6 +139,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/neewa_wake_phrases.py`
 - `12_SCRIPTS/resource_governor.py`
 - `12_SCRIPTS/server_readiness.sh`
+- `12_SCRIPTS/systemd/neewa-autonomy-runner.service`
 - `12_SCRIPTS/windows_job_inbox.py`
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
@@ -146,6 +149,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_autonomy.py`
 - `13_TESTS/test_neewa_home_plugin.py`
+- `13_TESTS/test_neewa_mission.py`
 - `13_TESTS/test_neewa_ops.py`
 - `13_TESTS/test_neewa_orchestrate.py`
 - `13_TESTS/test_neewa_wake_phrases.py`

@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -25,6 +26,8 @@ class WorkspaceInventoryTests(unittest.TestCase):
 
     def test_generator_produces_personal_metadata_and_skips_denied(self):
         script = WORKER / "New-WorkspaceInventory.ps1"
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present; Windows worker script tests run on Windows")
         if not Path(r"C:\Development\Workspace").is_dir():
             self.skipTest("workspace root not present")
         completed = subprocess.run(
@@ -58,6 +61,8 @@ class WorkspaceInventoryTests(unittest.TestCase):
 
     def test_invoke_workspace_inventory_end_to_end_read_only(self):
         invoke = WORKER / "Invoke-NeewaWindowsJob.ps1"
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present; Windows worker script tests run on Windows")
         if not Path(r"C:\Development\Workspace").is_dir():
             self.skipTest("workspace root not present")
         job_id = "JOB-20260917-E2E-WS"

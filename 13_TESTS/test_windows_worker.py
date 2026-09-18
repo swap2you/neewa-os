@@ -191,6 +191,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertFalse(data["root"])
 
     def _run_preflight(self, job: dict, out_dir: Path, policy: Path) -> dict:
+        if not shutil.which("powershell"):
+            self.skipTest("powershell not present; Windows worker script tests run on Windows")
         job_path = out_dir / "job.json"
         job_path.write_text(json.dumps(job), encoding="utf-8")
         command = (

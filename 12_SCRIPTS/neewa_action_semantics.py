@@ -1,9 +1,10 @@
 """Separate requested operations from prohibitions for NEEWA classification.
 
 Keyword presence is not authorization. A prohibition, exclusion, example,
-quoted span, documentation mention, or read-only verification of an already
-released version / release state must not become an executable A2/A3
-objective. Affirmative consequential requests still require their gates.
+quoted span, documentation mention, or verification / inspection / readiness /
+status / version-check of an already released version / release state must not
+become an executable A2/A3 objective. Explicit rollout, promotion, or
+release-to-production requests still require their gates.
 """
 from __future__ import annotations
 
@@ -37,13 +38,14 @@ DOC_CONTEXT = re.compile(
     re.I,
 )
 
-# Explicit inspection / status wording around release or past-tense publish/deploy.
+# Explicit inspection / status / readiness / version-check wording around
+# release or past-tense publish/deploy (these requests stay A0).
 INSPECT_CONTEXT = re.compile(
     r"\b(?:"
     r"read-?only|verif(?:y|ies|ied|ying|ication)|inspect(?:s|ed|ing|ion)?|"
     r"confirm(?:s|ed|ing)?|check(?:s|ed|ing)?|report(?:s|ed|ing)?|"
-    r"summar(?:y|ize|ise)|status of|show(?:s|ing)?(?:\s+me)?|what is|"
-    r"compare|matches?"
+    r"summar(?:y|ize|ise)|status(?:\s+of)?|show(?:s|ing)?(?:\s+me)?|what is|"
+    r"compare|matches?|readiness|version[- ]?check"
     r")\b",
     re.I,
 )
@@ -80,7 +82,10 @@ FAMILIES = {
         "level": "A2",
         "pattern": (
             r"\b(?:deploy(?:s|ed|ing|ment)?|roll(?:s|ed|ing)? (?:this )?out|"
-            r"production rollout|rollout to production)\b"
+            r"rollouts?|production rollout|rollout to production|"
+            r"promot(?:e|es|ed|ing)\s+to\s+(?:production|prod)|"
+            r"promotion\s+to\s+(?:production|prod)|"
+            r"promote (?:this|the) (?:release|build|version|app|package))\b"
         ),
         "doc_exempt": True,
         "inspect_exempt": True,
@@ -91,7 +96,8 @@ FAMILIES = {
             r"\b(?:cut (?:a |the )?release|create (?:a |the )?(?:github )?release|"
             r"make (?:a |the )?release|ship (?:a |the )?release|"
             r"release (?:this|the) (?:version|package|build|app|cli)|"
-            r"release to (?:production|npm|pypi|users))\b"
+            r"release to (?:production|npm|pypi|users)|"
+            r"release[- ]to[- ]production)\b"
         ),
         "inspect_exempt": True,
     },
@@ -191,22 +197,40 @@ def _preceded_by_inline_negation(clause: str, match_start: int) -> bool:
 def match_is_inspection_or_status(clause: str, matched: str) -> bool:
     """True when a family keyword is inspection/status, not a consequential request.
 
-    Explicit read-only verification of an already released version or release
-    state is inspection. Past-tense or adjectival deployed/published/released
-    status is not an affirmative deploy/publish/release request.
+    Verification, inspection, readiness, status, and version-check requests are
+    A0. Explicit rollout, promotion, or release-to-production requests remain
+    A2. Past-tense or adjectival deployed/published/released status is not an
+    affirmative deploy/publish/release request.
     """
     blob = (matched or "").strip()
     if not blob:
         return False
-    if RELEASE_STATE_PHRASE.search(clause or "") and (
-        INSPECT_CONTEXT.search(clause or "") or STATUS_FORM.fullmatch(blob)
+    text = clause or ""
+    if RELEASE_STATE_PHRASE.search(text) and (
+        INSPECT_CONTEXT.search(text) or STATUS_FORM.fullmatch(blob)
     ):
         return True
-    if INSPECT_CONTEXT.search(clause or "") and STATUS_FORM.fullmatch(blob):
+    if INSPECT_CONTEXT.search(text) and STATUS_FORM.fullmatch(blob):
         return True
-    if STATUS_CONSTRUCTION.search(clause or "") and STATUS_FORM.fullmatch(blob):
+    if STATUS_CONSTRUCTION.search(text) and STATUS_FORM.fullmatch(blob):
         return True
-    return False
+
+    inspect = INSPECT_CONTEXT.search(text)
+    if not inspect:
+        return False
+
+    # "verify then rollout / promote / release to production" stays consequential.
+    match_pos = text.lower().find(blob.lower())
+    if match_pos >= inspect.end():
+        between = text[inspect.end() : match_pos]
+        if re.search(r"\b(?:and then|then|and please)\b", between, re.I):
+            return False
+
+    # Leading imperative action ("rollout this…", "promote to…") is not inspection.
+    norm = normalize_clause(text)
+    if re.match(rf"^(?:please\s+)?{re.escape(blob)}\b", norm, re.I):
+        return False
+    return True
 
 
 def analyze_objective(text: str) -> dict:

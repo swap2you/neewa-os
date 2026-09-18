@@ -74,6 +74,16 @@ class ReleaseStateSemanticsTests(unittest.TestCase):
             "inspect the release state of the deployed build",
             "verify the deployed release state read-only",
             "confirm the published version matches the tag",
+            "verification of the release state",
+            "inspection of the deployed release",
+            "check release readiness",
+            "release readiness check",
+            "status of the release",
+            "version-check of the released build",
+            "version check of the published version",
+            "check the status of the production rollout",
+            "readiness check for production rollout",
+            "version-check before release to production",
         ):
             analysis = self.sem.analyze_objective(text)
             self.assertEqual(analysis["needed"], "A0", text)
@@ -83,6 +93,23 @@ class ReleaseStateSemanticsTests(unittest.TestCase):
         analysis = self.sem.analyze_objective("release this version to production")
         self.assertEqual(analysis["needed"], "A2")
         self.assertIn("release", analysis["requested_families"])
+
+    def test_explicit_rollout_promotion_and_release_to_production(self):
+        cases = (
+            ("production rollout", "deploy"),
+            ("rollout to production", "deploy"),
+            ("rollout this version", "deploy"),
+            ("explicit rollout of this build", "deploy"),
+            ("promote to production", "deploy"),
+            ("promotion to production", "deploy"),
+            ("promote this release", "deploy"),
+            ("release to production", "release"),
+            ("release-to-production", "release"),
+        )
+        for text, family in cases:
+            analysis = self.sem.analyze_objective(text)
+            self.assertEqual(analysis["needed"], "A2", text)
+            self.assertIn(family, analysis["requested_families"], text)
 
     def test_negated_release(self):
         analysis = self.sem.analyze_objective(

@@ -361,6 +361,7 @@ def create_parent_job(
     budget_ceiling: float | None = None,
     origin: str = "controller",
     mission_id: str | None = None,
+    project_lifecycle: str | None = None,
 ) -> dict:
     classification = classify_intent(objective)
     resolved = PLANNING.resolve_project(project_id, workspace)
@@ -440,7 +441,9 @@ def create_parent_job(
     if mission_id:
         job["mission_id"] = mission_id
     identity = job["project_identity"] or {}
-    lifecycle = IDENTITY.resolve_project_lifecycle(objective, identity=identity)
+    lifecycle = project_lifecycle or IDENTITY.resolve_project_lifecycle(objective, identity=identity)
+    if lifecycle not in {"create_new", "modify_existing"}:
+        raise ValueError(f"unsupported project_lifecycle: {lifecycle}")
     identity["lifecycle"] = lifecycle
     job["project_identity"] = IDENTITY.public_identity(identity)
     job["project_lifecycle"] = lifecycle

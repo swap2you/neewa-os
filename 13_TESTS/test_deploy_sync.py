@@ -21,8 +21,8 @@ class DeploySyncTests(unittest.TestCase):
         self.assertIn("project_lifecycle", self.text) if False else None
 
     def test_correct_systemctl_order(self):
-        self.assertIn('systemctl restart "$SERVICE"', self.text)
-        self.assertIn('systemctl is-active --quiet "$SERVICE"', self.text)
+        self.assertIn('run_systemctl restart "$SERVICE"', self.text)
+        self.assertIn('run_systemctl is-active --quiet "$SERVICE"', self.text)
         self.assertNotIn('systemctl "$SERVICE" restart', self.text)
 
     def test_refuses_real_current_target(self):

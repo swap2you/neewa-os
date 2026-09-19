@@ -10,6 +10,8 @@ SERVICE=""
 HEALTH_FILE="${NEEWA_HEALTH_FILE:-/opt/neewa/status/autonomy.json}"
 RECEIPT=""
 KEEP="5"
+HEALTH_ATTEMPTS="${NEEWA_HEALTH_ATTEMPTS:-12}"
+HEALTH_SLEEP="${NEEWA_HEALTH_SLEEP:-5}"
 
 usage() {
   printf '%s\n' "usage: deploy_sync.sh --sha SHA --service UNIT [--repo-url URL] [--release-root PATH] [--current-link PATH] [--health-file PATH] [--receipt PATH] [--keep N]" >&2
@@ -33,7 +35,9 @@ done
 [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || { echo 'ERROR: --keep must be positive' >&2; exit 2; }
 command -v git >/dev/null || { echo 'ERROR: git is required' >&2; exit 2; }
 command -v python3 >/dev/null || { echo 'ERROR: python3 is required' >&2; exit 2; }
-command -v systemctl >/dev/null || { echo 'ERROR: systemctl is required on the host' >&2; exit 2; }
+SYSTEMCTL_BIN="${SYSTEMCTL_BIN:-systemctl}"
+run_systemctl() { ${SYSTEMCTL_BIN} "$@"; }
+command -v ${SYSTEMCTL_BIN%% *} >/dev/null || { echo "ERROR: systemctl executor is required: $SYSTEMCTL_BIN" >&2; exit 2; }
 
 mkdir -p "$RELEASE_ROOT"
 release="$RELEASE_ROOT/$SHA"
@@ -77,13 +81,13 @@ actual="$(git -C "$release" rev-parse HEAD)"
 [[ -z "$(git -C "$release" status --porcelain)" ]] || fail 'staged release is dirty'
 
 # Verify the service really runs from the release/current structure before switching it.
-unit_info="$(systemctl show "$SERVICE" -p ExecStart -p WorkingDirectory -p User 2>&1)" || fail "cannot inspect service: $unit_info"
+unit_info="$(run_systemctl show "$SERVICE" -p ExecStart -p WorkingDirectory -p User 2>&1)" || fail "cannot inspect service: $unit_info"
 if ! grep -Fq "$CURRENT_LINK" <<<"$unit_info" && ! grep -Fq "$RELEASE_ROOT" <<<"$unit_info"; then
   fail "service does not reference current/release path: $SERVICE"
 fi
 
-python3 "$release/12_SCRIPTS/neewa_ops.py" validate >/dev/null || fail 'neewa_ops validation failed'
-python3 -m unittest discover -s "$release/13_TESTS" -p 'test_*.py' -q || fail 'test suite failed'
+PYTHONDONTWRITEBYTECODE=1 python3 "$release/12_SCRIPTS/neewa_ops.py" validate >/dev/null || fail 'neewa_ops validation failed'
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s "$release/13_TESTS" -p 'test_*.py' -q || fail 'test suite failed'
 
 # Same-filesystem atomic symlink replacement; never overwrite a real directory.
 tmp_link="${CURRENT_LINK}.tmp.$$"
@@ -96,16 +100,16 @@ rollback() {
     rm -f "$rb"
     ln -s "$old" "$rb"
     mv -Tf "$rb" "$CURRENT_LINK"
-    systemctl restart "$SERVICE" || true
+    run_systemctl restart "$SERVICE" || true
   fi
 }
 
-systemctl restart "$SERVICE" || { rollback; fail "service restart failed"; }
-systemctl is-active --quiet "$SERVICE" || { rollback; fail "service is not active after restart"; }
+run_systemctl restart "$SERVICE" || { rollback; fail "service restart failed"; }
+run_systemctl is-active --quiet "$SERVICE" || { rollback; fail "service is not active after restart"; }
 
 # Wait briefly for the host heartbeat to report the requested SHA.
 healthy=false
-for _ in $(seq 1 12); do
+for _ in $(seq 1 "$HEALTH_ATTEMPTS"); do
   if [[ -f "$HEALTH_FILE" ]] && python3 - "$HEALTH_FILE" "$SHA" <<'PY'
 import json, sys
 try:
@@ -116,7 +120,7 @@ except Exception:
     raise SystemExit(1)
 PY
   then healthy=true; break; fi
-  sleep 5
+  sleep "$HEALTH_SLEEP"
 done
 if [[ "$healthy" != true ]]; then rollback; fail "heartbeat SHA did not verify: $SHA"; fi
 write_receipt PASS ''

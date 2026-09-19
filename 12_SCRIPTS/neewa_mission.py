@@ -626,6 +626,7 @@ def create_mission(
     budget_ceiling: float | None = None,
     origin: str = "conversation",
     kind: str = DEFAULT_KIND,
+    project_lifecycle: str | None = None,
     auto=None,
 ) -> dict:
     auto = auto or _auto_mod()
@@ -644,6 +645,7 @@ def create_mission(
         "owner_objective": objective,
         "workspace": workspace,
         "project_id": project_id,
+        "project_lifecycle": project_lifecycle,
         "state": "CREATED",
         "stage": "CREATED",
         "active_job_id": None,
@@ -713,6 +715,13 @@ def classify_failure(job: dict | None, *, worker_available: bool = True) -> dict
             "waiting": False,
             "budget_stop": True,
             "reason": reason or cls or "budget stop",
+        }
+    if cls == "PROJECT_ALREADY_EXISTS" and "lifecycle" in reason.lower():
+        return {
+            "class": "CONFIG_DEFECT",
+            "recoverable": True,
+            "waiting": False,
+            "reason": reason or cls,
         }
     if cls in NON_RECOVERABLE or any(token in reason for token in ("POLICY", "DENIED_REPO", "A2/A3", "A2 owner", "A3")):
         return {
@@ -1066,6 +1075,7 @@ def step_mission(
             budget_ceiling=float((mission.get("budget") or {}).get("ceiling") or 0),
             origin="mission-supervisor",
             mission_id=mission["mission_id"],
+            project_lifecycle=mission.get("project_lifecycle"),
         )
         _attach_job(mission, job)
         auto.save_job(job)
@@ -1308,6 +1318,7 @@ def main() -> int:
     subp.add_argument("--budget-ceiling", type=float)
     subp.add_argument("--origin", default="conversation")
     subp.add_argument("--kind", default=DEFAULT_KIND, choices=("sdlc", "research", "diagnostic"))
+    subp.add_argument("--project-lifecycle", choices=("create_new", "modify_existing"))
     getp = sub.add_parser("get")
     getp.add_argument("--mission-id", required=True)
     getp.add_argument("--root")
@@ -1343,6 +1354,7 @@ def main() -> int:
             budget_ceiling=args.budget_ceiling,
             origin=args.origin,
             kind=args.kind,
+            project_lifecycle=args.project_lifecycle,
         )
         print(json.dumps(public_mission(mission), indent=2))
         return 0

@@ -572,6 +572,7 @@ def main() -> int:
     submit_p.add_argument("--repo")
     submit_p.add_argument("--prompt")
     submit_p.add_argument("--project-id")
+    submit_p.add_argument("--project-lifecycle", choices=("create_new", "modify_existing"))
     submit_p.add_argument("--approval")
     submit_p.add_argument("--timeout-sec", type=int)
     submit_p.add_argument("--write", action="store_true")
@@ -608,6 +609,7 @@ def main() -> int:
             timeout_sec=args.timeout_sec,
             expected_paths=args.expected_paths,
             project_id=args.project_id,
+            project_lifecycle=getattr(args, "project_lifecycle", None),
             approval=args.approval,
             inbox_root=root,
             files=getattr(args, "files", None),

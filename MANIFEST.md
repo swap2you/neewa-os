@@ -145,6 +145,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/neewa_orchestrate.py`
 - `12_SCRIPTS/neewa_project_identity.py`
 - `12_SCRIPTS/neewa_scoped_repair.py`
+- `12_SCRIPTS/neewa_session_handoff.py`
 - `12_SCRIPTS/neewa_validation_receipt.py`
 - `12_SCRIPTS/neewa_voice_readiness.sh`
 - `12_SCRIPTS/neewa_wake_phrases.py`
@@ -170,6 +171,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/test_neewa_mission.py`
 - `13_TESTS/test_neewa_ops.py`
 - `13_TESTS/test_neewa_orchestrate.py`
+- `13_TESTS/test_neewa_session_handoff.py`
 - `13_TESTS/test_neewa_wake_phrases.py`
 - `13_TESTS/test_project_portfolio.py`
 - `13_TESTS/test_resource_governor.py`

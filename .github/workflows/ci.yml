@@ -1,0 +1,28 @@
+name: NEEWA validation
+
+on:
+  push:
+    branches: [main, '**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Shell syntax
+        run: bash -n 12_SCRIPTS/deploy_sync.sh
+      - name: Deploy functional tests
+        run: python -m unittest 13_TESTS.test_deploy_sync 13_TESTS.test_deploy_sync_functional -v
+      - name: Full Python tests
+        run: python -m unittest discover -s 13_TESTS -p 'test_*.py' -v
+      - name: Repository validation and secret scan
+        run: python 12_SCRIPTS/neewa_ops.py validate
+      - name: Manifest and whitespace validation
+        run: |
+          git diff --check
+          python 12_SCRIPTS/neewa_ops.py validate

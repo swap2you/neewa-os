@@ -2,6 +2,7 @@
 
 Durable repository source only. Generated `evidence/` is excluded.
 
+- `.github/workflows/ci.yml`
 - `.gitignore`
 - `00_START_HERE/00_EXECUTIVE_SUMMARY.md`
 - `00_START_HERE/01_WEEKEND_BUILD_CHECKLIST.md`

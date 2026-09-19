@@ -155,6 +155,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/SECURITY_TEST_PLAN.md`
 - `13_TESTS/test_cursor_call.py`
 - `13_TESTS/test_date_tool_acceptance_integration.py`
+- `13_TESTS/test_deploy_sync.py`
 - `13_TESTS/test_lifecycle_bootstrap_repair.py`
 - `13_TESTS/test_morning_brief.py`
 - `13_TESTS/test_neewa_authorization.py`

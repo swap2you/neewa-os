@@ -121,6 +121,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
 - `12_SCRIPTS/bootstrap.sh`
+- `12_SCRIPTS/bootstrap_deploy_sync.sh`
 - `12_SCRIPTS/collect_local_windows_bridge_evidence.py`
 - `12_SCRIPTS/configure_openai_fallback.sh`
 - `12_SCRIPTS/cron_health.sh`
@@ -154,6 +155,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
+- `13_TESTS/test_bootstrap_deploy_sync.py`
 - `13_TESTS/test_cursor_call.py`
 - `13_TESTS/test_date_tool_acceptance_integration.py`
 - `13_TESTS/test_deploy_sync.py`

@@ -115,6 +115,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `11_CONFIG/subscriptions.json`
 - `11_CONFIG/watchdog.example.yaml`
 - `11_CONFIG/workers.json`
+- `12_SCRIPTS/DEPLOY_SYNC.md`
 - `12_SCRIPTS/README.md`
 - `12_SCRIPTS/apply_neewa_wake_aliases.py`
 - `12_SCRIPTS/benchmark_local_model.py`
@@ -122,6 +123,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/collect_local_windows_bridge_evidence.py`
 - `12_SCRIPTS/configure_openai_fallback.sh`
 - `12_SCRIPTS/cron_health.sh`
+- `12_SCRIPTS/deploy_sync.sh`
 - `12_SCRIPTS/edge_readiness.ps1`
 - `12_SCRIPTS/emergency_lockdown.md`
 - `12_SCRIPTS/install_neewa_autonomy_runner.sh`

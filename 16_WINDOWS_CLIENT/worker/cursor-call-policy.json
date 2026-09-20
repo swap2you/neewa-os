@@ -16,8 +16,8 @@
   "sandbox_windows_note": "Agent CLI 2026.09.15-d2fe57e rejects --sandbox enabled on Windows (macOS/Linux only). Do not persist sandbox disable.",
   "headless_workspace_trust": true,
   "never_pass": ["--yolo", "--approve-mcps", "--sandbox disabled", "--add-dir"],
-  "default_timeout_sec": 180,
-  "max_timeout_sec": 600,
+  "default_timeout_sec": 604800,
+  "max_timeout_sec": 604800,
   "workspace_root": "C:\\Development\\Workspace",
   "sandbox_repo": "%USERPROFILE%\\NEEWA-Personal\\cursor-sandbox",
   "authorization_mode": "personal_roots_except_denied",
@@ -93,6 +93,7 @@
     "Authorization uses requested-versus-prohibited semantics shared with the controller. A prohibition such as 'publication is prohibited' is not a request to publish. Last-token stem matching is forbidden so KEY does not match keys.",
     "Receipts record requested_action, prohibited_actions, matched_rule, effective_approval and decision reason. Do not log credentials or the full prompt.",
     "approved_repo_names and catalog_repo_names are descriptive. Authorization is personal roots minus the deny list.",
-    "The Workspace drive root is not itself a Cursor workspace because it contains excluded trees."
+    "The Workspace drive root is not itself a Cursor workspace because it contains excluded trees.",
+    "Job timeout_sec=0 means no elapsed-time kill. Policy default_timeout_sec/max_timeout_sec remain 604800 until host deploy adopts 0."
   ]
 }

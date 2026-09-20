@@ -187,6 +187,34 @@ class CursorCallTests(unittest.TestCase):
         self.assertIn(result["status"], {"BLOCKED", "FAILED"})
         self.assertIn("not installed", (result.get("reason") or "").lower())
 
+    def test_unlimited_timeout_zero_dry_run_completes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, sandbox = self._isolated_policy(root / "policy-home")
+            repo = sandbox / "demo-repo"
+            repo.mkdir(parents=True)
+            (repo / "README.md").write_text("demo\n", encoding="utf-8")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            result = self._run_cursor_script(
+                {
+                    "job_id": "JOB-TEST-TIMEOUT-0",
+                    "prompt": "Say hello and do not edit files.",
+                    "repo": str(repo),
+                    "write": False,
+                    "timeout_sec": 0,
+                },
+                r"C:\neewa-missing\agent.exe",
+                jobs,
+                policy_path=policy,
+                dry_run=True,
+            )
+            self.assertEqual(result["status"], "COMPLETED")
+            self.assertNotEqual(result.get("failure_class"), "TIMEOUT")
+            src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
+            self.assertIn("unlimitedTimeout", src)
+            self.assertIn("timeout_sec=0", src)
+
     def test_original_generated_child_prompt_is_not_policy_blocked(self):
         prompt = (
             "Implement this approved NEEWA work package. Do not change the objective.\n"

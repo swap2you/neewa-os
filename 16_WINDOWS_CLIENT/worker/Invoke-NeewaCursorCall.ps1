@@ -193,10 +193,16 @@ $requestedRepo = [string]$Job.repo
 if (-not $requestedRepo) { $requestedRepo = [string]$Job.workspace_path }
 $write = [bool]($Job.write)
 $timeoutSec = [int]$policy.default_timeout_sec
-if ($Job.timeout_sec) { $timeoutSec = [int]$Job.timeout_sec }
+# timeout_sec=0 means unlimited (no elapsed-time kill). Do not treat 0 as missing.
+if ($null -ne $Job.PSObject.Properties['timeout_sec'] -and $null -ne $Job.timeout_sec -and "$($Job.timeout_sec)" -ne '') {
+  $timeoutSec = [int]$Job.timeout_sec
+}
 $maxTimeout = [int]$policy.max_timeout_sec
-if ($timeoutSec -lt 15) { $timeoutSec = 15 }
-if ($timeoutSec -gt $maxTimeout) { $timeoutSec = $maxTimeout }
+$unlimitedTimeout = ($timeoutSec -eq 0)
+if (-not $unlimitedTimeout) {
+  if ($timeoutSec -lt 15) { $timeoutSec = 15 }
+  if ($timeoutSec -gt $maxTimeout) { $timeoutSec = $maxTimeout }
+}
 $expected = @()
 if ($Job.expected_paths) { $expected = @($Job.expected_paths) }
 
@@ -460,7 +466,13 @@ if ($DryRun) {
   $proc.StartInfo = $psi
   [void]$proc.Start()
   [System.IO.File]::WriteAllText($pidPath, [string]$proc.Id, [System.Text.UTF8Encoding]::new($false))
-  $exited = $proc.WaitForExit($timeoutSec * 1000)
+  if ($unlimitedTimeout) {
+    # No elapsed-time kill; still exits on process completion. External cancel remains via Stop-ProcessTree.
+    $proc.WaitForExit()
+    $exited = $true
+  } else {
+    $exited = $proc.WaitForExit($timeoutSec * 1000)
+  }
   if ($exited) {
     $stdoutText = $proc.StandardOutput.ReadToEnd()
     $stderrText = $proc.StandardError.ReadToEnd()
@@ -476,6 +488,8 @@ if (-not $exited) {
     log = $logPath
     cancelled = $true
     failure_class = 'TIMEOUT'
+    timeout_sec = $timeoutSec
+    unlimited_timeout = $false
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact

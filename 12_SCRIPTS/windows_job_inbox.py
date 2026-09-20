@@ -217,7 +217,8 @@ def main() -> int:
             extra["repo"] = args.repo
         if args.prompt:
             extra["prompt"] = args.prompt
-        if args.timeout_sec:
+        if args.timeout_sec is not None:
+            # Preserve timeout_sec=0 (unlimited; no elapsed-time kill on the worker).
             extra["timeout_sec"] = args.timeout_sec
         if args.write:
             extra["write"] = True

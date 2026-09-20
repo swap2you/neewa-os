@@ -379,7 +379,8 @@ def submit(
         extra["repo"] = repo
     if prompt:
         extra["prompt"] = prompt
-    if timeout_sec:
+    if timeout_sec is not None:
+        # Preserve timeout_sec=0 (unlimited; no elapsed-time kill on the worker).
         extra["timeout_sec"] = timeout_sec
     if expected_paths:
         extra["expected_paths"] = expected_paths

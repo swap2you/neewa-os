@@ -202,6 +202,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/README.md`
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/electron/neewa-mission-ipc.ts`
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
+- `16_WINDOWS_CLIENT/worker/Install-NeewaWindowsWorker.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaGovernedGit.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaRepoPreflight.ps1`

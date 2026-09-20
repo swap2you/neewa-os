@@ -632,11 +632,20 @@ def parse_utc(stamp: str | None) -> datetime | None:
         return None
 
 
+def effective_timeout_sec(job: dict, default: int = 600) -> int:
+    """Return job timeout_sec; 0 means unlimited (no elapsed-time stale/kill)."""
+    if "timeout_sec" in job and job.get("timeout_sec") is not None:
+        return int(job["timeout_sec"])
+    return int(default)
+
+
 def child_is_stale(job: dict) -> bool:
     child_id = job.get("active_child_id")
     if not child_id:
         return False
-    timeout = int(job.get("timeout_sec") or 600)
+    timeout = effective_timeout_sec(job)
+    if timeout == 0:
+        return False
     started = None
     for row in job.get("child_jobs") or []:
         if row.get("job_id") == child_id:
@@ -1889,7 +1898,7 @@ def _submit_cursor(
             repo=identity.get("project_path") or job.get("workspace"),
             prompt=prompt,
             write=write,
-            timeout_sec=job.get("timeout_sec") or 600,
+            timeout_sec=effective_timeout_sec(job),
             expected_paths=expected_paths,
             project_id=job.get("project_id"),
             approval="A1",

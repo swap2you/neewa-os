@@ -48,6 +48,7 @@ class WindowsWorkerTests(unittest.TestCase):
     def test_scripts_exist(self):
         for name in (
             "Install-CuaDriverFromGitHub.ps1",
+            "Install-NeewaWindowsWorker.ps1",
             "Start-CuaDriver.ps1",
             "Start-NeewaWindowsWorker.ps1",
             "Invoke-NeewaWindowsJob.ps1",

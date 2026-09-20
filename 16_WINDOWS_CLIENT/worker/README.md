@@ -68,6 +68,17 @@ not applied.
 user logon). It does not create a SYSTEM service and does not use
 `cua-driver autostart enable` (that path wants RunLevel=Highest / UAC).
 
+For a stable install outside a disposable sandbox checkout, run
+`Install-NeewaWindowsWorker.ps1` (optionally `-Start`). It copies the
+required worker files to `%LOCALAPPDATA%\NEEWA\worker`, points
+`HKCU\...\Run\NEEWA-WindowsWorker` at that path, and can restart to
+exactly one live worker process. `-Remove` clears the Run key;
+`-Remove -PurgeFiles` also deletes the installed copy.
+
+`cursor_call` timeout semantics: job `timeout_sec=0` means no
+elapsed-time kill. Policy `default_timeout_sec` / `max_timeout_sec`
+remain `604800` until host deploy adopts `0`.
+
 ## Rollback
 
 ```

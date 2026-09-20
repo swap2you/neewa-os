@@ -829,6 +829,16 @@ class PathAndRecoveryTests(unittest.TestCase):
             self.assertEqual(job["failure_reason"], "CHILD_TIMEOUT")
             self.assertEqual(job["budget"]["reserved_usd"], 0.0)
 
+    def test_unlimited_timeout_zero_never_marks_child_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root)
+            job["timeout_sec"] = 0
+            job["active_child_id"] = "JOB-UNLIMITED-CC01"
+            job["child_jobs"] = [{"job_id": "JOB-UNLIMITED-CC01", "at": "2020-01-01T00:00:00Z"}]
+            self.assertFalse(self.mod.child_is_stale(job))
+            self.assertEqual(self.mod.effective_timeout_sec(job), 0)
+
     def test_duplicate_dispatch_releases_reservation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"

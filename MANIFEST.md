@@ -211,6 +211,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/NeewaPersonalWorkspace.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
 - `16_WINDOWS_CLIENT/worker/New-WorkspaceInventory.ps1`
+- `16_WINDOWS_CLIENT/worker/Publish-NeewaJobProgress.ps1`
 - `16_WINDOWS_CLIENT/worker/README.md`
 - `16_WINDOWS_CLIENT/worker/Register-NeewaWindowsStartup.ps1`
 - `16_WINDOWS_CLIENT/worker/Resolve-NeewaResultFolder.ps1`

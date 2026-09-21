@@ -17,18 +17,30 @@ try {
   $invoke = Join-Path $here 'Invoke-NeewaWindowsJob.ps1'
   . (Join-Path $here 'Resolve-NeewaResultFolder.ps1')
   $localInbox = Join-Path $env:USERPROFILE 'NEEWA-Personal\inbox'
-  New-Item -ItemType Directory -Force -Path $localInbox | Out-Null
+  $logDir = Join-Path $env:LOCALAPPDATA 'NEEWA\logs'
+  New-Item -ItemType Directory -Force -Path $localInbox, $logDir | Out-Null
+  $pollLog = Join-Path $logDir 'worker-poll.log'
+  function Write-Poll([string]$Message) {
+    $line = '{0} {1}' -f (Get-Date -Format 'yyyy-MM-ddTHH:mm:ssK'), $Message
+    Add-Content -LiteralPath $pollLog -Value $line -Encoding utf8
+    Write-Output $line
+  }
+  $sshOpts = @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR')
 
   function Receive-RemoteJobs {
     $tmp = Join-Path $env:TEMP 'neewa-windows-jobs'
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
-    ssh -o BatchMode=yes -o ConnectTimeout=8 $RemoteHost "mkdir -p $RemoteInbox/inbox $RemoteInbox/processing $RemoteInbox/done $RemoteInbox/failed; ls -1 $RemoteInbox/inbox/*.json 2>/dev/null" | ForEach-Object {
-      $name = Split-Path -Leaf $_.Trim()
-      if (-not $name) { return }
-      $local = Join-Path $localInbox $name
-      scp -o BatchMode=yes -o ConnectTimeout=8 "${RemoteHost}:$RemoteInbox/inbox/$name" $local | Out-Null
-      ssh -o BatchMode=yes $RemoteHost "mv $RemoteInbox/inbox/$name $RemoteInbox/processing/$name"
-    }
+    & ssh @sshOpts $RemoteHost "mkdir -p $RemoteInbox/inbox $RemoteInbox/processing $RemoteInbox/done $RemoteInbox/failed; ls -1 $RemoteInbox/inbox/*.json 2>/dev/null" |
+      ForEach-Object {
+        $line = ([string]$_).Trim()
+        if ($line -notmatch '\.json$') { return }
+        $name = Split-Path -Leaf $line
+        if ($name -notmatch '^[A-Za-z0-9._-]+\.json$') { return }
+        $local = Join-Path $localInbox $name
+        & scp @sshOpts "${RemoteHost}:$RemoteInbox/inbox/$name" $local | Out-Null
+        & ssh @sshOpts $RemoteHost "mv $RemoteInbox/inbox/$name $RemoteInbox/processing/$name"
+        Write-Poll "claimed $name"
+      }
   }
 
   function Submit-RemoteResult($jobFile, $result) {
@@ -43,25 +55,35 @@ try {
     $payload = $result | ConvertTo-Json -Depth 8 -Compress
     $destDir = Resolve-NeewaResultFolder $result
     $remoteJson = "$RemoteInbox/$destDir/$name"
-    $payload | ssh -o BatchMode=yes $RemoteHost "cat > $remoteJson"
+    $payload | & ssh @sshOpts $RemoteHost "cat > $remoteJson"
     if ($result.artifact -and (Test-Path -LiteralPath $result.artifact)) {
       $leaf = Split-Path -Leaf $result.artifact
-      scp -o BatchMode=yes $result.artifact "${RemoteHost}:$RemoteInbox/$destDir/$leaf" | Out-Null
+      & scp @sshOpts $result.artifact "${RemoteHost}:$RemoteInbox/$destDir/$leaf" | Out-Null
     }
-    ssh -o BatchMode=yes $RemoteHost "rm -f $RemoteInbox/processing/$name"
+    & ssh @sshOpts $RemoteHost "rm -f $RemoteInbox/processing/$name"
   }
 
   function Invoke-Pending {
-    Get-ChildItem -LiteralPath $localInbox -Filter '*.json' -ErrorAction SilentlyContinue | ForEach-Object {
-      $result = & $invoke -JobPath $_.FullName
-      Write-Output ($result | ConvertTo-Json -Compress)
-      try { Submit-RemoteResult $_.FullName $result } catch { Write-Output "remote result push failed: $($_.Exception.Message)" }
-      Remove-Item -LiteralPath $_.FullName -Force
-    }
+    $jobsDir = Join-Path $env:USERPROFILE 'NEEWA-Personal\jobs'
+    Get-ChildItem -LiteralPath $localInbox -Filter '*.json' -ErrorAction SilentlyContinue |
+      Sort-Object LastWriteTime -Descending |
+      ForEach-Object {
+        $stamp = Join-Path $jobsDir ($_.BaseName + '.done.json')
+        if (Test-Path -LiteralPath $stamp) {
+          Write-Poll "skip already-done $($_.Name)"
+          Remove-Item -LiteralPath $_.FullName -Force
+          return
+        }
+        Write-Poll "invoke $($_.Name)"
+        $result = & $invoke -JobPath $_.FullName
+        Write-Output ($result | ConvertTo-Json -Compress)
+        try { Submit-RemoteResult $_.FullName $result } catch { Write-Poll "remote result push failed: $($_.Exception.Message)" }
+        Remove-Item -LiteralPath $_.FullName -Force
+      }
   }
 
   do {
-    try { Receive-RemoteJobs } catch { Write-Output "poll skipped: $($_.Exception.Message)" }
+    try { Receive-RemoteJobs } catch { Write-Poll "poll skipped: $($_.Exception.Message)" }
     Invoke-Pending
     if (-not $Once) { Start-Sleep -Seconds 15 }
   } while (-not $Once)

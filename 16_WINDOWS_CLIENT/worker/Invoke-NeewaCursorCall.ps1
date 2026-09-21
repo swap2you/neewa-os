@@ -466,13 +466,34 @@ if ($DryRun) {
   $proc.StartInfo = $psi
   [void]$proc.Start()
   [System.IO.File]::WriteAllText($pidPath, [string]$proc.Id, [System.Text.UTF8Encoding]::new($false))
-  if ($unlimitedTimeout) {
-    # No elapsed-time kill; still exits on process completion. External cancel remains via Stop-ProcessTree.
-    $proc.WaitForExit()
-    $exited = $true
-  } else {
-    $exited = $proc.WaitForExit($timeoutSec * 1000)
+  $heartbeatPath = Join-Path $JobsDir "$jobId-cursor-call.heartbeat.json"
+  $publish = Join-Path $here 'Publish-NeewaJobProgress.ps1'
+  $workerPid = [int]$PID
+  $cmdLine = $proc.StartInfo.FileName + ' ' + (($startArgs | ForEach-Object { $_ }) -join ' ')
+  function Write-ExecutionHeartbeat {
+    $hb = [ordered]@{
+      at = (Get-Date).ToUniversalTime().ToString('o')
+      pid = $proc.Id
+      worker_pid = $workerPid
+      job_id = $jobId
+      current_operation = 'cursor_call'
+    }
+    [System.IO.File]::WriteAllText($heartbeatPath, ($hb | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+    if (Test-Path -LiteralPath $publish) {
+      try {
+        & $publish -JobId $jobId -State 'RUNNING' -WorkerPid $workerPid -ChildPid $proc.Id -CommandLine $cmdLine | Out-Null
+      } catch { }
+    }
   }
+  Write-ExecutionHeartbeat
+  $exited = $false
+  while (-not $proc.HasExited) {
+    $elapsed = ((Get-Date) - $started).TotalSeconds
+    if (-not $unlimitedTimeout -and $elapsed -ge $timeoutSec) { break }
+    Write-ExecutionHeartbeat
+    [void]$proc.WaitForExit(15000)
+  }
+  $exited = $proc.HasExited
   if ($exited) {
     $stdoutText = $proc.StandardOutput.ReadToEnd()
     $stderrText = $proc.StandardError.ReadToEnd()

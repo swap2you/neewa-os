@@ -111,11 +111,83 @@ function Get-NeewaAuthorizationFallback([string]$text) {
   }
 }
 
-function Get-NeewaAuthorization([string]$text) {
-  $sem = Join-Path $here '..\..\12_SCRIPTS\neewa_action_semantics.py'
+function Find-NeewaPythonModule([string]$Name) {
+  $candidates = @(
+    (Join-Path $here $Name)
+    (Join-Path $here (Join-Path '..\..\12_SCRIPTS' $Name))
+  )
+  foreach ($candidate in $candidates) {
+    if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+  }
+  return $null
+}
+
+function Get-NeewaPython {
   $py = Get-Command python -ErrorAction SilentlyContinue
   if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
-  if ($py -and (Test-Path -LiteralPath $sem)) {
+  return $py
+}
+
+function Get-NeewaStructuredAuthorization($JobObject, $PromptAuth) {
+  $mod = Find-NeewaPythonModule 'neewa_a2_receipt_auth.py'
+  $py = Get-NeewaPython
+  if (-not $py -or -not $mod) {
+    return [pscustomobject]@{
+      allowed = $false
+      needed = $(if ($PromptAuth) { $PromptAuth.needed } else { 'A2' })
+      reason = 'MISSING_SSH'
+      receipt_backed = $true
+      detail = 'a2 verifier unavailable'
+    }
+  }
+  $tmpJob = Join-Path $env:TEMP ('neewa-a2-job-' + [guid]::NewGuid().ToString() + '.json')
+  $tmpPrompt = Join-Path $env:TEMP ('neewa-a2-prompt-' + [guid]::NewGuid().ToString() + '.json')
+  try {
+    $jobJson = $JobObject | ConvertTo-Json -Depth 16 -Compress
+    [System.IO.File]::WriteAllText($tmpJob, $jobJson, [System.Text.UTF8Encoding]::new($false))
+    if ($PromptAuth) {
+      [System.IO.File]::WriteAllText($tmpPrompt, ($PromptAuth | ConvertTo-Json -Depth 8 -Compress), [System.Text.UTF8Encoding]::new($false))
+    }
+    $cacheDir = $env:NEEWA_A2_AUTH_CACHE
+    if (-not $cacheDir) {
+      $cacheDir = Join-Path $env:LOCALAPPDATA 'NEENEEWA\authorizations'
+    }
+    $argList = @($mod, '--job-file', $tmpJob, '--cache-dir', $cacheDir)
+    if ($PromptAuth) { $argList += @('--prompt-auth-file', $tmpPrompt) }
+    $nativePref = $PSNativeCommandUseErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+      $out = & $py.Source @argList 2>$null | Out-String
+    } finally {
+      $PSNativeCommandUseErrorActionPreference = $nativePref
+    }
+    if ($out) {
+      return ($out | ConvertFrom-Json)
+    }
+  } catch {
+    return [pscustomobject]@{
+      allowed = $false
+      needed = 'A2'
+      reason = 'MISSING_SSH'
+      receipt_backed = $true
+      detail = $_.Exception.Message
+    }
+  } finally {
+    Remove-Item -LiteralPath $tmpJob -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tmpPrompt -Force -ErrorAction SilentlyContinue
+  }
+  return [pscustomobject]@{
+    allowed = $false
+    needed = 'A2'
+    reason = 'MISSING_AUTHORIZATION'
+    receipt_backed = $true
+  }
+}
+
+function Get-NeewaAuthorization([string]$text) {
+  $sem = Find-NeewaPythonModule 'neewa_action_semantics.py'
+  $py = Get-NeewaPython
+  if ($py -and $sem) {
     $tmpText = Join-Path $env:TEMP ('neewa-auth-' + [guid]::NewGuid().ToString() + '.txt')
     $tmpFrag = Join-Path $env:TEMP ('neewa-auth-frags-' + [guid]::NewGuid().ToString() + '.json')
     try {
@@ -193,10 +265,16 @@ $requestedRepo = [string]$Job.repo
 if (-not $requestedRepo) { $requestedRepo = [string]$Job.workspace_path }
 $write = [bool]($Job.write)
 $timeoutSec = [int]$policy.default_timeout_sec
-if ($Job.timeout_sec) { $timeoutSec = [int]$Job.timeout_sec }
+# timeout_sec=0 means unlimited (no elapsed-time kill). Do not treat 0 as missing.
+if ($null -ne $Job.PSObject.Properties['timeout_sec'] -and $null -ne $Job.timeout_sec -and "$($Job.timeout_sec)" -ne '') {
+  $timeoutSec = [int]$Job.timeout_sec
+}
 $maxTimeout = [int]$policy.max_timeout_sec
-if ($timeoutSec -lt 15) { $timeoutSec = 15 }
-if ($timeoutSec -gt $maxTimeout) { $timeoutSec = $maxTimeout }
+$unlimitedTimeout = ($timeoutSec -eq 0)
+if (-not $unlimitedTimeout) {
+  if ($timeoutSec -lt 15) { $timeoutSec = 15 }
+  if ($timeoutSec -gt $maxTimeout) { $timeoutSec = $maxTimeout }
+}
 $expected = @()
 if ($Job.expected_paths) { $expected = @($Job.expected_paths) }
 
@@ -255,8 +333,18 @@ if (-not $prompt) {
   return $r
 }
 $authorization = Get-NeewaAuthorization $prompt
+$hasReceipt = $false
+if ($Job.PSObject.Properties['authorization'] -and $null -ne $Job.authorization) { $hasReceipt = $true }
+if ($hasReceipt -or [string]$Job.approval -in @('A2', 'A3')) {
+  $authorization = Get-NeewaStructuredAuthorization $Job $authorization
+}
 if (-not [bool]$authorization.allowed) {
-  $r = New-CursorResult 'BLOCKED' 'prompt requests a sensitive or consequential A2/A3 action; owner gate required' $null @{
+  $authReason = [string]$authorization.reason
+  $message = 'prompt requests a sensitive or consequential A2/A3 action; owner gate required'
+  if ($hasReceipt -and $authReason) {
+    $message = "A2 receipt authorization failed: $authReason"
+  }
+  $r = New-CursorResult 'BLOCKED' $message $null @{
     failure_class = 'POLICY'
     authorization = $authorization
   }
@@ -460,7 +548,34 @@ if ($DryRun) {
   $proc.StartInfo = $psi
   [void]$proc.Start()
   [System.IO.File]::WriteAllText($pidPath, [string]$proc.Id, [System.Text.UTF8Encoding]::new($false))
-  $exited = $proc.WaitForExit($timeoutSec * 1000)
+  $heartbeatPath = Join-Path $JobsDir "$jobId-cursor-call.heartbeat.json"
+  $publish = Join-Path $here 'Publish-NeewaJobProgress.ps1'
+  $workerPid = [int]$PID
+  $cmdLine = $proc.StartInfo.FileName + ' ' + (($startArgs | ForEach-Object { $_ }) -join ' ')
+  function Write-ExecutionHeartbeat {
+    $hb = [ordered]@{
+      at = (Get-Date).ToUniversalTime().ToString('o')
+      pid = $proc.Id
+      worker_pid = $workerPid
+      job_id = $jobId
+      current_operation = 'cursor_call'
+    }
+    [System.IO.File]::WriteAllText($heartbeatPath, ($hb | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
+    if (Test-Path -LiteralPath $publish) {
+      try {
+        & $publish -JobId $jobId -State 'RUNNING' -WorkerPid $workerPid -ChildPid $proc.Id -CommandLine $cmdLine | Out-Null
+      } catch { }
+    }
+  }
+  Write-ExecutionHeartbeat
+  $exited = $false
+  while (-not $proc.HasExited) {
+    $elapsed = ((Get-Date) - $started).TotalSeconds
+    if (-not $unlimitedTimeout -and $elapsed -ge $timeoutSec) { break }
+    Write-ExecutionHeartbeat
+    [void]$proc.WaitForExit(15000)
+  }
+  $exited = $proc.HasExited
   if ($exited) {
     $stdoutText = $proc.StandardOutput.ReadToEnd()
     $stderrText = $proc.StandardError.ReadToEnd()
@@ -476,6 +591,8 @@ if (-not $exited) {
     log = $logPath
     cancelled = $true
     failure_class = 'TIMEOUT'
+    timeout_sec = $timeoutSec
+    unlimited_timeout = $false
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
   $r.artifact = $artifact

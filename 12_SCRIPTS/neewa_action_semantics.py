@@ -4,7 +4,8 @@ Keyword presence is not authorization. A prohibition, exclusion, example,
 quoted span, documentation mention, or verification / inspection / readiness /
 status / version-check of an already released version / release state must not
 become an executable A2/A3 objective. Explicit rollout, promotion, or
-release-to-production requests still require their gates.
+release-to-production requests still require their gates. Structured A2
+receipt hashes, not owner-sounding prompt text, are the only grant path.
 """
 from __future__ import annotations
 
@@ -354,11 +355,75 @@ def public_authorization(decision: dict | None) -> dict:
         "requested_families",
         "prohibited_actions",
         "effective_approval",
+        "receipt_backed",
+        "decision",
+        "approval_id",
+        "replay",
+        "idempotent",
+        "job_id",
+        "mission_id",
+        "parent_id",
+        "pr_number",
+        "approved_commit",
+        "deployment_target",
+        "workspace_path",
+        "repository_remote",
+        "authorized_actions",
+        "approval_sha256",
+        "binding_sha256",
     )
     out = {key: src.get(key) for key in allowed_keys if src.get(key) is not None}
     if "allowed" in src:
         out["allowed"] = bool(src.get("allowed"))
     return out
+
+
+def merge_receipt_authorization(
+    prompt_decision: dict | None,
+    receipt_decision: dict | None,
+) -> dict:
+    """Prompt classification cannot grant A2/A3 or enlarge receipt-backed scope.
+
+    Structured receipt hashes are the only A2 grant path. Prompt text that
+    claims owner approval is ignored. A2 receipts cannot authorize A3.
+    """
+    prompt = public_authorization(prompt_decision or {})
+    receipt = receipt_decision or {}
+    needed = prompt.get("needed") or "A0"
+    if needed == "A3":
+        return public_authorization(
+            {
+                **prompt,
+                "allowed": False,
+                "reason": receipt.get("reason") or "A3_NOT_AUTHORIZED",
+                "receipt_backed": True,
+                "effective_approval": "A3",
+            }
+        )
+    if needed in {"A0", "A1"} and not receipt.get("receipt_backed"):
+        return prompt
+    if not receipt.get("allowed"):
+        return public_authorization(
+            {
+                **prompt,
+                "allowed": False,
+                "reason": receipt.get("reason") or f"{needed}_OWNER_GATE",
+                "receipt_backed": True,
+                "needed": needed,
+                "effective_approval": needed,
+            }
+        )
+    return public_authorization(
+        {
+            **prompt,
+            **{key: receipt.get(key) for key in ("approval_id", "approval_sha256", "binding_sha256", "replay", "idempotent") if receipt.get(key) is not None},
+            "allowed": True,
+            "reason": "A2_RECEIPT_AUTHORIZED",
+            "needed": needed if needed == "A2" else prompt.get("needed"),
+            "receipt_backed": True,
+            "effective_approval": "A2",
+        }
+    )
 
 
 def authorize_text(

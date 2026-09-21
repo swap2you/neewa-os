@@ -68,6 +68,22 @@ class OrchestrateTests(unittest.TestCase):
             self.assertEqual(payload["action"], "cursor_call")
             self.assertEqual(payload["selected_worker"], "cursor-agent-cli")
 
+    def test_submit_preserves_unlimited_timeout_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            rec = self.mod.submit(
+                job_id="JOB-TEST-ORCH-TIMEOUT-0",
+                capability="code_implementation",
+                objective="harmless sandbox task",
+                repo=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                prompt="List files. Do not edit files.",
+                timeout_sec=0,
+                inbox_root=root,
+            )
+            self.assertEqual(rec["state"], "DISPATCHED")
+            payload = json.loads((root / "inbox" / "JOB-TEST-ORCH-TIMEOUT-0.json").read_text(encoding="utf-8"))
+            self.assertEqual(payload["timeout_sec"], 0)
+
     def test_harvest_completed_from_done_folder(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

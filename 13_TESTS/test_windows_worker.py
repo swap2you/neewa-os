@@ -48,6 +48,7 @@ class WindowsWorkerTests(unittest.TestCase):
     def test_scripts_exist(self):
         for name in (
             "Install-CuaDriverFromGitHub.ps1",
+            "Install-NeewaWindowsWorker.ps1",
             "Start-CuaDriver.ps1",
             "Start-NeewaWindowsWorker.ps1",
             "Invoke-NeewaWindowsJob.ps1",
@@ -62,6 +63,7 @@ class WindowsWorkerTests(unittest.TestCase):
             "Invoke-NeewaScopedRepair.ps1",
             "Invoke-NeewaGovernedGit.ps1",
             "NeewaPersonalWorkspace.ps1",
+            "Publish-NeewaJobProgress.ps1",
             "Resolve-NeewaResultFolder.ps1",
         ):
             self.assertTrue((WORKER / name).is_file(), name)
@@ -127,6 +129,8 @@ class WindowsWorkerTests(unittest.TestCase):
         self.assertFalse(allow["unrestricted_shell"])
         self.assertFalse(allow["public_listener"])
         self.assertIn("Resolve-NeewaResultFolder", worker)
+        self.assertIn("Write-Poll", worker)
+        self.assertIn("claimed", worker)
         self.assertIn("done", Path(WORKER / "Resolve-NeewaResultFolder.ps1").read_text(encoding="utf-8"))
 
     def test_result_folder_routes_completed_failed_and_blocked(self):
@@ -166,9 +170,15 @@ class WindowsWorkerTests(unittest.TestCase):
     def test_cursor_call_keeps_approved_child_workspace(self):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")
         shared = (WORKER / "NeewaPersonalWorkspace.ps1").read_text(encoding="utf-8")
+        publish = (WORKER / "Publish-NeewaJobProgress.ps1").read_text(encoding="utf-8")
         self.assertIn("NeewaPersonalWorkspace.ps1", src)
+        self.assertIn("Publish-NeewaJobProgress.ps1", src)
+        self.assertIn("Write-ExecutionHeartbeat", src)
         self.assertIn("KidsProjects\\ScienceQuest", src)
         self.assertIn("return $fullRequested", shared)
+        self.assertIn("worker_pid", publish)
+        self.assertIn("progress_at", publish)
+        self.assertIn("ubuntu@neewa-core-01", publish)
 
     def test_cursor_call_rejects_stack_label_expected_path(self):
         src = (WORKER / "Invoke-NeewaCursorCall.ps1").read_text(encoding="utf-8")

@@ -2,19 +2,21 @@
 # User-systemd unit for the unattended NEEWA autonomy + mission supervisor.
 # Copy to ~/.config/systemd/user/ via install_neewa_autonomy_runner.sh.
 # Does not require root. Linger must already be enabled for ubuntu.
+# Paths intentionally track the governed current symlink so deploy_sync can
+# atomically switch releases without rewriting the unit.
 [Unit]
 Description=NEEWA unattended autonomy and mission supervisor
 After=network.target
-ConditionPathExists=/opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy_runner.sh
+ConditionPathExists=/opt/neewa/neewa-os-current/12_SCRIPTS/neewa_autonomy_runner.sh
 
 [Service]
 Type=simple
-Environment=NEEWA_OS_ROOT=/opt/neewa/neewa-os
+Environment=NEEWA_OS_ROOT=/opt/neewa/neewa-os-current
 Environment=NEEWA_WINDOWS_JOB_INBOX=/home/ubuntu/.hermes/sandboxes/docker/default/workspace/windows-jobs
 Environment=PYTHONUTF8=1
 Environment=NEEWA_RUNNER_SYSTEMD=1
-WorkingDirectory=/opt/neewa/neewa-os
-ExecStart=/bin/bash /opt/neewa/neewa-os/12_SCRIPTS/neewa_autonomy_runner.sh
+WorkingDirectory=/opt/neewa/neewa-os-current
+ExecStart=/bin/bash /opt/neewa/neewa-os-current/12_SCRIPTS/neewa_autonomy_runner.sh
 Restart=always
 RestartSec=5
 KillMode=mixed

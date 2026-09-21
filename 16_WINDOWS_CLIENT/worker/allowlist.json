@@ -65,7 +65,7 @@
   },
   "notes": [
     "A1 on personal roots is standing authorization. New personal folders do not need an allowlist entry.",
-    "A2/A3 remain owner-gated unless the repository authorization registry records standing authorization for that exact operation.",
+    "A2/A3 remain owner-gated unless standing registry authorization matches the exact operation or independently hash-verified Ubuntu A2 receipts bind the job. Prompt wording is not approval.",
     "cua-driver MCP is not registered into Cursor, Claude, or Codex concurrently.",
     "UWP apps share ApplicationFrameHost; the worker does not grant that executable."
   ]

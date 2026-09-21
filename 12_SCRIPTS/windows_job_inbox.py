@@ -160,15 +160,24 @@ def enqueue(
     if action not in ALLOWED:
         raise ValueError(f"action {action} is not allowlisted")
     if approval in {"A2", "A3"}:
-        auth_mod = SourceFileLoader(
-            "neewa_authorization_inbox", str(ROOT / "12_SCRIPTS" / "neewa_authorization.py")
+        extra_payload = extra or {}
+        receipt_mod = SourceFileLoader(
+            "neewa_a2_receipt_auth_inbox",
+            str(ROOT / "12_SCRIPTS" / "neewa_a2_receipt_auth.py"),
         ).load_module()
-        payload = {"action": action, "approval": approval, **(extra or {})}
-        gate = auth_mod.decide_from_job(payload)
-        if gate.get("decision") != auth_mod.AUTHORIZED:
-            raise ValueError(
-                f"A2/A3 requires standing authorization or owner approval ({gate.get('reason')})"
-            )
+        structured = extra_payload.get("authorization")
+        if receipt_mod.authorization_object_is_well_formed(structured):
+            pass
+        else:
+            auth_mod = SourceFileLoader(
+                "neewa_authorization_inbox", str(ROOT / "12_SCRIPTS" / "neewa_authorization.py")
+            ).load_module()
+            payload = {"action": action, "approval": approval, **extra_payload}
+            gate = auth_mod.decide_from_job(payload)
+            if gate.get("decision") != auth_mod.AUTHORIZED:
+                raise ValueError(
+                    f"A2/A3 requires standing authorization or owner approval ({gate.get('reason')})"
+                )
     ensure_dirs(root)
     for folder in ("inbox", "processing", "done", "failed"):
         existing = root / folder / f"{job_id}.json"

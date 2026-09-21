@@ -130,6 +130,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/emergency_lockdown.md`
 - `12_SCRIPTS/install_neewa_autonomy_runner.sh`
 - `12_SCRIPTS/morning_brief.py`
+- `12_SCRIPTS/neewa_a2_receipt_auth.py`
 - `12_SCRIPTS/neewa_action_semantics.py`
 - `12_SCRIPTS/neewa_app_health.py`
 - `12_SCRIPTS/neewa_authorization.py`
@@ -156,6 +157,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/ACCEPTANCE_TEST_PLAN.md`
 - `13_TESTS/FAILURE_INJECTION_PLAN.md`
 - `13_TESTS/SECURITY_TEST_PLAN.md`
+- `13_TESTS/test_a2_receipt_auth.py`
 - `13_TESTS/test_bootstrap_deploy_sync.py`
 - `13_TESTS/test_cursor_call.py`
 - `13_TESTS/test_date_tool_acceptance_integration.py`
@@ -223,6 +225,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
 - `16_WINDOWS_CLIENT/worker/cursor-call-policy.json`
 - `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
+- `16_WINDOWS_CLIENT/worker/neewa_a2_receipt_auth.py`
 - `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
 - `16_WINDOWS_CLIENT/worker/workspace-inventory-policy.json`
 - `AI-OPS/company/APPROVAL_MATRIX.md`

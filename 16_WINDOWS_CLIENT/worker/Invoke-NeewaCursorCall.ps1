@@ -111,11 +111,83 @@ function Get-NeewaAuthorizationFallback([string]$text) {
   }
 }
 
-function Get-NeewaAuthorization([string]$text) {
-  $sem = Join-Path $here '..\..\12_SCRIPTS\neewa_action_semantics.py'
+function Find-NeewaPythonModule([string]$Name) {
+  $candidates = @(
+    (Join-Path $here $Name)
+    (Join-Path $here (Join-Path '..\..\12_SCRIPTS' $Name))
+  )
+  foreach ($candidate in $candidates) {
+    if (Test-Path -LiteralPath $candidate) { return (Resolve-Path -LiteralPath $candidate).Path }
+  }
+  return $null
+}
+
+function Get-NeewaPython {
   $py = Get-Command python -ErrorAction SilentlyContinue
   if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
-  if ($py -and (Test-Path -LiteralPath $sem)) {
+  return $py
+}
+
+function Get-NeewaStructuredAuthorization($JobObject, $PromptAuth) {
+  $mod = Find-NeewaPythonModule 'neewa_a2_receipt_auth.py'
+  $py = Get-NeewaPython
+  if (-not $py -or -not $mod) {
+    return [pscustomobject]@{
+      allowed = $false
+      needed = $(if ($PromptAuth) { $PromptAuth.needed } else { 'A2' })
+      reason = 'MISSING_SSH'
+      receipt_backed = $true
+      detail = 'a2 verifier unavailable'
+    }
+  }
+  $tmpJob = Join-Path $env:TEMP ('neewa-a2-job-' + [guid]::NewGuid().ToString() + '.json')
+  $tmpPrompt = Join-Path $env:TEMP ('neewa-a2-prompt-' + [guid]::NewGuid().ToString() + '.json')
+  try {
+    $jobJson = $JobObject | ConvertTo-Json -Depth 16 -Compress
+    [System.IO.File]::WriteAllText($tmpJob, $jobJson, [System.Text.UTF8Encoding]::new($false))
+    if ($PromptAuth) {
+      [System.IO.File]::WriteAllText($tmpPrompt, ($PromptAuth | ConvertTo-Json -Depth 8 -Compress), [System.Text.UTF8Encoding]::new($false))
+    }
+    $cacheDir = $env:NEEWA_A2_AUTH_CACHE
+    if (-not $cacheDir) {
+      $cacheDir = Join-Path $env:LOCALAPPDATA 'NEENEEWA\authorizations'
+    }
+    $argList = @($mod, '--job-file', $tmpJob, '--cache-dir', $cacheDir)
+    if ($PromptAuth) { $argList += @('--prompt-auth-file', $tmpPrompt) }
+    $nativePref = $PSNativeCommandUseErrorActionPreference
+    $PSNativeCommandUseErrorActionPreference = $false
+    try {
+      $out = & $py.Source @argList 2>$null | Out-String
+    } finally {
+      $PSNativeCommandUseErrorActionPreference = $nativePref
+    }
+    if ($out) {
+      return ($out | ConvertFrom-Json)
+    }
+  } catch {
+    return [pscustomobject]@{
+      allowed = $false
+      needed = 'A2'
+      reason = 'MISSING_SSH'
+      receipt_backed = $true
+      detail = $_.Exception.Message
+    }
+  } finally {
+    Remove-Item -LiteralPath $tmpJob -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $tmpPrompt -Force -ErrorAction SilentlyContinue
+  }
+  return [pscustomobject]@{
+    allowed = $false
+    needed = 'A2'
+    reason = 'MISSING_AUTHORIZATION'
+    receipt_backed = $true
+  }
+}
+
+function Get-NeewaAuthorization([string]$text) {
+  $sem = Find-NeewaPythonModule 'neewa_action_semantics.py'
+  $py = Get-NeewaPython
+  if ($py -and $sem) {
     $tmpText = Join-Path $env:TEMP ('neewa-auth-' + [guid]::NewGuid().ToString() + '.txt')
     $tmpFrag = Join-Path $env:TEMP ('neewa-auth-frags-' + [guid]::NewGuid().ToString() + '.json')
     try {
@@ -261,8 +333,18 @@ if (-not $prompt) {
   return $r
 }
 $authorization = Get-NeewaAuthorization $prompt
+$hasReceipt = $false
+if ($Job.PSObject.Properties['authorization'] -and $null -ne $Job.authorization) { $hasReceipt = $true }
+if ($hasReceipt -or [string]$Job.approval -in @('A2', 'A3')) {
+  $authorization = Get-NeewaStructuredAuthorization $Job $authorization
+}
 if (-not [bool]$authorization.allowed) {
-  $r = New-CursorResult 'BLOCKED' 'prompt requests a sensitive or consequential A2/A3 action; owner gate required' $null @{
+  $authReason = [string]$authorization.reason
+  $message = 'prompt requests a sensitive or consequential A2/A3 action; owner gate required'
+  if ($hasReceipt -and $authReason) {
+    $message = "A2 receipt authorization failed: $authReason"
+  }
+  $r = New-CursorResult 'BLOCKED' $message $null @{
     failure_class = 'POLICY'
     authorization = $authorization
   }

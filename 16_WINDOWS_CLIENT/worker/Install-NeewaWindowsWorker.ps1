@@ -20,7 +20,8 @@ $required = @(
   'cursor-call-policy.json',
   'NeewaPersonalWorkspace.ps1',
   'Resolve-NeewaResultFolder.ps1',
-  'allowlist.json'
+  'allowlist.json',
+  'neewa_a2_receipt_auth.py'
 )
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $pwsh = (Get-Command pwsh -ErrorAction SilentlyContinue).Source
@@ -50,9 +51,18 @@ foreach ($name in $required) {
 New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
 $copied = @()
 Get-ChildItem -LiteralPath $SourceDir -File | ForEach-Object {
-  if ($_.Name -match '(?i)\.(ps1|json|yaml|yml)$' -or $_.Name -eq 'README.md') {
+  if ($_.Name -match '(?i)\.(ps1|json|yaml|yml|py)$' -or $_.Name -eq 'README.md') {
     Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $TargetDir $_.Name) -Force
     $copied += $_.Name
+  }
+}
+$scriptRoot = Split-Path -Parent $SourceDir
+$repoScripts = Join-Path (Split-Path -Parent $scriptRoot) '12_SCRIPTS'
+foreach ($name in @('neewa_a2_receipt_auth.py', 'neewa_action_semantics.py')) {
+  $extra = Join-Path $repoScripts $name
+  if (Test-Path -LiteralPath $extra) {
+    Copy-Item -LiteralPath $extra -Destination (Join-Path $TargetDir $name) -Force
+    if ($copied -notcontains $name) { $copied += $name }
   }
 }
 

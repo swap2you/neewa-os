@@ -21,26 +21,77 @@ if ($allowed -notcontains $action) {
 }
 $approval = [string]$job.approval
 if ($approval -in @('A2', 'A3')) {
-  $authMod = Join-Path $here '..\..\12_SCRIPTS\neewa_authorization.py'
+  $gateOk = $false
+  $gate = $null
   $py = Get-Command python -ErrorAction SilentlyContinue
   if (-not $py) { $py = Get-Command python3 -ErrorAction SilentlyContinue }
-  $gateOk = $false
-  if ($py -and (Test-Path -LiteralPath $authMod)) {
+  $hasReceiptAuth = $false
+  if ($job.PSObject.Properties['authorization'] -and $null -ne $job.authorization) { $hasReceiptAuth = $true }
+  $a2Mod = Join-Path $here 'neewa_a2_receipt_auth.py'
+  if (-not (Test-Path -LiteralPath $a2Mod)) {
+    $a2Mod = Join-Path $here '..\..\12_SCRIPTS\neewa_a2_receipt_auth.py'
+  }
+  if ($hasReceiptAuth) {
+    if (-not $py -or -not (Test-Path -LiteralPath $a2Mod)) {
+      return [pscustomobject]@{
+        job_id = $job.job_id
+        status = 'BLOCKED'
+        reason = 'A2 receipt authorization failed: MISSING_SSH'
+        artifact = $null
+      }
+    }
     try {
-      $gateOut = & $py.Source $authMod --job-file $JobPath
+      $cacheDir = $env:NEEWA_A2_AUTH_CACHE
+      if (-not $cacheDir) { $cacheDir = Join-Path $env:LOCALAPPDATA 'NEENEEWA\authorizations' }
+      $nativePref = $PSNativeCommandUseErrorActionPreference
+      $PSNativeCommandUseErrorActionPreference = $false
+      try {
+        $gateOut = & $py.Source $a2Mod --job-file $JobPath --cache-dir $cacheDir | Out-String
+      } finally {
+        $PSNativeCommandUseErrorActionPreference = $nativePref
+      }
       $gate = $gateOut | ConvertFrom-Json
-      if ($gate.decision -eq 'AUTHORIZED') { $gateOk = $true }
+      if ($gate.allowed -eq $true -or $gate.decision -eq 'AUTHORIZED') { $gateOk = $true }
       if (-not $gateOk) {
         return [pscustomobject]@{
           job_id = $job.job_id
           status = 'BLOCKED'
-          reason = "A2/A3 standing authorization missing: $($gate.reason)"
+          reason = "A2 receipt authorization failed: $($gate.reason)"
           artifact = $null
           authorization = $gate
         }
       }
     } catch {
-      $gateOk = $false
+      return [pscustomobject]@{
+        job_id = $job.job_id
+        status = 'BLOCKED'
+        reason = 'A2 receipt authorization failed: MISSING_SSH'
+        artifact = $null
+      }
+    }
+  }
+  if (-not $gateOk) {
+    $authMod = Join-Path $here '..\..\12_SCRIPTS\neewa_authorization.py'
+    if (-not (Test-Path -LiteralPath $authMod)) {
+      $authMod = Join-Path $here 'neewa_authorization.py'
+    }
+    if ($py -and (Test-Path -LiteralPath $authMod)) {
+      try {
+        $gateOut = & $py.Source $authMod --job-file $JobPath
+        $gate = $gateOut | ConvertFrom-Json
+        if ($gate.decision -eq 'AUTHORIZED') { $gateOk = $true }
+        if (-not $gateOk) {
+          return [pscustomobject]@{
+            job_id = $job.job_id
+            status = 'BLOCKED'
+            reason = "A2/A3 standing authorization missing: $($gate.reason)"
+            artifact = $null
+            authorization = $gate
+          }
+        }
+      } catch {
+        $gateOk = $false
+      }
     }
   }
   if (-not $gateOk) {

@@ -1824,5 +1824,22 @@ class OrchestrateUsageTests(unittest.TestCase):
             self.assertEqual(harvested["validation"]["stdout_tail"], "hello")
 
 
+class ListParentJobsTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_list_jobs", str(AUTO)).load_module()
+
+    def test_skips_records_that_are_not_jobs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "JOB-good.json").write_text(
+                json.dumps({"job_id": "JOB-good", "state": "QUEUED"}),
+                encoding="utf-8",
+            )
+            (root / "JOB-list.json").write_text("[]\n", encoding="utf-8")
+            (root / "JOB-empty.json").write_text("{}\n", encoding="utf-8")
+            jobs = self.mod.list_parent_jobs(root)
+            self.assertEqual([job["job_id"] for job in jobs], ["JOB-good"])
+
+
 if __name__ == "__main__":
     unittest.main()

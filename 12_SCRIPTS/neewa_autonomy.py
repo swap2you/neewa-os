@@ -1842,6 +1842,8 @@ def list_parent_jobs(root: Path | None = None) -> list[dict]:
     jobs = []
     for path in sorted(autonomy_root(root).glob("JOB-*.json")):
         row = load_json(path)
+        if not isinstance(row, dict) or "job_id" not in row:
+            continue
         row["_path"] = str(path)
         jobs.append(row)
     return jobs

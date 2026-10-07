@@ -2015,21 +2015,26 @@ def _submit_codex_review(job: dict, prompt: str, *, inbox_root: Path | None, orc
     seq = len(job.get("child_jobs") or []) + 1
     child_id = f"{job['job_id']}-RV{seq:02d}"
     identity = job.get("project_identity") or {}
-    record = orch_submit(
-        job_id=child_id,
-        capability="independent_review",
-        objective=job.get("parent_objective") or "",
-        repo=identity.get("project_path") or job.get("workspace"),
-        prompt=prompt,
-        write=False,
-        timeout_sec=effective_timeout_sec(job),
-        project_id=job.get("project_id"),
-        approval="A0",
-        inbox_root=inbox_root,
-        execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
-        implementation_model=model,
-        review_effort=effort,
-    )
+    try:
+        record = orch_submit(
+            job_id=child_id,
+            capability="independent_review",
+            objective=job.get("parent_objective") or "",
+            repo=identity.get("project_path") or job.get("workspace"),
+            prompt=prompt,
+            write=False,
+            timeout_sec=effective_timeout_sec(job),
+            project_id=job.get("project_id"),
+            approval="A0",
+            inbox_root=inbox_root,
+            execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
+            implementation_model=model,
+            review_effort=effort,
+        )
+    except ValueError as exc:
+        if "duplicate job_id" not in str(exc):
+            raise
+        record = {"job_id": child_id, "state": "QUEUED", "adopted_duplicate": True}
     if str(record.get("state") or "").upper() == "BLOCKED":
         return record
     job.setdefault("child_jobs", []).append(

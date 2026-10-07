@@ -121,6 +121,7 @@ ALLOWED = {
     "portfolio_inventory",
     "workspace_inventory",
     "cursor_call",
+    "codex_review",
     "repo_preflight",
     "create_scoped_repair_workspace",
     "review_scoped_repair_patch",

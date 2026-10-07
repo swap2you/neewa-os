@@ -362,20 +362,22 @@ def submit(
     existing_record = load_record(job_id, inbox_root)
     if existing_record and existing_record.get("state") in TERMINAL:
         return existing_record
+    # A QUEUED record with no inbox or processing file never reached the worker.
+    # Reuse that id so a crashed dispatch is not a second writer.
     if existing_record and existing_record.get("state") not in TERMINAL:
-        raise ValueError(f"duplicate job_id {job_id} is already {existing_record.get('state')}")
-
-    record = create_record(
-        job_id=job_id,
-        objective=objective,
-        capability=capability,
-        approval=approval,
-        project_id=(project or {}).get("id") or project_id,
-        workspace=repo or (project or {}).get("workspace_path"),
-        selected_worker=choice["worker"],
-        action=action,
-        inbox_root=inbox_root,
-    )
+        record = existing_record
+    else:
+        record = create_record(
+            job_id=job_id,
+            objective=objective,
+            capability=capability,
+            approval=approval,
+            project_id=(project or {}).get("id") or project_id,
+            workspace=repo or (project or {}).get("workspace_path"),
+            selected_worker=choice["worker"],
+            action=action,
+            inbox_root=inbox_root,
+        )
     extra = {
         "objective": objective,
         "required_capability": capability,

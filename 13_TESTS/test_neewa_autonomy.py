@@ -1841,5 +1841,102 @@ class ListParentJobsTests(unittest.TestCase):
             self.assertEqual([job["job_id"] for job in jobs], ["JOB-good"])
 
 
+class ChakraOpsContinuationTests(unittest.TestCase):
+    def setUp(self):
+        self.mod = SourceFileLoader("neewa_autonomy_chakra", str(AUTO)).load_module()
+
+    def test_existing_chakraops_design_is_not_a_new_python_cli(self):
+        objective = (
+            "Fix freshness labeling in the existing ChakraOps application. "
+            "Do not create a new package."
+        )
+        workspace = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        reqs = self.mod.build_requirements(
+            objective, workspace=workspace, project_id="PRJ-CHAKRAOPS"
+        )
+        design = self.mod.initial_design(reqs, objective)
+        self.assertFalse(design.get("create_new_package"))
+        self.assertEqual(design.get("project_lifecycle"), "modify_existing")
+        self.assertNotIn("chakraops.py", design.get("components") or [])
+        self.assertNotIn("test_chakraops.py", design.get("components") or [])
+
+    def test_modify_existing_refuses_generic_root_python_before_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                "Update the existing application.",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps",
+                project_id="PRJ-CHAKRAOPS",
+                root=root,
+            )
+            job["project_lifecycle"] = "modify_existing"
+            job["state"] = "EXECUTING"
+            calls = []
+
+            def submit(**kwargs):
+                calls.append(kwargs)
+                return {"state": "QUEUED", "job_id": kwargs["job_id"]}
+
+            result = self.mod._submit_cursor(
+                job,
+                "prompt",
+                ["chakraops.py", "test_chakraops.py"],
+                inbox_root=Path(tmp) / "inbox",
+                orch_submit=submit,
+            )
+            self.assertEqual(result.get("failure_class"), "CONFIG_DEFECT")
+            self.assertEqual(calls, [])
+
+    def test_timeout_receipt_continues_without_a_second_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root)
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["active_child_id"] = "JOB-STAGE-CC01"
+            job["child_jobs"] = [{"job_id": "JOB-STAGE-CC01", "at": "2026-10-07T18:00:00Z", "state": "RUNNING"}]
+            self.mod.save_job(job)
+            continued = self.mod.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {
+                    "state": "CANCELLED",
+                    "failure_class": "TIMEOUT",
+                    "failure_reason": "cursor_call timed out after 600s and was cancelled",
+                    "stage_checkpoint": {"writer_stopped": True, "continuation": "receipt"},
+                },
+            )
+            self.assertEqual(continued["state"], "EXECUTING")
+            self.assertIsNone(continued.get("active_child_id"))
+            self.assertEqual(continued.get("stage_continuations"), 1)
+            self.assertEqual(continued["checkpoints"][-1]["name"], "stage_timeout")
+            self.assertFalse(continued["checkpoints"][-1]["payload"]["duplicate_writer"])
+            self.assertEqual(continued["timeout_sec"], 600)
+
+    def test_running_child_past_timeout_does_not_dispatch_another_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root)
+            job["state"] = "EXECUTING"
+            job["workflow"] = "sdlc"
+            job["timeout_sec"] = 600
+            job["active_child_id"] = "JOB-LIVE-CC01"
+            job["child_jobs"] = [{"job_id": "JOB-LIVE-CC01", "at": "2020-01-01T00:00:00Z"}]
+            self.mod.save_job(job)
+            finished = self.mod.reconcile_parent_job(
+                job, orch_harvest=lambda *a, **k: {"state": "RUNNING"}
+            )
+            self.assertEqual(finished["state"], "FAILED")
+            self.assertEqual(finished["failure_reason"], "CHILD_TIMEOUT")
+            self.assertIsNone(finished.get("active_child_id"))
+
+    def test_parent_records_the_implementation_model(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=Path(tmp) / "jobs")
+            self.assertEqual(job["implementation_model"], "grok-4.7-high")
+            self.assertEqual(job["review_model"], "gpt-6-astra")
+            self.assertEqual(job["review_effort"], "high")
+            self.assertEqual(job["timeout_sec"], 600)
+
+
 if __name__ == "__main__":
     unittest.main()

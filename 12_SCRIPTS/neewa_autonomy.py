@@ -425,6 +425,10 @@ def create_parent_job(
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "lease": None,
         "timeout_sec": 600,
+        "implementation_model": "grok-4.7-high",
+        "review_model": "gpt-6-astra",
+        "review_effort": "high",
+        "stage_continuations": 0,
         "dependencies": [],
         "artifacts": [],
         "expected_paths": [],
@@ -538,6 +542,8 @@ def invocation_cost(inv: dict) -> tuple[float | None, str]:
     if inv.get("cost_usd") is not None:
         return float(inv["cost_usd"]), "measured"
     worker = str(inv.get("worker") or "")
+    if worker == "codex":
+        return 0.0, "chatgpt-signin"
     if worker in {"cursor-agent-cli", "local-implementer"}:
         est = conservative_cursor_estimate()
         if est is None:
@@ -637,6 +643,58 @@ def effective_timeout_sec(job: dict, default: int = 600) -> int:
     if "timeout_sec" in job and job.get("timeout_sec") is not None:
         return int(job["timeout_sec"])
     return int(default)
+
+
+MAX_STAGE_CONTINUATIONS = 3
+
+
+def _timeout_reason(record: dict | None) -> str:
+    payload = record or {}
+    return str(payload.get("failure_reason") or payload.get("reason") or "")
+
+
+def is_stage_timeout(record: dict | None) -> bool:
+    payload = record or {}
+    kind = str(payload.get("failure_class") or "")
+    reason = _timeout_reason(payload).lower()
+    return kind in {"TIMEOUT", "CHILD_TIMEOUT"} or "timed out" in reason
+
+
+def stage_timeout_can_continue(job: dict, record: dict | None) -> bool:
+    """A finished timed-out child may continue. A still-running child must not."""
+    if not is_stage_timeout(record):
+        return False
+    if str((record or {}).get("state") or "").upper() not in {"CANCELLED", "FAILED"}:
+        return False
+    return int(job.get("stage_continuations") or 0) < MAX_STAGE_CONTINUATIONS
+
+
+def note_stage_timeout(job: dict, record: dict | None) -> dict:
+    """Reconcile the timed-out receipt and stay on this parent. Do not start a second writer."""
+    payload = record or {}
+    job["stage_continuations"] = int(job.get("stage_continuations") or 0) + 1
+    checkpoint(
+        job,
+        "stage_timeout",
+        {
+            "child_id": job.get("active_child_id"),
+            "timeout_sec": effective_timeout_sec(job),
+            "failure_class": payload.get("failure_class") or "TIMEOUT",
+            "stage_checkpoint": payload.get("stage_checkpoint"),
+            "continuation": job["stage_continuations"],
+            "duplicate_writer": False,
+        },
+    )
+    job["active_child_id"] = None
+    job["failure_reason"] = None
+    job["continuation_note"] = (
+        f"Stage hit the {effective_timeout_sec(job)}s executor cap. "
+        f"Continuation {job['stage_continuations']} of {MAX_STAGE_CONTINUATIONS}. "
+        "Resume from the checkpoint. Do not restart finished files and do not open a second writer."
+    )
+    release_open_reservation(job)
+    save_job(job)
+    return job
 
 
 def child_is_stale(job: dict) -> bool:
@@ -1048,6 +1106,8 @@ def build_requirements(
         "out_of_scope": ["public deployment", "live trading", "employer data", "Home voice work"],
         "requirements": unique,
         "created_at": utc_now(),
+        "project_id": project_id,
+        "workspace": workspace,
         "source_class": "DERIVED_FROM_OBJECTIVE",
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "project_identity": IDENTITY.public_identity(identity),
@@ -1099,7 +1159,15 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
         stack in {"", "unknown", "python-stdlib", "python"}
         or "cursor-sandbox" in objective.lower()
     )
-    existing_repo = (stack.startswith("node") or stack.startswith("mixed")) and not sandboxish
+    workspace_l = str(requirements.get("workspace") or "").replace("/", "\\").lower()
+    registered_app = (
+        str(requirements.get("project_id") or "") == "PRJ-CHAKRAOPS"
+        or workspace_l.endswith("\\chakraops")
+    )
+    existing_repo = (
+        (stack.startswith("node") or stack.startswith("mixed") or registered_app)
+        and not sandboxish
+    )
     if existing_repo:
         components = PLANNING.constrain_expected_paths(mentioned)
         return {
@@ -1470,6 +1538,8 @@ def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
     files = "\n".join(f"- {p}" for p in expected_paths_from_design(design))
     test_cmd = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
     identity_block = _canonical_identity_block(job, requirements, design)
+    continuation = str(job.get("continuation_note") or "").strip()
+    continuation_block = f"\nCONTINUATION:\n{continuation}\n" if continuation else ""
     if design.get("create_new_package") is False:
         return f"""Implement this approved NEEWA work package in the EXISTING repository. Do not change the objective.
 
@@ -1499,7 +1569,7 @@ Rules:
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
 {WORKER_SAFETY_RULE}
 - Do not claim files exist unless you changed or verified them.
-"""
+{continuation_block}"""
     return f"""Implement this approved NEEWA work package. Do not change the objective.
 
 {identity_block}
@@ -1885,6 +1955,16 @@ def _submit_cursor(
     if not reservation.get("allows"):
         return {"state": "BLOCKED", "failure_reason": reservation["reason"], "budget": reservation}
     expected_paths = PLANNING.constrain_expected_paths(expected_paths)
+    lifecycle = job.get("project_lifecycle") or (job.get("project_identity") or {}).get("lifecycle")
+    generic = PLANNING.generic_package_paths(expected_paths) if lifecycle == "modify_existing" else []
+    if generic:
+        settle_reservation(job, reservation.get("this_reservation"))
+        save_job(job)
+        return {
+            "state": "FAILED",
+            "failure_class": "CONFIG_DEFECT",
+            "failure_reason": "generic package paths refused for existing application: " + ", ".join(generic),
+        }
     job["expected_paths"] = expected_paths
     seq = len(job.get("child_jobs") or []) + 1
     child_id = f"{job['job_id']}-CC{seq:02d}"
@@ -1914,6 +1994,7 @@ def _submit_cursor(
             implementation_child_id=last.get("job_id"),
             implementation_repo=impl_repo,
             test_command=test_command,
+            implementation_model=job.get("implementation_model") or "grok-4.7-high",
         )
     except ValueError as exc:
         settle_reservation(job, reservation.get("this_reservation"))
@@ -1923,6 +2004,45 @@ def _submit_cursor(
         {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
     )
     job["active_child_id"] = child_id
+    save_job(job)
+    return record
+
+
+def _submit_codex_review(job: dict, prompt: str, *, inbox_root: Path | None, orch_submit) -> dict:
+    """Read-only ChatGPT Codex review. No OpenAI API-key fallback."""
+    model = job.get("review_model") or "gpt-6-astra"
+    effort = job.get("review_effort") or "high"
+    seq = len(job.get("child_jobs") or []) + 1
+    child_id = f"{job['job_id']}-RV{seq:02d}"
+    identity = job.get("project_identity") or {}
+    record = orch_submit(
+        job_id=child_id,
+        capability="independent_review",
+        objective=job.get("parent_objective") or "",
+        repo=identity.get("project_path") or job.get("workspace"),
+        prompt=prompt,
+        write=False,
+        timeout_sec=effective_timeout_sec(job),
+        project_id=job.get("project_id"),
+        approval="A0",
+        inbox_root=inbox_root,
+        execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
+        implementation_model=model,
+        review_effort=effort,
+    )
+    if str(record.get("state") or "").upper() == "BLOCKED":
+        return record
+    job.setdefault("child_jobs", []).append(
+        {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
+    )
+    job["active_child_id"] = child_id
+    job["review_route"] = {
+        "worker": "codex",
+        "model": model,
+        "effort": effort,
+        "authentication": "ChatGPT",
+        "api_key_fallback": False,
+    }
     save_job(job)
     return record
 
@@ -2154,6 +2274,9 @@ def reconcile_parent_job(
         if _is_blocked_child(record):
             return apply_blocked_child(job, record)
         if record and str(record.get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+            if stage_timeout_can_continue(job, record):
+                job.pop("_harvested_child", None)
+                return note_stage_timeout(job, record)
             return apply_failed_child(job, record)
         if child_is_stale(job) and not _child_terminal(record):
             job["failure_reason"] = "CHILD_TIMEOUT"
@@ -2247,6 +2370,12 @@ def advance_job(
             return job
 
     if job["state"] == "REQUIREMENTS":
+        if not job.get("project_id"):
+            bound = PLANNING.project_id_for_workspace(job.get("workspace"))
+            if bound:
+                job["project_id"] = bound
+        if job.get("project_id") == "PRJ-CHAKRAOPS":
+            job["project_lifecycle"] = "modify_existing"
         req_path = workdir / "requirements.json"
         if not req_path.is_file():
             requirements = build_requirements(
@@ -2327,8 +2456,11 @@ def advance_job(
             design = load_json(workdir / "design-v1.json")
         if (
             job.get("workflow") == "sdlc"
-            and design.get("create_new_package") is False
             and not job.get("windows_preflight")
+            and (
+                design.get("create_new_package") is False
+                or job.get("project_lifecycle") == "modify_existing"
+            )
         ):
             transition(job, "PREFLIGHT", "windows repository identity")
             return job
@@ -2462,6 +2594,8 @@ def advance_job(
             if _is_blocked_child(record):
                 return apply_blocked_child(job, record)
             if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+                if stage_timeout_can_continue(job, record):
+                    return note_stage_timeout(job, record)
                 return apply_failed_child(job, record)
             record_usage(
                 job,
@@ -2514,6 +2648,8 @@ def advance_job(
             write=True,
             test_command=design.get("test_command") or requirements.get("test_command"),
         )
+        if submitted.get("failure_class") == "CONFIG_DEFECT":
+            return fail_config_defect(job, submitted.get("failure_reason") or "CONFIG_DEFECT")
         if submitted.get("state") == "BLOCKED":
             job["failure_reason"] = submitted.get("failure_reason")
             transition(job, "BLOCKED", job["failure_reason"])
@@ -2601,17 +2737,13 @@ def advance_job(
                     finalize_budget(job)
                     transition(job, "FAILED", job["failure_reason"])
                     return job
-                if budget_allows(job, job.get("assigned_worker") or "cursor-agent-cli"):
+                if budget_allows(job, "codex"):
                     prompt = build_validation_prompt(job, requirements, design)
-                    submitted = _submit_cursor(
+                    submitted = _submit_codex_review(
                         job,
                         prompt,
-                        job.get("expected_paths") or expected_paths_from_design(design),
                         inbox_root=inbox_root,
                         orch_submit=orch_submit,
-                        execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
-                        write=False,
-                        test_command=design.get("test_command") or requirements.get("test_command") or "python -m unittest",
                     )
                     if submitted.get("state") == "BLOCKED":
                         job["validation"]["independent_rerun"] = "UNVERIFIED"

@@ -48,6 +48,12 @@ CAPABILITY_ROUTE = {
         "approval": "A1",
         "write": False,
     },
+    "independent_review": {
+        "worker": "codex",
+        "action": "codex_review",
+        "approval": "A0",
+        "write": False,
+    },
     "project_inventory": {
         "worker": "neewa-windows-worker",
         "action": "workspace_inventory",
@@ -307,6 +313,8 @@ def submit(
     implementation_child_id: str | None = None,
     implementation_repo: str | None = None,
     test_command: str | None = None,
+    implementation_model: str | None = None,
+    review_effort: str | None = None,
     files: list[str] | None = None,
     expected_base_sha: str | None = None,
     repository_id: str | None = None,
@@ -402,6 +410,11 @@ def submit(
         extra["implementation_repo"] = implementation_repo
     if test_command:
         extra["test_command"] = test_command
+    if implementation_model:
+        extra["implementation_model"] = implementation_model
+        extra["model"] = implementation_model
+    if review_effort:
+        extra["effort"] = review_effort
     if files:
         extra["files"] = files
     if expected_base_sha:
@@ -455,6 +468,10 @@ def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
                         "bootstrap",
                         "repo",
                         "execution_phase",
+                        "implementation_model",
+                        "model",
+                        "effort",
+                        "stage_checkpoint",
                         "independent_test",
                         "test_results",
                         "cursor_started",

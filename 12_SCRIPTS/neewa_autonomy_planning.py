@@ -84,6 +84,28 @@ def malformed_expected_paths(paths: list[str] | None) -> list[str]:
     return [p for p in (paths or []) if p and not is_repo_relative_file(p)]
 
 
+def generic_package_paths(paths: list[str] | None) -> list[str]:
+    """Root-level Python files invented for a new CLI. Existing apps do not use these."""
+    bad = []
+    for raw in paths or []:
+        norm = normalize_rel_path(str(raw))
+        if not norm or "/" in norm:
+            continue
+        if norm.lower().endswith(".py"):
+            bad.append(norm)
+    return bad
+
+
+def project_id_for_workspace(workspace: str | None) -> str | None:
+    wanted = _norm_win(workspace)
+    if not wanted:
+        return None
+    for row in _load(PROJECTS).get("projects") or []:
+        if _norm_win(row.get("workspace_path")) == wanted and row.get("id"):
+            return str(row["id"])
+    return None
+
+
 def constrain_expected_paths(paths: list[str] | None, workspace: str | None = None) -> list[str]:
     """Keep only normalized repo-relative files. Do not derive files from stack labels."""
     del workspace  # containment is enforced on the Windows worker against the approved repo

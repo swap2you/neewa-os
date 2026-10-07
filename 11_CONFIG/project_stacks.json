@@ -27,6 +27,16 @@
       "test_command": null,
       "access_stage": "ACCESS_APPROVED"
     },
+    "PRJ-CHAKRAOPS": {
+      "workspace_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
+      "stack": "mixed",
+      "stack_label": "FastAPI/React/Vite",
+      "test_command": "backend\\.venv\\Scripts\\python.exe -m pytest tests/test_orats_freshness_r222.py -q --tb=line",
+      "markers": ["backend/requirements.txt", "frontend/package.json", "chakra.ps1", "docs/NEEWA.md"],
+      "lifecycle": "modify_existing",
+      "access_stage": "CONNECTED",
+      "notes": "Existing application. Do not generate a root Python CLI package."
+    },
     "PRJ-AAROHAN": {
       "workspace_path": "C:\\Development\\Workspace\\aarohan-careeros",
       "stack": "mixed",

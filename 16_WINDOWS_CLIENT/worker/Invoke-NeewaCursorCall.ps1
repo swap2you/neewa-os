@@ -306,6 +306,7 @@ function New-CursorResult($status, $reason, $artifact, $extra) {
   }
   if ($authorization) { $obj['authorization'] = $authorization }
   if ($extra) { foreach ($k in $extra.Keys) { $obj[$k] = $extra[$k] } }
+  if ($script:SelectedModel) { $obj['implementation_model'] = $script:SelectedModel }
   if ($phase) { $obj['execution_phase'] = $phase }
   if ($bootstrap) {
     $obj['project_lifecycle'] = $lifecycle
@@ -500,6 +501,17 @@ if ($write) {
   $argList += '--mode'
   $argList += 'ask'
 }
+$model = ''
+if ($Job.PSObject.Properties['implementation_model'] -and $Job.implementation_model) {
+  $model = [string]$Job.implementation_model
+} elseif ($Job.PSObject.Properties['model'] -and $Job.model) {
+  $model = [string]$Job.model
+}
+$script:SelectedModel = $model
+if ($model) {
+  $argList += '--model'
+  $argList += $model
+}
 $argList += $prompt
 [System.IO.File]::WriteAllText($argsPath, (($argList | ForEach-Object { $_ }) -join "`n"), [System.Text.UTF8Encoding]::new($false))
 
@@ -585,6 +597,19 @@ if ($DryRun) {
 }
 if (-not $exited) {
   Stop-ProcessTree -ProcessId $proc.Id
+  $checkpoint = $null
+  if ($gitAvail) {
+    $porcelain = (& git -C $repo status --porcelain 2>$null | Select-Object -First 20) -join "`n"
+    $checkpoint = [ordered]@{
+      timeout_sec = $timeoutSec
+      implementation_model = $script:SelectedModel
+      git_status = $porcelain
+      continuation = 'receipt'
+      writer_stopped = $true
+    }
+    $checkpointPath = Join-Path $JobsDir "$jobId-stage-checkpoint.json"
+    [System.IO.File]::WriteAllText($checkpointPath, ($checkpoint | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
+  }
   $r = New-CursorResult 'CANCELLED' "cursor_call timed out after ${timeoutSec}s and was cancelled" $null @{
     cli = $cli
     repo = $repo
@@ -592,6 +617,7 @@ if (-not $exited) {
     cancelled = $true
     failure_class = 'TIMEOUT'
     timeout_sec = $timeoutSec
+    stage_checkpoint = $checkpoint
     unlimited_timeout = $false
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))

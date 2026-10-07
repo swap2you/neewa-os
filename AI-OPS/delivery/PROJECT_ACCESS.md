@@ -15,8 +15,7 @@ A registry row is not proof the project is fully integrated.
 | --- | --- | --- | --- |
 | PRJ-NEEWA | NEEWA OS | CONNECTED | yes |
 | PRJ-AAROHAN | Aarohan CareerOS | ACCESS_APPROVED | yes |
-| PRJ-CHAKRAOPS | ChakraOps | ACCESS_APPROVED | yes |
-| PRJ-CHAKRAOPS-DEV | ChakraOps-dev | ACCESS_APPROVED | yes |
+| PRJ-CHAKRAOPS | ChakraOps | CONNECTED | yes |
 | PRJ-DEVOTIONAL | DevotionalRepo | ACCESS_APPROVED | yes |
 | PRJ-KIDS | KidsProjects | ACCESS_APPROVED | yes |
 | PRJ-MANAN | Manan | ACCESS_APPROVED | yes |

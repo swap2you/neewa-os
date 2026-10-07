@@ -72,8 +72,6 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `07_SETUP/21_COMMAND_CENTER.md`
 - `08_PROJECTS/AAROHAN/PROJECT.md`
 - `08_PROJECTS/BHAVA/PROJECT.md`
-- `08_PROJECTS/CHAKRAOPS/PROJECT.md`
-- `08_PROJECTS/CHAKRAOPS_DEV/PROJECT.md`
 - `08_PROJECTS/DEVOTIONAL/PROJECT.md`
 - `08_PROJECTS/KIDS/PROJECT.md`
 - `08_PROJECTS/MANAN/PROJECT.md`
@@ -205,6 +203,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/hermes-desktop-patches/electron/neewa-mission-ipc.ts`
 - `16_WINDOWS_CLIENT/worker/Install-CuaDriverFromGitHub.ps1`
 - `16_WINDOWS_CLIENT/worker/Install-NeewaWindowsWorker.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaCodexReview.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaGovernedGit.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaRepoPreflight.ps1`

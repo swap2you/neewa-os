@@ -71,10 +71,10 @@
       "executable": "C:\\nvm4w\\nodejs\\codex.ps1",
       "version": "0.154.0",
       "auth": "ChatGPT logged in",
-      "noninteractive": "codex exec --skip-git-repo-check <prompt>",
-      "evidence": "codex exec pong smoke exit 0 (gpt-5.6-terra, 7574 tokens)",
-      "routable": false,
-      "notes": "CLI ready. Not NEEWA-routable until a governed windows-worker action exists (today only cursor_call)."
+      "noninteractive": "codex exec --skip-git-repo-check -s read-only -m gpt-6-astra -c model_reasoning_effort=high",
+      "evidence": "2026-10-07 worker identity: codex login status ChatGPT; gpt-6.1-sol rejected for this ChatGPT account; gpt-6-astra high effort returned pong with OPENAI_API_KEY removed from the child",
+      "routable": true,
+      "notes": "Governed action codex_review on the Windows worker. Read-only. No OPENAI_API_KEY fallback."
     },
     {
       "id": "claude-code",

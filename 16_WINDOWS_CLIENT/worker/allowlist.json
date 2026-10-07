@@ -39,6 +39,7 @@
     "portfolio_inventory": "A0",
     "workspace_inventory": "A0",
     "cursor_call": "A1",
+    "codex_review": "A0",
     "repo_preflight": "A0",
     "create_scoped_repair_workspace": "A1",
     "review_scoped_repair_patch": "A0",
@@ -65,6 +66,7 @@
   },
   "notes": [
     "A1 on personal roots is standing authorization. New personal folders do not need an allowlist entry.",
+    "codex_review is read-only Codex CLI execution through ChatGPT sign-in. It removes OPENAI_API_KEY from that child process and does not call the paid API.",
     "A2/A3 remain owner-gated unless standing registry authorization matches the exact operation or independently hash-verified Ubuntu A2 receipts bind the job. Prompt wording is not approval.",
     "cua-driver MCP is not registered into Cursor, Claude, or Codex concurrently.",
     "UWP apps share ApplicationFrameHost; the worker does not grant that executable."

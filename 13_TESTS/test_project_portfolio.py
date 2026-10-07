@@ -65,7 +65,11 @@ class ProjectPortfolioTests(unittest.TestCase):
 
     def test_charters_exist_for_registry_paths(self):
         for row in self.projects:
-            self.assertTrue((ROOT / row["path"] / "PROJECT.md").is_file(), row["id"])
+            if row.get("path"):
+                self.assertTrue((ROOT / row["path"] / "PROJECT.md").is_file(), row["id"])
+            else:
+                self.assertTrue(row.get("workspace_path"), row["id"])
+                self.assertTrue(row.get("documentation"), row["id"])
 
 
 if __name__ == "__main__":

@@ -6,7 +6,8 @@
   "notes": [
     "11_CONFIG/projects.json remains the canonical NEEWA project registry.",
     "path is the in-repo 08_PROJECTS charter used by repository validation.",
-    "workspace_path is the inventoried personal tree under C:\\Development\\Workspace, if any.",
+    "workspace_path is the checkout NEEWA may open. It may live outside C:\\Development\\Workspace.",
+    "When path is null, documentation names the operating contract inside workspace_path. Do not copy that tree into 08_PROJECTS.",
     "Denied employer/client/trading workspace folders are recorded in skipped and are not projects.",
     "Unregistered personal folders under the workspace root are in-scope without a registry row."
   ],
@@ -80,26 +81,14 @@
       "id": "PRJ-CHAKRAOPS",
       "name": "ChakraOps",
       "priority": "P2",
-      "path": "08_PROJECTS/CHAKRAOPS",
-      "status": "defined",
+      "path": null,
+      "documentation": "docs/NEEWA.md",
+      "status": "active",
       "kind": "inventoried_personal",
       "workspace_name": "ChakraOps",
-      "workspace_path": "C:\\Development\\Workspace\\ChakraOps",
+      "workspace_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
       "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS",
-      "access_stage": "ACCESS_APPROVED",
-      "a1_development": true
-    },
-    {
-      "id": "PRJ-CHAKRAOPS-DEV",
-      "name": "ChakraOps-dev",
-      "priority": "P2",
-      "path": "08_PROJECTS/CHAKRAOPS_DEV",
-      "status": "defined",
-      "kind": "inventoried_personal",
-      "workspace_name": "ChakraOps-dev",
-      "workspace_path": "C:\\Development\\Workspace\\ChakraOps-dev",
-      "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS-DEV",
-      "access_stage": "ACCESS_APPROVED",
+      "access_stage": "CONNECTED",
       "a1_development": true
     },
     {

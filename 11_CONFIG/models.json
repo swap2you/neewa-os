@@ -102,9 +102,9 @@
     {
       "id": "openai-codex",
       "provider": "openai-codex",
-      "model": "oauth-selected",
-      "authentication": "OAuth pending",
-      "availability": "not-authenticated",
+      "model": "gpt-6-astra",
+      "authentication": "ChatGPT sign-in",
+      "availability": "verified",
       "cost_class": "existing-subscription",
       "privacy_class": "cloud",
       "quality_class": "premium",

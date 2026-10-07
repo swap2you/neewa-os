@@ -3,7 +3,7 @@
   "notes": "Reusable domain modes. Not separate NEEWA installations.",
   "workflows": {
     "software_saas": {
-      "projects": ["PRJ-AAROHAN", "PRJ-CHAKRAOPS", "PRJ-CHAKRAOPS-DEV", "PRJ-NEEWA", "PRJ-ZUME"],
+      "projects": ["PRJ-AAROHAN", "PRJ-CHAKRAOPS", "PRJ-NEEWA", "PRJ-ZUME"],
       "lifecycle": "sdlc",
       "gates": ["requirements", "council", "tests", "traceability", "owner_review"]
     },

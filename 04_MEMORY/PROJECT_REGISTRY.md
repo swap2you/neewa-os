@@ -10,8 +10,7 @@ Isolated agent context: `evidence/PROJECT_PORTFOLIO/<id>/` — one ID per sessio
 | Aarohan CareerOS | PRJ-AAROHAN | P1 | `C:\Development\Workspace\aarohan-careeros` | career/services pipeline |
 | Revenue Research | PRJ-REVENUE | P1 | none inventoried | monetization research charter |
 | Bhava | PRJ-BHAVA | P2 | none (charter only) | devotional product charter; not DevotionalRepo |
-| ChakraOps | PRJ-CHAKRAOPS | P2 | `C:\Development\Workspace\ChakraOps` | trading research; no live capital |
-| ChakraOps-dev | PRJ-CHAKRAOPS-DEV | P2 | `C:\Development\Workspace\ChakraOps-dev` | isolated non-git working copy |
+| ChakraOps | PRJ-CHAKRAOPS | P2 | `C:\Users\swap2\NEEWA-Personal\projects\ChakraOps` | manual trading research; no live capital; contract is `docs/NEEWA.md` in that checkout |
 | DevotionalRepo | PRJ-DEVOTIONAL | P2 | `C:\Development\Workspace\DevotionalRepo` | on-disk devotional/family workspace |
 | KidsProjects | PRJ-KIDS | P2 | `C:\Development\Workspace\KidsProjects` | kids/education workspace |
 | Manan | PRJ-MANAN | P2 | `C:\Development\Workspace\manan` | private Swadhyay workspace |
@@ -20,7 +19,7 @@ Isolated agent context: `evidence/PROJECT_PORTFOLIO/<id>/` — one ID per sessio
 
 Skipped (not projects): denied employer/fintech/trading trees and unclassified `Udemy-Yutube-repos`. See `11_CONFIG/projects.json` `skipped`.
 
-Each inventoried project has `PROJECT.md` under `08_PROJECTS/` plus `evidence/PROJECT_PORTFOLIO/<id>/record.json` and `CONTEXT.md`.
+Each in-repo project has `PROJECT.md` under `08_PROJECTS/` plus `evidence/PROJECT_PORTFOLIO/<id>/record.json` and `CONTEXT.md`. ChakraOps has no `08_PROJECTS` tree; its contract is `docs/NEEWA.md` in the canonical checkout.
 
 ## Connection honesty (2026-09-17)
 

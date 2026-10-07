@@ -188,8 +188,18 @@ def validate_repository(root: Path = ROOT, require_manifest: bool = True) -> dic
     ids = [item.get("id") for item in projects]
     checks.append(check("projects:unique_ids", len(ids) == len(set(ids)) and len(ids) >= 6, f"{len(ids)} projects"))
     for project in projects:
-        path = root / str(project.get("path", "")) / "PROJECT.md"
-        checks.append(check(f"project:{project.get('id')}", path.is_file(), path.relative_to(root).as_posix()))
+        path_value = project.get("path")
+        if path_value:
+            path = root / str(path_value) / "PROJECT.md"
+            checks.append(check(f"project:{project.get('id')}", path.is_file(), path.relative_to(root).as_posix()))
+        else:
+            workspace = str(project.get("workspace_path") or "")
+            doc = str(project.get("documentation") or "")
+            checks.append(check(
+                f"project:{project.get('id')}",
+                bool(workspace and doc),
+                f"{workspace} {doc}".strip(),
+            ))
 
     providers = loaded.get("providers.json", {}).get("providers", [])
     resources = loaded.get("resources.json", {}).get("resources", [])

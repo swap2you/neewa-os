@@ -2,36 +2,34 @@
   "schema_version": 1,
   "id": "PRJ-CHAKRAOPS",
   "name": "ChakraOps",
-  "local_path": "C:\\Development\\Workspace\\ChakraOps",
+  "local_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
   "workspace_name": "ChakraOps",
-  "registry_path": "08_PROJECTS/CHAKRAOPS",
+  "registry_path": null,
+  "documentation": "docs/NEEWA.md",
   "evidence_path": "evidence/PROJECT_PORTFOLIO/PRJ-CHAKRAOPS",
   "git": {
     "present": true,
-    "branch": "main",
-    "head": "2c1393f",
-    "summary": "behind origin/main; local tracked modifications present"
+    "remote": "https://github.com/swap2you/chakraops.git",
+    "branch": "main"
   },
   "language_framework_markers": [
     "python",
-    "node/frontend",
-    "docker-compose"
+    "node/frontend"
   ],
   "documentation_files": [
-    "CHANGELOG.md",
-    "docs",
-    "AGENTS.md",
-    "BASELINE_BOOKMARK.md",
-    "RUNBOOK_EXECUTION.md"
+    "README.md",
+    "docs/OPERATIONS.md",
+    "docs/NEEWA.md",
+    "AGENTS.md"
   ],
-  "maturity_status": "baseline 0.1.0 documented; paper/research system; no broker integration in baseline docs",
+  "maturity_status": "canonical checkout; manual research system; broker writes disabled",
   "domain": "trading research / decision-support (not live capital)",
   "blockers": [
     "no autonomous live trades",
     "do not open denied OratsUtil or ChakraOptionsWatch",
-    "do not mix with PRJ-CHAKRAOPS-DEV"
+    "recurring schedules stay unregistered"
   ],
-  "recommended_next_review": "Validation and paper research only; owner gate for any broker discussion",
+  "recommended_next_review": "Bounded mission on the canonical checkout; owner gate for any broker discussion",
   "secret_named_paths_not_read": [],
   "file_contents_not_copied": true,
   "isolation": "single-project context; do not mix with other PROJECT_PORTFOLIO IDs"

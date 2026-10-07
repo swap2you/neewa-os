@@ -153,6 +153,14 @@ switch ($action) {
     $artifact = Join-Path $jobsDir "$($job.job_id)-workspace-inventory.json"
     Copy-Item -LiteralPath $src -Destination $artifact -Force
   }
+  'codex_review' {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaCodexReview.ps1') -Job $job -JobsDir $jobsDir
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -eq 'complete') { $status = 'COMPLETED' }
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
   'cursor_call' {
     $cursorResult = & (Join-Path $here 'Invoke-NeewaCursorCall.ps1') -Job $job -JobsDir $jobsDir
     $artifact = $cursorResult.artifact

@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -155,6 +156,8 @@ class WorkerTempTests(unittest.TestCase):
         self.assertNotIn("Invoke-Expression", tests)
 
     def test_outcome_and_scratch_persistence(self):
+        if os.name != "nt":
+            self.skipTest("scratch probe runs on the Windows worker")
         shell = shutil.which("powershell") or shutil.which("pwsh")
         if shell is None:
             self.skipTest("Windows PowerShell is required for the scratch probe")

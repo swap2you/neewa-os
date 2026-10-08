@@ -464,54 +464,89 @@ def submit(
     return record
 
 
+_QUEUE_SIDECAR_KEYS = (
+    "stdout_tail",
+    "usage",
+    "artifact_paths",
+    "status",
+    "reason",
+    "failure_class",
+    "preflight",
+    "authorization",
+    "cli",
+    "exit_code",
+    "duration_sec",
+    "project_lifecycle",
+    "bootstrap",
+    "repo",
+    "execution_phase",
+    "implementation_model",
+    "model",
+    "effort",
+    "stage_checkpoint",
+    "independent_test",
+    "test_results",
+    "cursor_started",
+    "progress_at",
+    "child_pid",
+    "worker_pid",
+)
+
+
+def _terminal_status(payload: dict | None) -> str:
+    status = str((payload or {}).get("status") or (payload or {}).get("state") or "").upper()
+    if status == "COMPLETE":
+        return "COMPLETED"
+    if status in TERMINAL:
+        return status
+    return ""
+
+
+def _read_queue_file(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _merge_sidecar(root: Path, folder: str, job_id: str, payload: dict) -> dict:
+    sidecar = root / folder / f"{job_id}-cursor-call.json"
+    extra = _read_queue_file(sidecar)
+    if extra:
+        for key in _QUEUE_SIDECAR_KEYS:
+            if extra.get(key) not in (None, "", []):
+                payload[key] = extra[key]
+    progress = _read_queue_file(root / "records" / f"{job_id}.progress.json")
+    if progress and progress.get("progress_at"):
+        payload["progress_at"] = progress["progress_at"]
+        for key in ("child_pid", "worker_pid", "lease"):
+            if progress.get(key) not in (None, "", []):
+                payload[key] = progress[key]
+    return payload
+
+
 def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
+    """Prefer a valid done/failed receipt over a stale inbox or processing claim."""
+    queue: tuple[str, dict] | None = None
     for folder, inferred in (
-        ("inbox", "QUEUED"),
-        ("processing", "RUNNING"),
         ("done", "VALIDATING"),
         ("failed", "FAILED"),
+        ("inbox", "QUEUED"),
+        ("processing", "RUNNING"),
     ):
-        path = root / folder / f"{job_id}.json"
-        if path.is_file():
-            try:
-                payload = json.loads(path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                payload = {}
-            sidecar = root / folder / f"{job_id}-cursor-call.json"
-            if sidecar.is_file():
-                try:
-                    extra = json.loads(sidecar.read_text(encoding="utf-8"))
-                except json.JSONDecodeError:
-                    extra = {}
-                if isinstance(extra, dict):
-                    for key in (
-                        "stdout_tail",
-                        "usage",
-                        "artifact_paths",
-                        "status",
-                        "reason",
-                        "failure_class",
-                        "preflight",
-                        "authorization",
-                        "cli",
-                        "exit_code",
-                        "duration_sec",
-                        "project_lifecycle",
-                        "bootstrap",
-                        "repo",
-                        "execution_phase",
-                        "implementation_model",
-                        "model",
-                        "effort",
-                        "stage_checkpoint",
-                        "independent_test",
-                        "test_results",
-                        "cursor_started",
-                        "stdout_tail",
-                    ):
-                        if extra.get(key) not in (None, "", []):
-                            payload[key] = extra[key]
+        payload = _read_queue_file(root / folder / f"{job_id}.json")
+        if payload is None:
+            continue
+        payload = _merge_sidecar(root, folder, job_id, payload)
+        if folder in {"done", "failed"} and _terminal_status(payload):
             return inferred, payload
+        if folder in {"inbox", "processing"} and queue is None:
+            queue = (inferred, payload)
+    if queue:
+        return queue
     return None, None
 
 
@@ -531,11 +566,26 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             pass
         return record
     if folder == "RUNNING" and record["state"] not in TERMINAL:
+        changed = False
+        if payload.get("progress_at") and record.get("progress_at") != payload.get("progress_at"):
+            record["progress_at"] = payload.get("progress_at")
+            changed = True
+        if payload.get("child_pid") not in (None, "") and record.get("child_pid") != payload.get("child_pid"):
+            record["child_pid"] = payload.get("child_pid")
+            changed = True
         if record["state"] != "RUNNING":
             append_state(record, "RUNNING", "windows-jobs/processing")
+            changed = True
+        if changed:
             save_record(record, inbox_root)
         return record
     if folder in {"VALIDATING", "FAILED"} and status in TERMINAL:
+        already = (
+            record.get("state") == status
+            and (record.get("validation") or {}).get("worker_status") == payload.get("status")
+        )
+        if already:
+            return record
         if record["state"] != "VALIDATING" and status == "COMPLETED":
             append_state(record, "VALIDATING", "windows-jobs/done")
         reason = payload.get("reason")
@@ -593,15 +643,24 @@ def wait_for(job_id: str, timeout_sec: int = 180, inbox_root: Path | None = None
     deadline = time.time() + timeout_sec
     record = harvest(job_id, inbox_root)
     while time.time() < deadline:
-        record = harvest(job_id, inbox_root)
         if record and record.get("state") in TERMINAL:
             return record
         time.sleep(3)
+        record = harvest(job_id, inbox_root)
+    record = harvest(job_id, inbox_root)
+    if record and record.get("state") in TERMINAL:
+        return record
     if record and record.get("state") not in TERMINAL:
+        record["failure_class"] = "WAIT_EXPIRED"
         record["failure_reason"] = f"orchestrator wait timed out after {timeout_sec}s"
         append_state(record, "FAILED", record["failure_reason"])
         save_record(record, inbox_root)
-    return record or {"job_id": job_id, "state": "FAILED", "failure_reason": "unknown job"}
+    return record or {
+        "job_id": job_id,
+        "state": "FAILED",
+        "failure_class": "WAIT_EXPIRED",
+        "failure_reason": "unknown job",
+    }
 
 
 def list_jobs(inbox_root: Path | None = None, limit: int = 20) -> list[dict]:

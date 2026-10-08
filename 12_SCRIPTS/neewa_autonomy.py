@@ -697,6 +697,123 @@ def note_stage_timeout(job: dict, record: dict | None) -> dict:
     return job
 
 
+PROGRESS_FRESH_SEC = 180
+
+
+def _parse_progress_at(stamp: str | None) -> datetime | None:
+    parsed = parse_utc(stamp)
+    if parsed or not stamp:
+        return parsed
+    text = str(stamp).strip()
+    if text.endswith("Z"):
+        text = text[:-1]
+    if "." in text:
+        text = text.split(".", 1)[0]
+    return parse_utc(text + "Z")
+
+
+def child_has_fresh_progress(record: dict | None, *, max_age_sec: int = PROGRESS_FRESH_SEC) -> bool:
+    """True when the child published progress inside the heartbeat window."""
+    stamp = _parse_progress_at((record or {}).get("progress_at"))
+    if not stamp:
+        return False
+    return datetime.now(timezone.utc) - stamp <= timedelta(seconds=max_age_sec)
+
+
+def unfinished_child_disposition(job: dict, record: dict | None) -> str:
+    """Separate a live child, a polling wait, and a child that has actually stopped.
+
+    consume: a real terminal receipt is ready.
+    progress: heartbeat/progress is fresh, so dispatch age is not death.
+    wait: the timeout has not elapsed.
+    wait_expired: the poll wait elapsed and this child never started; do not
+    start another writer.
+    dead: a running child has no fresh progress past the executor bound.
+    """
+    if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED":
+        return "wait_expired"
+    if _child_terminal(record):
+        return "consume"
+    if child_has_fresh_progress(record):
+        return "progress"
+    if not child_is_stale(job):
+        return "wait"
+    state = str((record or {}).get("state") or "").upper()
+    if state in {"QUEUED", "DISPATCHED", ""} and not (record or {}).get("progress_at"):
+        return "wait_expired"
+    return "dead"
+
+
+def consider_unfinished_child(job: dict, record: dict | None) -> dict | None:
+    """Hold or fail a non-terminal child. Return None when the receipt can be consumed."""
+    kind = unfinished_child_disposition(job, record)
+    if kind == "consume":
+        return None
+    if kind == "dead":
+        job["failure_class"] = "CHILD_TIMEOUT"
+        job["failure_reason"] = "CHILD_TIMEOUT"
+        job["active_child_id"] = None
+        job.pop("_harvested_child", None)
+        job.pop("wait_state", None)
+        release_open_reservation(job)
+        transition(job, "FAILED", "CHILD_TIMEOUT")
+        save_job(job)
+        return job
+    if record and record.get("progress_at"):
+        job["child_progress_at"] = record.get("progress_at")
+    if kind == "wait_expired":
+        job["failure_class"] = "WAIT_EXPIRED"
+        job["wait_state"] = "WAIT_EXPIRED"
+    else:
+        job.pop("wait_state", None)
+        if job.get("failure_class") == "WAIT_EXPIRED":
+            job["failure_class"] = None
+    save_job(job)
+    return job
+
+
+def note_late_child_receipt(job: dict, *, inbox_root: Path | None = None, orch_harvest=None) -> dict:
+    """Record a receipt that arrived after the parent was terminal.
+
+    Historical state and failure_reason stay as written. A completion receipt
+    is evidence, not charter approval, and a second note for the same receipt
+    is a no-op.
+    """
+    if orch_harvest is None:
+        return job
+    child_ids: list[str] = []
+    if job.get("active_child_id"):
+        child_ids.append(job["active_child_id"])
+    for row in job.get("child_jobs") or []:
+        child_id = row.get("job_id")
+        if child_id and child_id not in child_ids:
+            child_ids.append(child_id)
+    receipts = list(job.get("late_receipts") or [])
+    changed = False
+    for child_id in child_ids:
+        record = orch_harvest(child_id, inbox_root)
+        if not _child_terminal(record):
+            continue
+        if any(item.get("job_id") == child_id and item.get("state") == record.get("state") for item in receipts):
+            continue
+        receipts.append(
+            {
+                "job_id": child_id,
+                "state": record.get("state"),
+                "failure_class": record.get("failure_class"),
+                "noted_at": utc_now(),
+                "consumed_as_approval": False,
+                "historical_state_preserved": job.get("state"),
+                "failure_reason_preserved": job.get("failure_reason"),
+            }
+        )
+        changed = True
+    if changed:
+        job["late_receipts"] = receipts
+        save_job(job)
+    return job
+
+
 def child_is_stale(job: dict) -> bool:
     child_id = job.get("active_child_id")
     if not child_id:
@@ -2263,6 +2380,8 @@ def reconcile_parent_job(
         if float((job.get("budget") or {}).get("reserved_usd") or 0) and job["state"] in {"FAILED", "BLOCKED", "CANCELLED"}:
             release_open_reservation(job)
             save_job(job)
+        if orch_harvest is not None:
+            return note_late_child_receipt(job, inbox_root=inbox_root, orch_harvest=orch_harvest)
         return job
     expected = job.get("expected_paths") or []
     bad = PLANNING.malformed_expected_paths(expected)
@@ -2278,29 +2397,22 @@ def reconcile_parent_job(
         job["_harvested_child"] = record
         if _is_blocked_child(record):
             return apply_blocked_child(job, record)
+        if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED":
+            return consider_unfinished_child(job, record)
         if record and str(record.get("state") or "").upper() in {"FAILED", "CANCELLED"}:
             if stage_timeout_can_continue(job, record):
                 job.pop("_harvested_child", None)
                 return note_stage_timeout(job, record)
             return apply_failed_child(job, record)
-        if child_is_stale(job) and not _child_terminal(record):
-            job["failure_reason"] = "CHILD_TIMEOUT"
-            job["active_child_id"] = None
-            job.pop("_harvested_child", None)
-            release_open_reservation(job)
-            transition(job, "FAILED", "CHILD_TIMEOUT")
-            save_job(job)
-            return job
-    if job.get("state") == "PREFLIGHT" and child_id and child_is_stale(job):
+        held = consider_unfinished_child(job, record)
+        if held is not None:
+            return held
+    if job.get("state") == "PREFLIGHT" and child_id:
         orch_harvest = orch_harvest or ORCH.harvest
         record = orch_harvest(child_id, inbox_root)
-        if not _child_terminal(record):
-            job["failure_reason"] = "CHILD_TIMEOUT"
-            job["active_child_id"] = None
-            release_open_reservation(job)
-            transition(job, "FAILED", "CHILD_TIMEOUT")
-            save_job(job)
-            return job
+        held = consider_unfinished_child(job, record)
+        if held is not None:
+            return held
     return job
 
 
@@ -2507,11 +2619,10 @@ def advance_job(
             save_job(job)
             return job
         record = orch_harvest(child_id, inbox_root)
-        if not _child_terminal(record):
-            if child_is_stale(job):
-                job["failure_reason"] = "CHILD_TIMEOUT"
-                job["active_child_id"] = None
-                transition(job, "FAILED", "REPO_IDENTITY")
+        if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED" or not _child_terminal(record):
+            held = consider_unfinished_child(job, record)
+            if held is not None:
+                return held
             save_job(job)
             return job
         job["active_child_id"] = None
@@ -2583,12 +2694,10 @@ def advance_job(
             record = job.pop("_harvested_child", None)
             if record is None:
                 record = orch_harvest(child_id, inbox_root)
-            if not _child_terminal(record):
-                if child_is_stale(job):
-                    job["failure_reason"] = "CHILD_TIMEOUT"
-                    job["active_child_id"] = None
-                    release_open_reservation(job)
-                    transition(job, "FAILED", "CHILD_TIMEOUT")
+            if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED" or not _child_terminal(record):
+                held = consider_unfinished_child(job, record)
+                if held is not None:
+                    return held
                 save_job(job)
                 return job
             usage = (record or {}).get("usage")
@@ -2767,12 +2876,10 @@ def advance_job(
                     record = orch_harvest(job["active_child_id"], inbox_root)
                 if _is_blocked_child(record):
                     return apply_blocked_child(job, record)
-                if not _child_terminal(record):
-                    if child_is_stale(job):
-                        job["failure_reason"] = "CHILD_TIMEOUT"
-                        job["active_child_id"] = None
-                        release_open_reservation(job)
-                        transition(job, "FAILED", "CHILD_TIMEOUT")
+                if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED" or not _child_terminal(record):
+                    held = consider_unfinished_child(job, record)
+                    if held is not None:
+                        return held
                     save_job(job)
                     return job
                 if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:

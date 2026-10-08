@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
@@ -12,6 +13,7 @@ WORKER = ROOT / "16_WINDOWS_CLIENT" / "worker"
 SEM = SourceFileLoader("neewa_action_semantics_delivery", str(ROOT / "12_SCRIPTS" / "neewa_action_semantics.py")).load_module()
 MISSION = SourceFileLoader("neewa_mission_delivery", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")).load_module()
 AUTO = SourceFileLoader("neewa_autonomy_delivery", str(ROOT / "12_SCRIPTS" / "neewa_autonomy.py")).load_module()
+ORCH = SourceFileLoader("neewa_orchestrate_delivery", str(ROOT / "12_SCRIPTS" / "neewa_orchestrate.py")).load_module()
 AUTH = SourceFileLoader("neewa_authorization_delivery", str(ROOT / "12_SCRIPTS" / "neewa_authorization.py")).load_module()
 ROUTE = SourceFileLoader("neewa_model_route_delivery", str(ROOT / "12_SCRIPTS" / "neewa_model_route.py")).load_module()
 CHAKRA = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
@@ -190,3 +192,217 @@ class WorkerTempTests(unittest.TestCase):
             self.assertIn(name, data["actions"])
         self.assertNotIn("shell", data["actions"])
         self.assertEqual(data["capability_version"], "2026-10-08-chakraops-1")
+
+
+class ReceiptConsumptionTests(unittest.TestCase):
+    def test_completed_receipt_beats_stale_processing_claim(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job_id = "JOB-STALE-CLAIM"
+            for folder in ("inbox", "processing", "done", "failed", "records"):
+                (root / folder).mkdir()
+            (root / "processing" / f"{job_id}.json").write_text(
+                json.dumps({"job_id": job_id, "state": "RUNNING", "status": "RUNNING"}),
+                encoding="utf-8",
+            )
+            (root / "done" / f"{job_id}.json").write_text(
+                json.dumps({"job_id": job_id, "status": "COMPLETED", "artifact": "artifact.json"}),
+                encoding="utf-8",
+            )
+            folder, payload = ORCH.inspect_folders(job_id, root)
+            self.assertEqual(folder, "VALIDATING")
+            self.assertEqual(payload["status"], "COMPLETED")
+            ORCH.save_record(
+                {"job_id": job_id, "state": "RUNNING", "history": [{"state": "RUNNING", "at": "2020-01-01T00:00:00Z"}]},
+                root,
+            )
+            first = ORCH.harvest(job_id, root)
+            second = ORCH.harvest(job_id, root)
+            self.assertEqual(first["state"], "COMPLETED")
+            self.assertEqual(second["state"], "COMPLETED")
+            self.assertEqual(len(second["history"]), len(first["history"]))
+            self.assertEqual((second.get("validation") or {}).get("worker_status"), "COMPLETED")
+
+    def test_unreadable_done_file_does_not_hide_processing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job_id = "JOB-BAD-DONE"
+            (root / "processing").mkdir()
+            (root / "done").mkdir()
+            (root / "done" / f"{job_id}.json").write_text("{", encoding="utf-8")
+            (root / "processing" / f"{job_id}.json").write_text(
+                json.dumps({"job_id": job_id, "state": "RUNNING"}),
+                encoding="utf-8",
+            )
+            (root / "records").mkdir()
+            (root / "records" / f"{job_id}.progress.json").write_text(
+                json.dumps({"progress_at": "2026-10-08T13:45:58Z", "child_pid": 53284}),
+                encoding="utf-8",
+            )
+            folder, payload = ORCH.inspect_folders(job_id, root)
+            self.assertEqual(folder, "RUNNING")
+            self.assertEqual(payload["progress_at"], "2026-10-08T13:45:58Z")
+            ORCH.save_record({"job_id": job_id, "state": "DISPATCHED", "history": []}, root)
+            record = ORCH.harvest(job_id, root)
+            self.assertEqual(record["state"], "RUNNING")
+            self.assertEqual(record["progress_at"], "2026-10-08T13:45:58Z")
+
+    def _old_child(self, root: Path, child_id: str = "JOB-CC02") -> dict:
+        job = AUTO.create_parent_job("repair the execution path", root=root)
+        job["state"] = "EXECUTING"
+        job["workflow"] = "sdlc"
+        job["timeout_sec"] = 1
+        job["active_child_id"] = child_id
+        job["child_jobs"] = [{"job_id": child_id, "at": "2020-01-01T00:00:00Z"}]
+        AUTO.save_job(job)
+        return job
+
+    def test_late_completion_is_harvested_before_timeout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self._old_child(root)
+            finished = AUTO.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {"state": "COMPLETED", "job_id": "JOB-CC02"},
+            )
+            self.assertEqual(finished["state"], "EXECUTING")
+            self.assertNotEqual(finished.get("failure_reason"), "CHILD_TIMEOUT")
+            self.assertEqual(finished["_harvested_child"]["state"], "COMPLETED")
+            self.assertFalse(MISSION.job_meets_mission_success(finished))
+
+    def test_running_child_with_fresh_progress_stays_executing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self._old_child(root)
+            stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            finished = AUTO.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {"state": "RUNNING", "progress_at": stamp, "child_pid": 53284},
+            )
+            self.assertEqual(finished["state"], "EXECUTING")
+            self.assertEqual(finished["active_child_id"], "JOB-CC02")
+            self.assertEqual(finished["child_progress_at"], stamp)
+            self.assertNotEqual(finished.get("failure_reason"), "CHILD_TIMEOUT")
+
+    def test_queued_child_past_poll_wait_does_not_start_another_writer(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self._old_child(root)
+            finished = AUTO.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {"state": "QUEUED"},
+            )
+            self.assertEqual(finished["state"], "EXECUTING")
+            self.assertEqual(finished["active_child_id"], "JOB-CC02")
+            self.assertEqual(finished.get("wait_state"), "WAIT_EXPIRED")
+            self.assertEqual(finished.get("failure_class"), "WAIT_EXPIRED")
+            classified = MISSION.classify_failure(finished)
+            self.assertTrue(classified["waiting"])
+            self.assertFalse(classified["recoverable"])
+            self.assertEqual(classified["class"], "WAIT_EXPIRED")
+
+    def test_genuine_dead_child_is_child_timeout(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self._old_child(root)
+            finished = AUTO.reconcile_parent_job(
+                job,
+                orch_harvest=lambda *a, **k: {
+                    "state": "RUNNING",
+                    "progress_at": "2020-01-01T00:00:00Z",
+                    "child_pid": 53284,
+                },
+            )
+            self.assertEqual(finished["state"], "FAILED")
+            self.assertEqual(finished["failure_reason"], "CHILD_TIMEOUT")
+            self.assertEqual(finished["failure_class"], "CHILD_TIMEOUT")
+            self.assertIsNone(finished.get("active_child_id"))
+
+    def test_late_receipt_preserves_historical_failure_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = AUTO.create_parent_job("repair the execution path", root=root)
+            job["state"] = "FAILED"
+            job["failure_reason"] = "IDENTICAL_FAILURE_NO_NEW_EVIDENCE"
+            job["failure_class"] = "CHILD_TIMEOUT"
+            job["active_child_id"] = None
+            job["child_jobs"] = [{"job_id": "JOB-CC02", "at": "2026-10-08T13:37:00Z"}]
+            AUTO.save_job(job)
+            harvest = lambda *a, **k: {"state": "COMPLETED", "job_id": "JOB-CC02"}
+            once = AUTO.reconcile_parent_job(job, orch_harvest=harvest)
+            twice = AUTO.reconcile_parent_job(once, orch_harvest=harvest)
+            self.assertEqual(twice["state"], "FAILED")
+            self.assertEqual(twice["failure_reason"], "IDENTICAL_FAILURE_NO_NEW_EVIDENCE")
+            self.assertEqual(len(twice["late_receipts"]), 1)
+            self.assertFalse(twice["late_receipts"][0]["consumed_as_approval"])
+            self.assertFalse(MISSION.job_meets_mission_success(twice))
+
+    def test_failed_upload_survives_restart_and_duplicate_delivery_is_acked(self):
+        if os.name != "nt":
+            self.skipTest("worker outbox probe runs on the Windows worker")
+        shell = shutil.which("powershell") or shutil.which("pwsh")
+        if shell is None:
+            self.skipTest("Windows PowerShell is required")
+        script = WORKER / "Start-NeewaWindowsWorker.ps1"
+        command = f"""
+$ErrorActionPreference = 'Stop'
+. '{script}'
+$out = Join-Path $env:LOCALAPPDATA 'NEEWA\\scratch\\outbox-regression'
+if (Test-Path $out) {{ Remove-Item -Recurse -Force $out }}
+New-Item -ItemType Directory -Force -Path $out | Out-Null
+$script:NeewaOutbox = $out
+$script:RemoteFiles = @{{}}
+$script:RemoteCalls = New-Object System.Collections.Generic.List[string]
+$script:FailScp = 1
+$script:NeewaRemoteCommand = {{
+  param($Request)
+  $Executable = [string]$Request.Executable
+  $ArgumentList = @($Request.ArgumentList)
+  $joined = (@($Executable) + $ArgumentList) -join ' '
+  $script:RemoteCalls.Add($joined)
+  if ($Executable -eq 'scp' -and $script:FailScp -gt 0) {{
+    $script:FailScp = $script:FailScp - 1
+    return 7
+  }}
+  if ($Executable -eq 'scp') {{
+    $script:RemoteFiles[[string]$ArgumentList[-1]] = 'bytes'
+    return 0
+  }}
+  $text = $ArgumentList -join ' '
+  if ($text -match 'test -s\\s+''([^'']+)''') {{
+    $path = $Matches[1]
+    foreach ($key in @($script:RemoteFiles.Keys)) {{
+      if ([string]$key.EndsWith($path)) {{ return 0 }}
+    }}
+    return 1
+  }}
+  return 0
+}}
+$job = Join-Path $out 'JOB-OUTBOX.json'
+Set-Content -LiteralPath $job -Value '{{}}' -Encoding utf8
+$result = [pscustomobject]@{{ status = 'COMPLETED'; artifact = $null }}
+$item = Save-NeewaOutboxResult $job $result
+$payload = Join-Path $out 'JOB-OUTBOX.json.payload.json'
+if (-not (Test-Path -LiteralPath $payload)) {{ exit 2 }}
+$failed = $false
+try {{ Send-NeewaOutboxItem $item | Out-Null }} catch {{ $failed = $true }}
+if (-not $failed) {{ exit 3 }}
+if (-not (Test-Path -LiteralPath $payload)) {{ exit 4 }}
+if (Test-Path -LiteralPath ($item + '.ack')) {{ exit 5 }}
+$again = Send-NeewaOutboxItem $item
+if ($again -ne 'acked') {{ exit 6 }}
+if (-not (Test-Path -LiteralPath ($item + '.ack'))) {{ exit 7 }}
+if (-not (Test-Path -LiteralPath $payload)) {{ exit 8 }}
+if ($script:RemoteFiles.Count -ne 1) {{ exit 9 }}
+$calls = $script:RemoteCalls.Count
+$dup = Send-NeewaOutboxItem $item
+if ($dup -ne 'already-acked') {{ exit 10 }}
+if ($script:RemoteCalls.Count -ne $calls) {{ exit 11 }}
+"""
+        completed = subprocess.run(
+            [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)

@@ -64,6 +64,17 @@ for folder in ("processing", "records"):
     tmp.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     tmp.replace(p)
     updated.append(str(p))
+progress = {
+    "job_id": job,
+    "state": u["state"],
+    "progress_at": now,
+    "child_pid": u["child_pid"],
+    "worker_pid": u["worker_pid"],
+    "lease": u["lease"],
+}
+pp = root / "records" / ("%s.progress.json" % job)
+pp.write_text(json.dumps(progress) + "\n", encoding="utf-8")
+updated.append(str(pp))
 active = {
     "at": now,
     "active_jobs": [{
@@ -77,10 +88,55 @@ active = {
 (root / "records" / "active_jobs.json").write_text(json.dumps(active, indent=2) + "\n", encoding="utf-8")
 print(json.dumps({"updated": updated, "progress_at": now, "state": u["state"], "child_pid": u["child_pid"]}))
 '@
-$sshOpts = @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR')
-$tmpPy = Join-Path $env:TEMP 'neewa-publish-progress.py'
+$sshOpts = @(
+  '-o', 'BatchMode=yes',
+  '-o', 'ConnectTimeout=8',
+  '-o', 'ServerAliveInterval=2',
+  '-o', 'ServerAliveCountMax=3',
+  '-o', 'LogLevel=ERROR'
+)
+$scratch = Join-Path $env:LOCALAPPDATA 'NEEWA\scratch'
+New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+$tmpPy = Join-Path $scratch 'neewa-publish-progress.py'
 [System.IO.File]::WriteAllText($tmpPy, $python.Replace("`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
-& scp @sshOpts $tmpPy "${RemoteHost}:/tmp/neewa-publish-progress.py" | Out-Null
-$out = $payload | & ssh @sshOpts $RemoteHost 'python3 /tmp/neewa-publish-progress.py'
-if ($LASTEXITCODE -ne 0) { throw "progress publish failed: $out" }
+
+function Invoke-NeewaBoundedProgress {
+  param([string]$FileName, [string[]]$ArgumentList, [string]$StdinText, [int]$TimeoutSec = 12)
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $FileName
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardInput = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.CreateNoWindow = $true
+  $argListProp = $psi.GetType().GetProperty('ArgumentList')
+  if ($argListProp) {
+    foreach ($a in $ArgumentList) { [void]$psi.ArgumentList.Add([string]$a) }
+  } else {
+    $psi.Arguments = (($ArgumentList | ForEach-Object {
+      $s = [string]$_
+      if ($s -match '[\s"]') { '"' + ($s -replace '"', '\"') + '"' } else { $s }
+    }) -join ' ')
+  }
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo = $psi
+  [void]$proc.Start()
+  if ($StdinText) {
+    $proc.StandardInput.Write($StdinText)
+  }
+  $proc.StandardInput.Close()
+  if (-not $proc.WaitForExit($TimeoutSec * 1000)) {
+    try { $proc.Kill() } catch { }
+    throw "$FileName timed out after ${TimeoutSec}s"
+  }
+  $proc.WaitForExit()
+  $out = $proc.StandardOutput.ReadToEnd()
+  if ($proc.ExitCode -ne 0) { throw "$FileName exit $($proc.ExitCode): $out" }
+  return $out
+}
+
+$ssh = (Get-Command ssh -ErrorAction Stop).Source
+$scp = (Get-Command scp -ErrorAction Stop).Source
+Invoke-NeewaBoundedProgress $scp (@($sshOpts) + @($tmpPy, "${RemoteHost}:/tmp/neewa-publish-progress.py")) '' | Out-Null
+$out = Invoke-NeewaBoundedProgress $ssh (@($sshOpts) + @($RemoteHost, 'python3 /tmp/neewa-publish-progress.py')) $payload
 $out

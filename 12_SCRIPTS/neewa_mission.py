@@ -737,6 +737,13 @@ def classify_failure(job: dict | None, *, worker_available: bool = True) -> dict
     state = job.get("state")
     reason = str(job.get("failure_reason") or "")
     cls = str(job.get("failure_class") or "")
+    if cls == "WAIT_EXPIRED" or reason == "WAIT_EXPIRED":
+        return {
+            "class": "WAIT_EXPIRED",
+            "recoverable": False,
+            "waiting": True,
+            "reason": "polling wait expired; child execution has not failed",
+        }
     if state in JOB_WAITING or cls in WORKER_UNAVAILABLE:
         return {
             "class": "WORKER_UNAVAILABLE",

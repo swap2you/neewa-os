@@ -231,6 +231,19 @@ class MissionSupervisorTests(unittest.TestCase):
             self.assertEqual(second["state"], "FAILED")
             self.assertEqual(second["failure_reason"], "IDENTICAL_FAILURE_NO_NEW_EVIDENCE")
 
+    def test_wait_expiry_does_not_start_a_repair_job(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(
+                Path(tmp),
+                kind="sdlc",
+                objective="build a markdown changelog digest CLI with tests",
+            )
+            self._failed_owned_job(root, mission, "wait", cls="WAIT_EXPIRED")
+            updated = self._step(mission, root, worker_available=True)
+            self.assertEqual(updated["state"], "WAITING")
+            self.assertEqual(int(updated.get("repair_cycles") or 0), 0)
+            self.assertEqual(len(updated["job_ids"]), 1)
+
     def test_worker_unavailability_waits(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, mission = self._create(

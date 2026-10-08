@@ -9,40 +9,25 @@ function Invoke-NeewaDrainedProcess {
   )
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $StartInfo
-  $proc.EnableRaisingEvents = $true
-  $stdout = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
-  $stderr = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
-  $outSub = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -MessageData $stdout -Action {
-    $line = $EventArgs.Data
-    if ($null -ne $line) { [void]$Event.MessageData.Enqueue([string]$line) }
-  }
-  $errSub = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -MessageData $stderr -Action {
-    $line = $EventArgs.Data
-    if ($null -ne $line) { [void]$Event.MessageData.Enqueue([string]$line) }
-  }
   $timedOut = $false
   $exitCode = $null
+  $outText = ''
+  $errText = ''
   try {
     [void]$proc.Start()
-    $proc.BeginOutputReadLine()
-    $proc.BeginErrorReadLine()
+    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
     if (-not $proc.WaitForExit($TimeoutMs)) {
       $timedOut = $true
       try { $proc.Kill() } catch { }
     }
     $proc.WaitForExit()
-    Start-Sleep -Milliseconds 200
+    try { $outText = [string]$stdoutTask.GetAwaiter().GetResult() } catch { $outText = '' }
+    try { $errText = [string]$stderrTask.GetAwaiter().GetResult() } catch { $errText = '' }
     try { $exitCode = [int]$proc.ExitCode } catch { $exitCode = $null }
   } finally {
-    try { $proc.CancelOutputRead() } catch { }
-    try { $proc.CancelErrorRead() } catch { }
-    Unregister-Event -SourceIdentifier $outSub.Name -ErrorAction SilentlyContinue
-    Unregister-Event -SourceIdentifier $errSub.Name -ErrorAction SilentlyContinue
-    Remove-Job -Id $outSub.Id, $errSub.Id -Force -ErrorAction SilentlyContinue
     $proc.Dispose()
   }
-  $outText = (@($stdout.ToArray()) -join "`n")
-  $errText = (@($stderr.ToArray()) -join "`n")
   if ($outText.Length -gt $MaxChars) { $outText = $outText.Substring($outText.Length - $MaxChars) }
   if ($errText.Length -gt $MaxChars) { $errText = $errText.Substring($errText.Length - $MaxChars) }
   return [pscustomobject]@{

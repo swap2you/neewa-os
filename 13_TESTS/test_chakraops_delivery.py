@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -154,6 +155,9 @@ class WorkerTempTests(unittest.TestCase):
         self.assertNotIn("Invoke-Expression", tests)
 
     def test_outcome_and_scratch_persistence(self):
+        shell = shutil.which("powershell") or shutil.which("pwsh")
+        if shell is None:
+            self.skipTest("Windows PowerShell is required for the scratch probe")
         script = WORKER / "Invoke-NeewaIndependentTest.ps1"
         probe = WORKER / "Invoke-NeewaTempProbe.ps1"
         command = (
@@ -170,7 +174,7 @@ class WorkerTempTests(unittest.TestCase):
             "if ($second.scratch -ne $first.scratch) { exit 6 }"
         )
         completed = subprocess.run(
-            ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
+            [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
             capture_output=True,
             text=True,
             timeout=60,

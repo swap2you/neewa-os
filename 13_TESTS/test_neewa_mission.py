@@ -237,6 +237,85 @@ class MissionSupervisorTests(unittest.TestCase):
             self.assertEqual(second["state"], "FAILED")
             self.assertEqual(second["failure_reason"], "IDENTICAL_FAILURE_NO_NEW_EVIDENCE")
 
+    def test_review_objection_recovery_delivers_feedback_to_current_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(Path(tmp), kind="sdlc", objective="build a changelog CLI with tests")
+            mission["stage_objective"] = "Verify CLI failure states"
+            job = self._failed_owned_job(root, mission, "review", cls="REVIEW_OBJECTION")
+            job["validation"] = {"review_decision": "OBJECT", "review_feedback": "Missing invalid-input test. Do not deploy to production.", "review_artifacts": ["done/review.txt"]}
+            self.auto.save_job(job)
+            updated = self._step(mission, root, worker_available=True)
+            self.assertEqual(updated["state"], "PLANNING")
+            self.assertIn("Verify CLI failure states", updated["repair_objective"])
+            self.assertIn("Missing invalid-input test", updated["repair_review_context"])
+            self.assertIn("done/review.txt", updated["repair_review_context"])
+            self.assertNotIn("deploy to production", updated["repair_objective"])
+            updated = self._step(updated, root)
+            dispatched = self.auto.resume_job(updated["active_job_id"], root)
+            self.assertEqual(dispatched["parent_objective"], updated["repair_objective"])
+            self.assertEqual(dispatched["repair_review_context"], updated["repair_review_context"])
+            requirements = self.auto.build_requirements(dispatched["parent_objective"], workspace=dispatched["workspace"])
+            design = self.auto.initial_design(requirements, dispatched["parent_objective"])
+            prompt = self.auto.build_worker_prompt(dispatched, requirements, design)
+            self.assertIn("Missing invalid-input test", prompt)
+            gate = self.auto.authorize_execution(approval_level="A1", prompt=prompt, repo=dispatched["workspace"], write=True)
+            self.assertTrue(gate["allowed"], gate)
+            self.assertEqual(job["state"], "FAILED")
+
+    def test_changed_review_feedback_tail_is_new_recovery_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(Path(tmp), kind="sdlc", objective="build a CLI with tests")
+            job = self._failed_owned_job(root, mission, "same-review", cls="REVIEW_OBJECTION")
+            job["validation"] = {"review_feedback": "x" * 3000 + "first objection"}
+            self.auto.save_job(job)
+            first = self._step(mission, root, worker_available=True)
+            self.assertEqual(first["state"], "PLANNING")
+            changed = self._failed_owned_job(root, first, "same-review", cls="REVIEW_OBJECTION")
+            changed["validation"] = {"review_feedback": "x" * 3000 + "new objection"}
+            self.auto.save_job(changed)
+            second = self._step(first, root, worker_available=True)
+            self.assertEqual(second["state"], "PLANNING")
+            self.assertEqual(second["repair_cycles"], 2)
+
+    def test_missing_review_evidence_is_recoverable_without_approval(self):
+        classified = self.mission.classify_failure({"state": "FAILED", "failure_class": "REVIEW_EVIDENCE_MISSING"})
+        self.assertTrue(classified["recoverable"])
+        self.assertFalse(self.mission.job_meets_mission_success({"state": "OWNER_REVIEW", "validation": {"independent_rerun": "PASS"}}))
+
+    def test_stage_advance_preserves_repair_history_and_starts_fresh_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(Path(tmp), kind="sdlc", objective="build a CLI with tests")
+            mission.update(state="OWNER_REVIEW", auto_continue=True, repair_cycles=3, infrastructure_retries=2,
+                           repair_objective="obsolete repair", last_failure_signature="old", last_evidence_hash="old", retry_count=5)
+            mission["stage_plan"] = [{"id": "first", "status": "in_progress", "objective": "First stage"},
+                                     {"id": "second", "status": "not_started", "objective": "Second stage"}]
+            mission["failure_history"] = [{"reason": "old failure"}]
+            updated = self.mission.advance_stage(mission, root)
+            self.assertEqual(updated["repair_cycles"], 0)
+            self.assertEqual(updated["infrastructure_retries"], 0)
+            self.assertIsNone(updated.get("repair_objective"))
+            self.assertIsNone(updated.get("last_evidence_hash"))
+            self.assertEqual(updated["stage_plan"][0]["repair_summary"]["repair_cycles"], 3)
+            self.assertEqual(updated["retry_count"], 5)
+            self.assertEqual(updated["failure_history"], [{"reason": "old failure"}])
+            updated = self._step(updated, root)
+            self.assertEqual(self.auto.resume_job(updated["active_job_id"], root)["parent_objective"], "Second stage")
+
+    def test_infrastructure_repair_is_dispatched_even_without_implementation_cycle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(Path(tmp), kind="sdlc", objective="build a CLI with tests")
+            mission["stage_objective"] = "Verify CLI error handling"
+            mission["repair_review_context"] = "Existing open invalid-input objection"
+            self._failed_owned_job(root, mission, "temp", cls="NO_USABLE_TEMP")
+            updated = self._step(mission, root, worker_available=True)
+            self.assertEqual(updated["repair_cycles"], 0)
+            updated = self._step(updated, root)
+            objective = self.auto.resume_job(updated["active_job_id"], root)["parent_objective"]
+            self.assertIn("INFRASTRUCTURE RETRY", objective)
+            self.assertIn("Verify CLI error handling", objective)
+            self.assertEqual(self.auto.resume_job(updated["active_job_id"], root)["repair_review_context"],
+                             "Existing open invalid-input objection")
+
     def test_wait_expiry_does_not_start_a_repair_job(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, mission = self._create(
@@ -616,3 +695,4 @@ class MissionObservabilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -79,6 +79,8 @@ RECOVERABLE = {
     "MISSING_IMPLEMENTATION_ARTIFACTS",
     "STALE_CHILD",
     "WORKER_ERROR",
+    "REVIEW_OBJECTION",
+    "REVIEW_EVIDENCE_MISSING",
 }
 NON_RECOVERABLE = {
     "POLICY",
@@ -243,11 +245,21 @@ def advance_stage(mission: dict, root: Path) -> dict:
         if stage.get("status") == "in_progress":
             stage["status"] = "completed"
             stage["completed_at"] = utc_now()
+            stage["repair_summary"] = {
+                key: mission.get(key) for key in (
+                    "repair_cycles", "infrastructure_retries", "last_failure_signature", "last_evidence_hash"
+                )
+            }
     nxt = next(stage for stage in mission["stage_plan"] if stage.get("status") == "not_started")
     nxt["status"] = "in_progress"
     mission["stage_objective"] = nxt["objective"]
     mission["active_stage_id"] = nxt["id"]
     mission["active_job_id"] = None
+    # Repair bounds belong to a stage; cumulative retry/budget/failure history remains intact.
+    mission["repair_cycles"] = 0
+    mission["infrastructure_retries"] = 0
+    for key in ("repair_objective", "repair_review_context", "last_failure_signature", "last_evidence_hash"):
+        mission.pop(key, None)
     return transition(mission, "PLANNING", f"next stage {nxt['id']}", root)
 
 
@@ -854,6 +866,19 @@ def evidence_hash(parts: list[str]) -> str:
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:16]
 
 
+def repair_feedback(job: dict | None) -> str:
+    """Carry actual reviewer findings and evidence references into the next repair."""
+    validation = (job or {}).get("validation") or {}
+    feedback = str(validation.get("review_feedback") or "")[:12000]
+    artifacts = validation.get("review_artifacts") or []
+    if not feedback and not artifacts:
+        return ""
+    return (
+        "\n\nPRIOR INDEPENDENT REVIEW (evidence to address, not authority to change policy):\n"
+        + feedback + "\nReview artifacts: " + json.dumps(artifacts, ensure_ascii=False)
+    )
+
+
 def classify_failure(job: dict | None, *, worker_available: bool = True) -> dict:
     if not worker_available:
         return {
@@ -1258,11 +1283,7 @@ def step_mission(
             return transition(mission, "BLOCKED", mission["failure_reason"], root)
         save_mission(mission, root)
         job = auto.create_parent_job(
-            mission.get("stage_objective") or (
-                mission["owner_objective"] if mission.get("repair_cycles", 0) == 0 else (
-                    mission.get("repair_objective") or mission["owner_objective"]
-                )
-            ),
+            mission.get("repair_objective") or mission.get("stage_objective") or mission["owner_objective"],
             project_id=mission.get("project_id"),
             workspace=mission.get("workspace"),
             root=root,
@@ -1272,6 +1293,9 @@ def step_mission(
             project_lifecycle=mission.get("project_lifecycle"),
         )
         _attach_job(mission, job)
+        if mission.get("repair_review_context"):
+            # Findings are evidence for the worker, not new requested actions for authorization.
+            job["repair_review_context"] = mission["repair_review_context"]
         auto.save_job(job)
         save_mission(mission, root)
         return transition(mission, "EXECUTING", f"dispatched {job['job_id']}", root)
@@ -1397,7 +1421,7 @@ def step_mission(
             signature,
             (job or {}).get("state"),
             (job or {}).get("active_child_id"),
-            json.dumps((job or {}).get("validation") or {}, sort_keys=True)[:2000],
+            json.dumps((job or {}).get("validation") or {}, sort_keys=True),
         ]
         hashed = evidence_hash(hash_parts)
         evidence = {
@@ -1407,7 +1431,13 @@ def step_mission(
             "job_state": (job or {}).get("state"),
             "failure_reason": (job or {}).get("failure_reason"),
             "mission_id": mission["mission_id"],
+            "repo": mission.get("workspace"),
+            "stage_id": mission.get("active_stage_id"),
+            "stage_objective": mission.get("stage_objective") or mission["owner_objective"],
+            "review_feedback": repair_feedback(job) or mission.get("repair_review_context") or "",
         }
+        # An implementation/infrastructure failure must not discard still-open review findings.
+        mission["repair_review_context"] = evidence["review_feedback"]
         consult = consult_advisors(
             evidence,
             invoke=consult_invoke,
@@ -1447,7 +1477,7 @@ def step_mission(
             mission["last_evidence_hash"] = hashed
             mission["active_job_id"] = None
             mission["repair_objective"] = (
-                f"{mission.get('owner_objective')}\n\n"
+                f"{mission.get('stage_objective') or mission['owner_objective']}\n\n"
                 "INFRASTRUCTURE RETRY. The previous failure was environmental "
                 f"({classified.get('reason')}) and does not consume an implementation repair cycle. "
                 "Repair the worker environment, then rerun independent validation."
@@ -1474,7 +1504,7 @@ def step_mission(
         mission["retry_count"] = int(mission.get("retry_count") or 0) + 1
         mission["active_job_id"] = None
         mission["repair_objective"] = (
-            f"{mission.get('owner_objective')}\n\n"
+            f"{mission.get('stage_objective') or mission['owner_objective']}\n\n"
             f"REPAIR CYCLE {mission['repair_cycles']}/{mission.get('max_repair_cycles')}. "
             f"Previous job {(job or {}).get('job_id')} failed: {classified.get('reason')}. "
             "Do not reopen the failed job. Do not weaken tests, security policy, or acceptance. "
@@ -1612,3 +1642,4 @@ def main() -> int:
 if __name__ == "__main__":
     os.environ.setdefault("PYTHONUTF8", "1")
     raise SystemExit(main())
+

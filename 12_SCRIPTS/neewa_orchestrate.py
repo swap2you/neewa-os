@@ -624,7 +624,7 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
         )
         if already:
             changed = False
-            for key in ("review_decision", "review_task", "model", "effort"):
+            for key in ("review_decision", "review_text", "review_task", "model", "effort"):
                 if payload.get(key) not in (None, "", []) and record.get(key) != payload.get(key):
                     record[key] = payload.get(key)
                     changed = True
@@ -667,7 +667,7 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             record["test_results"] = payload.get("test_results")
         if payload.get("cursor_started") is False:
             record["cursor_started"] = False
-        for key in ("review_decision", "review_task", "model", "effort", "collected", "passed"):
+        for key in ("review_decision", "review_text", "review_task", "model", "effort", "collected", "passed"):
             if payload.get(key) not in (None, "", []):
                 record[key] = payload.get(key)
         record["validation"] = {
@@ -798,3 +798,4 @@ def main() -> int:
 if __name__ == "__main__":
     os.environ.setdefault("PYTHONUTF8", "1")
     raise SystemExit(main())
+

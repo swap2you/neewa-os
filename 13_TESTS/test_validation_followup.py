@@ -19,6 +19,17 @@ WORKER = ROOT / "16_WINDOWS_CLIENT" / "worker"
 
 
 class IndependentContractTests(unittest.TestCase):
+    def test_review_prompt_keeps_receipt_tail_and_artifact_references(self):
+        job = {"parent_objective": "Verify one error-handling stage", "artifacts": ["done/ui-evidence.png"],
+               "repair_review_context": "Check the invalid-input objection", "validation": {
+                   "independent_test_receipt": {"stdout_tail": "x" * 5000, "candidate_diff_sha256": "candidate-tail-hash"}}}
+        prompt = AUTO.build_validation_prompt(job, {"requirements": ["invalid input"]}, {"summary": "current stage"})
+        self.assertIn("candidate-tail-hash", prompt)
+        self.assertIn("done/ui-evidence.png", prompt)
+        self.assertIn("Check the invalid-input objection", prompt)
+        self.assertIn("invalid input", prompt)
+        self.assertIn("do not represent a narrow stage as full charter acceptance", prompt)
+
     def test_generated_unittest_job_has_structured_args(self):
         adapter = AUTO.resolve_test_adapter(
             r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa-lifecycle-canary",
@@ -102,6 +113,7 @@ class IndependentContractTests(unittest.TestCase):
                 "job_id": job_id,
                 "status": "COMPLETED",
                 "review_decision": "OBJECT",
+                "review_text": "Missing invalid-input evidence; DECISION: OBJECT",
                 "review_task": "software_review",
                 "model": "gpt-5.6-sol",
                 "effort": "high",
@@ -110,11 +122,14 @@ class IndependentContractTests(unittest.TestCase):
             self.assertEqual(record["review_decision"], "OBJECT")
             self.assertEqual(record["model"], "gpt-5.6-sol")
             self.assertEqual(record["state"], "COMPLETED")
+            self.assertIn("Missing invalid-input evidence", record["review_text"])
             record.pop("review_decision", None)
+            record.pop("review_text", None)
             ORCH.save_record(record, root)
             again = ORCH.harvest(job_id, root)
             self.assertEqual(again["review_decision"], "OBJECT")
             self.assertEqual(again["state"], "COMPLETED")
+            self.assertIn("Missing invalid-input evidence", again["review_text"])
 
     def test_object_review_fails_done_gate_and_mission_success(self):
         job = {
@@ -265,3 +280,4 @@ class WindowsRunnerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

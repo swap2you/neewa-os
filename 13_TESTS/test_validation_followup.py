@@ -81,6 +81,30 @@ class IndependentContractTests(unittest.TestCase):
             self.assertEqual(payload["independent_test"]["collected"], 12)
             self.assertTrue(payload["test_results"]["passed"])
 
+    def test_harvest_keeps_an_object_decision(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "done").mkdir()
+            (root / "records").mkdir()
+            job_id = "JOB-RV1"
+            (root / "records" / f"{job_id}.json").write_text(json.dumps({
+                "job_id": job_id,
+                "state": "DISPATCHED",
+                "history": [],
+            }), encoding="utf-8")
+            (root / "done" / f"{job_id}.json").write_text(json.dumps({
+                "job_id": job_id,
+                "status": "COMPLETED",
+                "review_decision": "OBJECT",
+                "review_task": "software_review",
+                "model": "gpt-5.6-sol",
+                "effort": "high",
+            }), encoding="utf-8")
+            record = ORCH.harvest(job_id, root)
+            self.assertEqual(record["review_decision"], "OBJECT")
+            self.assertEqual(record["model"], "gpt-5.6-sol")
+            self.assertEqual(record["state"], "COMPLETED")
+
     def test_object_review_fails_done_gate_and_mission_success(self):
         job = {
             "state": "VALIDATING",

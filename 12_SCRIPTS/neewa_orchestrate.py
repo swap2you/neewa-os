@@ -656,6 +656,9 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             record["test_results"] = payload.get("test_results")
         if payload.get("cursor_started") is False:
             record["cursor_started"] = False
+        for key in ("review_decision", "review_task", "model", "effort", "collected", "passed"):
+            if payload.get(key) not in (None, "", []):
+                record[key] = payload.get(key)
         record["validation"] = {
             "worker_status": payload.get("status"),
             "failure_class": payload.get("failure_class"),

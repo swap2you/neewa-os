@@ -162,6 +162,7 @@ class GeneralAutonomyTests(unittest.TestCase):
                 return {
                     "job_id": job_id,
                     "state": "COMPLETED",
+                    "review_decision": "APPROVE" if "-RV" in str(job_id) else None,
                     "selected_worker": "cursor-agent-cli",
                     "artifact_paths": [r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"],
                     "validation": {
@@ -232,6 +233,7 @@ class GeneralAutonomyTests(unittest.TestCase):
                 return {
                     "job_id": job_id,
                     "state": "COMPLETED",
+                    "review_decision": "APPROVE" if "-RV" in str(job_id) else None,
                     "selected_worker": "cursor-agent-cli",
                     "artifact_paths": ["ok.py"],
                     "validation": {"stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0}"},
@@ -616,6 +618,7 @@ class GeneralAutonomyTests(unittest.TestCase):
                     "artifact_paths": [
                         r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
                     ],
+                    "review_decision": "APPROVE" if "-RV" in str(job_id) else None,
                     "validation": {
                         "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0, \"stdout\": \"missing file stderr\\nOK\"}"
                     },
@@ -655,6 +658,7 @@ class GeneralAutonomyTests(unittest.TestCase):
                     "artifact_paths": [
                         r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\markdown_changelog_digest\markdown_changelog_digest.py"
                     ],
+                    "review_decision": "APPROVE" if "-RV" in str(job_id) else None,
                     "validation": {
                         "stdout_tail": "Ran 2 tests in 0.01s\n\nOK\nTEST_JSON:{\"passed\": true, \"exit_code\": 0, \"stdout\": \"missing file stderr\\nOK\"}"
                     },

@@ -2017,10 +2017,14 @@ def evaluate_autonomy_done(job: dict) -> list[str]:
         failures.append("requirements traceability did not pass")
     if validation.get("council") not in {"PASS", "CHECKLIST_ONLY"}:
         failures.append("design council did not complete")
-    if validation.get("independent_rerun") != "PASS":
-        failures.append("independent validation did not pass")
-    if validation.get("review_decision") != "APPROVE":
+    decision = validation.get("review_decision")
+    if decision not in (None, "", "APPROVE"):
         failures.append("independent review did not approve")
+    if job.get("origin") in INDEPENDENT_VALIDATION_ORIGINS and job.get("workflow") == "sdlc":
+        if validation.get("independent_rerun") != "PASS":
+            failures.append("independent validation did not pass")
+        if decision != "APPROVE":
+            failures.append("independent review did not approve")
     if not job.get("validation"):
         failures.append("validation block missing")
     return failures

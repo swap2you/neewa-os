@@ -57,21 +57,30 @@ function Invoke-NeewaBoundedProcess {
       if ($s -match '[\s"]') { '"' + ($s -replace '"', '\"') + '"' } else { $s }
     }) -join ' ')
   }
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
-  [void]$proc.Start()
-  if (-not $proc.WaitForExit($TimeoutSec * 1000)) {
-    try { $proc.Kill() } catch { }
-    throw "$FileName timed out after ${TimeoutSec}s"
+  if (-not (Get-Command Invoke-NeewaDrainedProcess -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot 'Invoke-NeewaDrainedProcess.ps1')
   }
-  $proc.WaitForExit()
-  return [int]$proc.ExitCode
+  $drained = Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs ($TimeoutSec * 1000)
+  if ($drained.TimedOut) { throw "$FileName timed out after ${TimeoutSec}s" }
+  return [int]$drained.ExitCode
 }
 
 $script:NeewaRemoteCommand = {
   param($Request)
   $resolved = Resolve-NeewaExecutable ([string]$Request.Executable)
   return (Invoke-NeewaBoundedProcess -FileName $resolved -ArgumentList @($Request.ArgumentList) -TimeoutSec 20)
+}
+
+function Get-NeewaSha256 {
+  param([Parameter(Mandatory)][string]$Path)
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  $stream = [System.IO.File]::OpenRead($Path)
+  try {
+    return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()
+  } finally {
+    $stream.Dispose()
+    $sha.Dispose()
+  }
 }
 
 function Invoke-NeewaRemoteChecked {
@@ -99,17 +108,25 @@ function Save-NeewaOutboxResult {
   $itemPath = Join-Path $script:NeewaOutbox ($name + '.item.json')
   $payload = $Result | ConvertTo-Json -Depth 8 -Compress
   [System.IO.File]::WriteAllText($payloadPath, $payload, [System.Text.UTF8Encoding]::new($false))
-  $artifact = $null
+  $paths = New-Object System.Collections.Generic.List[string]
   try {
     if ($Result.artifact -and (Test-Path -LiteralPath ([string]$Result.artifact))) {
-      $artifact = [string]$Result.artifact
+      [void]$paths.Add([string]$Result.artifact)
     }
-  } catch { $artifact = $null }
+  } catch { }
+  try {
+    foreach ($extra in @($Result.artifact_paths)) {
+      if ($extra -and (Test-Path -LiteralPath ([string]$extra)) -and -not $paths.Contains([string]$extra)) {
+        [void]$paths.Add([string]$extra)
+      }
+    }
+  } catch { }
   $item = [ordered]@{
     name = $name
     dest_dir = (Resolve-NeewaResultFolder $Result)
     payload_path = $payloadPath
-    artifact = $artifact
+    artifact = $(if ($paths.Count -gt 0) { $paths[0] } else { $null })
+    artifact_paths = @($paths)
   }
   [System.IO.File]::WriteAllText($itemPath, ($item | ConvertTo-Json -Compress), [System.Text.UTF8Encoding]::new($false))
   return $itemPath
@@ -126,17 +143,22 @@ function Send-NeewaOutboxItem {
     throw "outbox payload missing: $payloadPath"
   }
   $remoteJson = "$RemoteInbox/$($item.dest_dir)/$name"
-  Invoke-NeewaRemoteChecked 'scp' (@($sshOpts) + @($payloadPath, "${RemoteHost}:$remoteJson"))
-  Invoke-NeewaRemoteChecked 'ssh' (@($sshOpts) + @($RemoteHost, "test -s '$remoteJson'"))
-  if ($item.artifact) {
-    $artifact = [string]$item.artifact
-    if (Test-Path -LiteralPath $artifact) {
-      $leaf = Split-Path -Leaf $artifact
-      $remoteArt = "$RemoteInbox/$($item.dest_dir)/$leaf"
-      Invoke-NeewaRemoteChecked 'scp' (@($sshOpts) + @($artifact, "${RemoteHost}:$remoteArt"))
-      Invoke-NeewaRemoteChecked 'ssh' (@($sshOpts) + @($RemoteHost, "test -s '$remoteArt'"))
-    }
+  $artifacts = @()
+  if ($item.artifact_paths) { $artifacts = @($item.artifact_paths) }
+  elseif ($item.artifact) { $artifacts = @([string]$item.artifact) }
+  foreach ($artifact in $artifacts) {
+    if (-not $artifact -or -not (Test-Path -LiteralPath ([string]$artifact))) { continue }
+    $leaf = Split-Path -Leaf ([string]$artifact)
+    $remoteArt = "$RemoteInbox/$($item.dest_dir)/$leaf"
+    $localHash = Get-NeewaSha256 ([string]$artifact)
+    Invoke-NeewaRemoteChecked 'scp' (@($sshOpts) + @([string]$artifact, "${RemoteHost}:$remoteArt"))
+    $hashCmd = "actual=`$(sha256sum '$remoteArt' | awk '{print `$1}'); test `"`$actual`" = '$localHash'"
+    Invoke-NeewaRemoteChecked 'ssh' (@($sshOpts) + @($RemoteHost, $hashCmd))
   }
+  $payloadHash = Get-NeewaSha256 $payloadPath
+  Invoke-NeewaRemoteChecked 'scp' (@($sshOpts) + @($payloadPath, "${RemoteHost}:$remoteJson"))
+  $payloadCmd = "actual=`$(sha256sum '$remoteJson' | awk '{print `$1}'); test `"`$actual`" = '$payloadHash'"
+  Invoke-NeewaRemoteChecked 'ssh' (@($sshOpts) + @($RemoteHost, $payloadCmd))
   Invoke-NeewaRemoteChecked 'ssh' (@($sshOpts) + @($RemoteHost, "rm -f $RemoteInbox/processing/$name"))
   Set-Content -LiteralPath $ack -Value $remoteJson -Encoding utf8
   return 'acked'

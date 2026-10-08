@@ -3,6 +3,7 @@
 # No param block: a dotted param() would clear the caller's variables.
 
 . (Join-Path $PSScriptRoot 'Invoke-NeewaTempProbe.ps1')
+. (Join-Path $PSScriptRoot 'Invoke-NeewaDrainedProcess.ps1')
 
 function Test-NeewaSafeToken {
   param([string]$Token)
@@ -28,23 +29,27 @@ function Resolve-NeewaInsideRepo {
 
 function ConvertTo-AllowlistedTestArgs {
   param([string[]]$Tokens)
-  $clean = @($Tokens | ForEach-Object { [string]$_ })
-  if ($clean.Count -lt 3) { return $null }
+  $clean = @($Tokens | ForEach-Object { [string]$_ } | Where-Object { $_ })
+  if ($clean.Count -lt 2) { return $null }
   if ($clean[0] -ne '-m') { return $null }
   if ($clean[1] -notin @('pytest', 'unittest')) { return $null }
   foreach ($token in $clean) {
     if (-not (Test-NeewaSafeToken $token)) { return $null }
   }
   if ($clean[1] -eq 'pytest') {
+    if ($clean.Count -lt 3) { return $null }
     $path = $clean[2]
-    if ($path -notmatch '^tests/[A-Za-z0-9_./-]+\.py$') { return $null }
+    if ($path -notmatch '^(tests/)?[A-Za-z0-9_./-]+\.py$') { return $null }
     foreach ($extra in @($clean | Select-Object -Skip 3)) {
       if ($extra -notin @('-q', '--tb=line', '--tb=short')) { return $null }
     }
     return $clean
   }
-  $rest = @($clean | Select-Object -Skip 2) -join ' '
-  if ($rest -eq '' -or $rest -eq 'discover -s tests -p test_*.py') { return $clean }
+  if ($clean.Count -eq 2) { return $clean }
+  $rest = @($clean | Select-Object -Skip 2)
+  $joined = $rest -join ' '
+  if ($joined -eq 'discover -s tests -p test_*.py') { return $clean }
+  if ($rest.Count -eq 1 -and $rest[0] -match '^[A-Za-z0-9_.]+$') { return $clean }
   return $null
 }
 
@@ -68,6 +73,9 @@ function Get-NeewaPytestOutcome {
   if ($blob -match 'collected\s+(\d+)\s+item') {
     if ([int]$Matches[1] -eq 0) { $collected = 0 }
   }
+  if ($blob -match '(?m)^(ERROR|ImportError|ModuleNotFoundError)\b' -and -not $summary) {
+    return [pscustomobject]@{ collected = 0; passed = $false; failure_class = 'PRECOLLECTION_FAIL' }
+  }
   if ($collected -le 0) {
     return [pscustomobject]@{ collected = 0; passed = $false; failure_class = 'ZERO_COLLECTED' }
   }
@@ -75,6 +83,28 @@ function Get-NeewaPytestOutcome {
   return [pscustomobject]@{
     collected = $collected
     passed = $ok
+    failure_class = $(if ($ok) { $null } else { 'INDEPENDENT_TEST_FAIL' })
+  }
+}
+
+function Get-NeewaUnittestOutcome {
+  param([string]$Stdout, [string]$Stderr, [int]$ExitCode)
+  $blob = "{0}`n{1}" -f $Stdout, $Stderr
+  if ($blob -match 'No usable temporary directory') {
+    return [pscustomobject]@{ collected = 0; passed = $false; failure_class = 'NO_USABLE_TEMP' }
+  }
+  $collected = 0
+  if ($blob -match 'Ran\s+(\d+)\s+tests?') { $collected = [int]$Matches[1] }
+  if ($blob -match '(?m)^(ERROR|ImportError|ModuleNotFoundError)\b' -and $collected -le 0) {
+    return [pscustomobject]@{ collected = 0; passed = $false; failure_class = 'PRECOLLECTION_FAIL' }
+  }
+  if ($collected -le 0) {
+    return [pscustomobject]@{ collected = 0; passed = $false; failure_class = 'ZERO_COLLECTED' }
+  }
+  $ok = ($ExitCode -eq 0) -and ($blob -match '(?m)^OK\s*$') -and ($blob -notmatch 'FAILED \(')
+  return [pscustomobject]@{
+    collected = $collected
+    passed = [bool]$ok
     failure_class = $(if ($ok) { $null } else { 'INDEPENDENT_TEST_FAIL' })
   }
 }
@@ -122,27 +152,46 @@ function Invoke-AllowlistedProductTest {
     candidate_head = $null
     candidate_diff_sha256 = $null
   }
-  if (-not $PythonRelative) { $PythonRelative = 'backend\.venv\Scripts\python.exe' }
-  if (-not $CwdRelative) { $CwdRelative = 'backend' }
   $identity = Get-NeewaRepoIdentity -Repo $Repo
   $result.candidate_head = $identity.head
   $result.candidate_diff_sha256 = $identity.diff_sha256
-  $args = @($ArgumentList)
-  if (-not $args -and $TestCommand) {
-    $args = @($TestCommand -split '\s+' | Where-Object { $_ })
-    if ($args.Count -ge 1 -and $args[0] -match 'python(\.exe)?$') {
-      $PythonRelative = $args[0]
-      $args = @($args | Select-Object -Skip 1)
+  $parsed = @($ArgumentList | Where-Object { $_ })
+  if (-not $parsed -and $TestCommand) {
+    $parsed = @($TestCommand -split '\s+' | Where-Object { $_ })
+    if ($parsed.Count -ge 1 -and $parsed[0] -match 'python(\.exe)?$') {
+      if (-not $PythonRelative -or $PythonRelative -eq 'backend\.venv\Scripts\python.exe') {
+        $PythonRelative = $parsed[0]
+      }
+      $parsed = @($parsed | Select-Object -Skip 1)
     }
   }
-  $allow = ConvertTo-AllowlistedTestArgs -Tokens $ArgumentList
+  $allow = ConvertTo-AllowlistedTestArgs -Tokens $parsed
   if (-not $allow) {
     $result.stderr = 'test argv is not allowlisted'
     $result.failure_class = 'UNAPPROVED_TEST_COMMAND'
+    $result.argv = @($parsed)
     return [pscustomobject]$result
   }
-  $python = Resolve-NeewaInsideRepo -Repo $Repo -Relative $PythonRelative
-  $cwd = Resolve-NeewaInsideRepo -Repo $Repo -Relative $CwdRelative
+  if (-not $CwdRelative -or $CwdRelative -eq '.') {
+    $cwd = [System.IO.Path]::GetFullPath($Repo)
+  } else {
+    $cwd = Resolve-NeewaInsideRepo -Repo $Repo -Relative $CwdRelative
+  }
+  $python = $null
+  if ($PythonRelative -match '^(python|python3)(\.exe)?$') {
+    $cmd = Get-Command $PythonRelative -ErrorAction SilentlyContinue
+    if ($cmd -and $cmd.Source) { $python = [string]$cmd.Source }
+  } else {
+    if (-not $PythonRelative) { $PythonRelative = 'backend\.venv\Scripts\python.exe' }
+    $python = Resolve-NeewaInsideRepo -Repo $Repo -Relative $PythonRelative
+  }
+  if ((-not $python -or -not (Test-Path -LiteralPath $python)) -and $PythonRelative -match '^(python|python3)(\.exe)?$') {
+    $uvRoot = Join-Path $env:APPDATA 'uv\python'
+    if (Test-Path -LiteralPath $uvRoot) {
+      $uv = Get-ChildItem -LiteralPath $uvRoot -Filter python.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($uv) { $python = $uv.FullName }
+    }
+  }
   if (-not $python -or -not (Test-Path -LiteralPath $python)) {
     $venv = Resolve-NeewaInsideRepo -Repo $Repo -Relative 'backend\.venv\Scripts\python.exe'
     if ($venv -and (Test-Path -LiteralPath $venv)) { $python = $venv }
@@ -181,23 +230,28 @@ function Invoke-AllowlistedProductTest {
     if ($row.path -eq $probe.scratch -and $row.file_ok -and $row.directory_ok) { $chosen = $probe.scratch }
   }
   $scratch = Set-NeewaChildTemp -StartInfo $psi -Scratch $chosen
-  $proc = New-Object System.Diagnostics.Process
-  $proc.StartInfo = $psi
-  [void]$proc.Start()
-  $stdout = $proc.StandardOutput.ReadToEnd()
-  $stderr = $proc.StandardError.ReadToEnd()
-  if (-not $proc.WaitForExit(900000)) {
-    try { $proc.Kill() } catch { }
+  $drained = Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs 900000
+  $stdout = [string]$drained.Stdout
+  $stderr = [string]$drained.Stderr
+  if ($drained.TimedOut) {
     $result.failure_class = 'CHILD_TIMEOUT'
     $result.stderr = 'independent test exceeded 900 seconds'
+    $result.stdout = $stdout
     return [pscustomobject]$result
   }
-  $outcome = Get-NeewaPytestOutcome -Stdout $stdout -Stderr $stderr -ExitCode ([int]$proc.ExitCode)
+  $parser = 'pytest'
+  if (@($allow) -contains 'unittest') { $parser = 'unittest' }
+  if ($parser -eq 'unittest') {
+    $outcome = Get-NeewaUnittestOutcome -Stdout $stdout -Stderr $stderr -ExitCode ([int]$drained.ExitCode)
+  } else {
+    $outcome = Get-NeewaPytestOutcome -Stdout $stdout -Stderr $stderr -ExitCode ([int]$drained.ExitCode)
+  }
+  $procExit = [int]$drained.ExitCode
   $result.command = (@($python) + $allow) -join ' '
   $result.argv = @($allow)
   $result.cwd = $cwd
   $result.python = $python
-  $result.exit_code = [int]$proc.ExitCode
+  $result.exit_code = $procExit
   $result.stdout = [string]$stdout
   $result.stderr = [string]$stderr
   $result.collected = $outcome.collected
@@ -223,10 +277,18 @@ $repo = [string]$job.repo
 if (-not $repo) { $repo = [string]$job.workspace }
 $argList = @()
 if ($job.PSObject.Properties['args'] -and $job.args) { $argList = @($job.args) }
-$ran = Invoke-AllowlistedProductTest -Repo $repo -PythonRelative ([string]$job.python) -CwdRelative ([string]$(if ($job.cwd) { $job.cwd } else { 'backend' })) -ArgumentList $argList -TestCommand ([string]$job.test_command)
+$pythonRel = $null
+$cwdRel = $null
+if ($job.PSObject.Properties['python'] -and $job.python) { $pythonRel = [string]$job.python }
+if ($job.PSObject.Properties['cwd'] -and $job.cwd) { $cwdRel = [string]$job.cwd }
+$ran = Invoke-AllowlistedProductTest -Repo $repo -PythonRelative $pythonRel -CwdRelative $cwdRel -ArgumentList $argList -TestCommand ([string]$job.test_command)
 $artifact = Join-Path $OutDir ("{0}-independent-test.json" -f $job.job_id)
+$transcript = Join-Path $OutDir ("{0}-independent-test-transcript.txt" -f $job.job_id)
 $status = if ($ran.passed) { 'COMPLETED' } else { 'FAILED' }
 $reason = if ($ran.passed) { $null } else { $ran.failure_class }
+$stdoutText = [string]$ran.stdout
+$stderrText = [string]$ran.stderr
+[System.IO.File]::WriteAllText($transcript, ("STDOUT`n{0}`nSTDERR`n{1}`n" -f $stdoutText, $stderrText), [System.Text.UTF8Encoding]::new($false))
 $payload = [ordered]@{
   job_id = $job.job_id
   action = 'independent_test'
@@ -243,8 +305,9 @@ $payload = [ordered]@{
   scratch = $ran.scratch
   candidate_head = $ran.candidate_head
   candidate_diff_sha256 = $ran.candidate_diff_sha256
-  stdout_tail = $(if ($ran.stdout -and $ran.stdout.Length -gt 2000) { $ran.stdout.Substring($ran.stdout.Length - 2000) } else { [string]$ran.stdout })
-  stderr_tail = $(if ($ran.stderr -and $ran.stderr.Length -gt 2000) { $ran.stderr.Substring($ran.stderr.Length - 2000) } else { [string]$ran.stderr })
+  transcript = $transcript
+  stdout_tail = $(if ($stdoutText.Length -gt 2000) { $stdoutText.Substring($stdoutText.Length - 2000) } else { $stdoutText })
+  stderr_tail = $(if ($stderrText.Length -gt 2000) { $stderrText.Substring($stderrText.Length - 2000) } else { $stderrText })
 }
 $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $artifact -Encoding utf8
 [pscustomobject]@{
@@ -252,7 +315,15 @@ $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $artifact -Encodin
   status = $status
   reason = $reason
   artifact = $artifact
+  artifact_paths = @($artifact, $transcript)
+  independent_test = $payload
+  test_results = $payload
+  stdout_tail = $payload.stdout_tail
   failure_class = $ran.failure_class
+  collected = $ran.collected
+  passed = $ran.passed
+  candidate_head = $ran.candidate_head
+  candidate_diff_sha256 = $ran.candidate_diff_sha256
 }
 }
 }

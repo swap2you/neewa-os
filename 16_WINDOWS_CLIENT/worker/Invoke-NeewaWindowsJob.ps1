@@ -233,6 +233,16 @@ $result = [pscustomobject]@{
   failure_class = $(if ($cursorResult) { $cursorResult.failure_class } else { $null })
   preflight = $(if ($cursorResult -and $cursorResult.PSObject.Properties['preflight']) { $cursorResult.preflight } else { $null })
   authorization = $(if ($cursorResult -and $cursorResult.PSObject.Properties['authorization']) { $cursorResult.authorization } else { $null })
+  independent_test = $(if ($cursorResult -and $cursorResult.PSObject.Properties['independent_test']) { $cursorResult.independent_test } else { $null })
+  test_results = $(if ($cursorResult -and $cursorResult.PSObject.Properties['test_results']) { $cursorResult.test_results } else { $null })
+  artifact_paths = $(if ($cursorResult -and $cursorResult.PSObject.Properties['artifact_paths']) { @($cursorResult.artifact_paths) } else { @() })
+  stdout_tail = $(if ($cursorResult -and $cursorResult.PSObject.Properties['stdout_tail']) { $cursorResult.stdout_tail } else { $null })
+  review_decision = $(if ($cursorResult -and $cursorResult.PSObject.Properties['review_decision']) { $cursorResult.review_decision } else { $null })
+  review_task = $(if ($cursorResult -and $cursorResult.PSObject.Properties['review_task']) { $cursorResult.review_task } else { $null })
+  model = $(if ($cursorResult -and $cursorResult.PSObject.Properties['model']) { $cursorResult.model } else { $null })
+  effort = $(if ($cursorResult -and $cursorResult.PSObject.Properties['effort']) { $cursorResult.effort } else { $null })
+  collected = $(if ($cursorResult -and $cursorResult.PSObject.Properties['collected']) { $cursorResult.collected } else { $null })
+  passed = $(if ($cursorResult -and $cursorResult.PSObject.Properties['passed']) { $cursorResult.passed } else { $null })
 }
 $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stampFile -Encoding utf8
 return $result

@@ -343,6 +343,10 @@ def submit(
     implementation_child_id: str | None = None,
     implementation_repo: str | None = None,
     test_command: str | None = None,
+    test_args: list[str] | None = None,
+    test_python: str | None = None,
+    test_cwd: str | None = None,
+    review_task: str | None = None,
     implementation_model: str | None = None,
     review_effort: str | None = None,
     files: list[str] | None = None,
@@ -442,6 +446,14 @@ def submit(
         extra["implementation_repo"] = implementation_repo
     if test_command:
         extra["test_command"] = test_command
+    if test_args:
+        extra["args"] = list(test_args)
+    if test_python:
+        extra["python"] = test_python
+    if test_cwd:
+        extra["cwd"] = test_cwd
+    if review_task:
+        extra["review_task"] = review_task
     if implementation_model:
         extra["implementation_model"] = implementation_model
         extra["model"] = implementation_model
@@ -519,6 +531,17 @@ def _merge_sidecar(root: Path, folder: str, job_id: str, payload: dict) -> dict:
         for key in _QUEUE_SIDECAR_KEYS:
             if extra.get(key) not in (None, "", []):
                 payload[key] = extra[key]
+    evidence = _read_queue_file(root / folder / f"{job_id}-independent-test.json")
+    if evidence is None:
+        evidence = _read_queue_file(root / "records" / f"{job_id}-independent-test.json")
+    if evidence:
+        payload["independent_test"] = evidence
+        payload["test_results"] = evidence
+        if evidence.get("stdout_tail") and not payload.get("stdout_tail"):
+            payload["stdout_tail"] = evidence.get("stdout_tail")
+        for key in ("collected", "passed", "candidate_head", "candidate_diff_sha256", "failure_class"):
+            if evidence.get(key) not in (None, "", []) and payload.get(key) in (None, "", []):
+                payload[key] = evidence.get(key)
     progress = _read_queue_file(root / "records" / f"{job_id}.progress.json")
     if progress and progress.get("progress_at"):
         payload["progress_at"] = progress["progress_at"]

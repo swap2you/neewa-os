@@ -162,7 +162,8 @@ class MissionSupervisorTests(unittest.TestCase):
                 "independent_rerun": "PASS",
                 "tests": "PASS",
                 "traceability": "PASS",
-                "council": "PASS",
+                "council": "CHECKLIST_ONLY",
+                "review_decision": "APPROVE",
             }
             passed["independent_validation"] = {"execution_phase": "independent_validation"}
             self.auto.save_job(passed)
@@ -173,6 +174,11 @@ class MissionSupervisorTests(unittest.TestCase):
             mission = self._step(mission, root)
             self.assertEqual(mission["state"], "OWNER_REVIEW")
             self.assertTrue(self.mission.job_meets_mission_success(passed))
+            self.assertFalse(
+                self.mission.job_meets_mission_success(
+                    {"state": "OWNER_REVIEW", "validation": {"independent_rerun": "PASS", "review_decision": "OBJECT"}}
+                )
+            )
             self.assertFalse(
                 self.mission.job_meets_mission_success(
                     {"state": "OWNER_REVIEW", "validation": {"independent_rerun": "IMPLEMENTER_CLAIMED"}}

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "adapters": [
+    {
+      "id": "chakraops-backend-pytest",
+      "match_path": "\\ChakraOps",
+      "python": "backend\\.venv\\Scripts\\python.exe",
+      "cwd": "backend",
+      "argv": ["-m", "pytest", "tests/test_orats_freshness_r222.py", "-q", "--tb=line"],
+      "parser": "pytest"
+    },
+    {
+      "id": "lifecycle-canary-unittest",
+      "match_path": "\\neewa-lifecycle-canary",
+      "python": "python",
+      "cwd": ".",
+      "argv": ["-m", "unittest"],
+      "parser": "unittest"
+    }
+  ]
+}

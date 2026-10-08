@@ -167,6 +167,11 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
                         "stdout_tail": _test_stdout(),
                         "result": "PASS",
                     }
+                    if "-RV" in str(job_id):
+                        child["review_decision"] = "APPROVE"
+                        child["review_task"] = "acceptance"
+                        child["model"] = "gpt-6-astra"
+                        child["effort"] = "high"
                 else:
                     child["execution_phase"] = "implementation"
                 return child
@@ -267,7 +272,8 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             self.assertEqual(validation.get("tests"), "PASS")
             self.assertEqual(validation.get("independent_rerun"), "PASS")
             self.assertEqual(validation.get("traceability"), "PASS")
-            self.assertEqual(validation.get("council"), "PASS")
+            self.assertEqual(validation.get("council"), "CHECKLIST_ONLY")
+            self.assertEqual(validation.get("review_decision"), "APPROVE")
             self.assertTrue((validation.get("test_evidence") or {}).get("passed"))
             self.assertTrue((validation.get("independent_test_evidence") or {}).get("passed"))
 

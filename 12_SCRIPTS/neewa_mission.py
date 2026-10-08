@@ -67,7 +67,8 @@ def job_meets_mission_success(job: dict | None) -> bool:
     """
     if not job or job.get("state") not in JOB_SUCCESS:
         return False
-    return (job.get("validation") or {}).get("independent_rerun") == "PASS"
+    validation = job.get("validation") or {}
+    return validation.get("independent_rerun") == "PASS" and validation.get("review_decision") == "APPROVE"
 JOB_TERMINAL = {"DONE", "BLOCKED", "FAILED", "CANCELLED"}
 RECOVERABLE = {
     "CHILD_TIMEOUT",
@@ -123,20 +124,35 @@ class HostPathUnmounted(ValueError):
     pass
 
 
+CHAKRAOPS_STAGES = (
+    ("orats_reconciliation", "Reconcile the dirty ORATS files in the canonical checkout and prove the registered freshness tests independently."),
+    ("no_signal_evidence", "Produce actual no-signal evidence: stage counts, data availability, filters, rejection reasons, universe and windows. Do not manufacture a qualified trade."),
+    ("strategy_explanation", "Explain the strategy and downside behavior from the code and evidence. A rising market does not make an unqualified trade safe."),
+    ("position_math", "Show CSP, covered-call, spread, and share math from the implementation. Do not submit, cancel, roll, or execute a broker order."),
+    ("calendar", "Produce the calendar behavior with the windows and dates the implementation actually uses."),
+    ("profiles", "Exercise the configured profiles and record which rules accept or reject."),
+    ("read_only_broker", "Read positions and account state through the read-only path. Broker writes stay denied."),
+    ("eligibility", "Record eligibility decisions and the reason each candidate is accepted or rejected."),
+    ("ui_parity", "Compare the UI journey with the implementation and keep the screenshot with the candidate hash."),
+    ("universe_indicators", "Refresh universe and indicators only with the validation that supports them."),
+    ("replay_snapshots", "Produce replay snapshots. Replay is never a live order path."),
+    ("competitor_research", "Record competitor research that is tied to this checkout and not treated as a trade signal."),
+    ("owner_alerts", "Check owner alerts and do not label a sell as a buy."),
+    ("position_monitoring", "Monitor positions without placing, changing, or cancelling a broker order."),
+    ("traceability", "Tie the charter evidence, reviews, and candidate identity into one manifest. Do not call the charter accepted from the first two stages."),
+)
+
+
 def default_stage_plan(project_id: str | None, objective: str) -> list[dict]:
     if project_id == "PRJ-CHAKRAOPS":
-        return [
-            {"id": "orats_reconciliation", "status": "in_progress", "objective": objective},
-            {
-                "id": "no_signal_evidence",
-                "status": "not_started",
-                "objective": (
-                    "Produce actual no-signal evidence for the canonical ChakraOps checkout: "
-                    "stage counts, data availability, filters, rejection reasons, universe and windows. "
-                    "Do not manufacture a qualified trade. Broker order actions stay denied."
-                ),
-            },
-        ]
+        stages = []
+        for index, (stage_id, text) in enumerate(CHAKRAOPS_STAGES):
+            stages.append({
+                "id": stage_id,
+                "status": "in_progress" if index == 0 else "not_started",
+                "objective": objective if index == 0 else text + " Broker order actions stay denied.",
+            })
+        return stages
     return [
         {"id": "delivery", "status": "in_progress", "objective": objective},
         {
@@ -148,6 +164,71 @@ def default_stage_plan(project_id: str | None, objective: str) -> list[dict]:
             ),
         },
     ]
+
+
+def ensure_stage_plan(mission: dict) -> None:
+    """Append charter stages that are missing. Do not reset a stage already in progress."""
+    if mission.get("project_id") != "PRJ-CHAKRAOPS":
+        return
+    plan = list(mission.get("stage_plan") or [])
+    known = {str(stage.get("id") or "") for stage in plan}
+    for stage_id, text in CHAKRAOPS_STAGES:
+        if stage_id in known:
+            continue
+        plan.append({
+            "id": stage_id,
+            "status": "not_started",
+            "objective": text + " Broker order actions stay denied.",
+        })
+    mission["stage_plan"] = plan
+
+
+def adopt_bridge_handoff(root: Path, inbox_root: Path | None) -> list[dict]:
+    """Reopen only the missions named by the bridge handoff. Historical jobs stay failed."""
+    if inbox_root is None:
+        return []
+    path = Path(inbox_root) / "records" / "neewa-handoff-latest.json"
+    if not path.is_file():
+        return []
+    try:
+        handoff = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+    if not handoff.get("changed_condition") or not handoff.get("handoff_id"):
+        return []
+    adopted = []
+    for mission_id in handoff.get("adopt_mission_ids") or []:
+        mission = load_mission(str(mission_id), root)
+        if not mission or mission.get("state") != "FAILED":
+            continue
+        if mission.get("handoff_id") == handoff.get("handoff_id"):
+            continue
+        if find_active_writer(root, mission.get("project_id")):
+            continue
+        ensure_stage_plan(mission)
+        prior = mission.get("failure_reason")
+        mission.setdefault("failure_history", []).append({
+            "at": utc_now(),
+            "reason": prior,
+            "signature": mission.get("last_failure_signature"),
+            "preserved": True,
+        })
+        mission["prior_repair_cycles"] = mission.get("repair_cycles")
+        mission["repair_cycles"] = 0
+        mission["active_job_id"] = None
+        mission["failure_reason"] = None
+        mission["handoff_id"] = handoff.get("handoff_id")
+        mission["state"] = "PLANNING"
+        mission["stage"] = "PLANNING"
+        mission["terminal_result"] = "FAILED"
+        mission.setdefault("history", []).append({
+            "state": "PLANNING",
+            "at": utc_now(),
+            "note": "changed-condition handoff adopted; historical failures were not relabeled",
+        })
+        save_mission(mission, root)
+        adopted.append(mission)
+    return adopted
 
 
 def stage_can_continue(mission: dict) -> bool:
@@ -975,7 +1056,12 @@ def consult_advisors(
         responses.append(receipt)
     recommendations = [r.get("response") for r in responses if r.get("response")]
     available = [r for r in responses if r.get("status") in {"AVAILABLE", "CONFIGURED_NOT_INVOKED", "CONSULTED"}]
-    consulted = [r for r in responses if r.get("invoked") and r.get("response")]
+    consulted = [
+        row for row in responses
+        if row.get("invoked")
+        and isinstance(row.get("response"), dict)
+        and row["response"].get("decision")
+    ]
     if len({json.dumps(item, sort_keys=True) for item in recommendations}) > 1:
         disagreement.append("advisor responses differ; NEEWA retains the technical plan")
     return {
@@ -1102,6 +1188,10 @@ def step_mission(
     **advance_kwargs,
 ) -> dict:
     auto = auto or _auto_mod()
+    before_ids = [stage.get("id") for stage in mission.get("stage_plan") or []]
+    ensure_stage_plan(mission)
+    if [stage.get("id") for stage in mission.get("stage_plan") or []] != before_ids:
+        save_mission(mission, root)
     if mission.get("state") in TERMINAL and not stage_can_continue(mission):
         return mission
     if stage_can_continue(mission):
@@ -1413,6 +1503,12 @@ def supervisor_once(
     }
     save_json(jobs_root / "mission-heartbeat.json", heartbeat)
     results = []
+    for mission in adopt_bridge_handoff(jobs_root, inbox_root):
+        results.append({
+            "mission_id": mission["mission_id"],
+            "state": mission["state"],
+            "adopted": True,
+        })
     for mission in list_missions(jobs_root):
         if mission.get("state") in TERMINAL and not stage_can_continue(mission):
             results.append({"mission_id": mission["mission_id"], "state": mission["state"], "skipped": "terminal"})

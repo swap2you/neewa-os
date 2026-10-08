@@ -1133,9 +1133,14 @@ def attach_project_identity(job: dict) -> dict:
         persisted=job.get("project_identity"),
     )
     job["project_identity"] = IDENTITY.public_identity(identity)
-    lifecycle = IDENTITY.resolve_project_lifecycle(
-        job.get("parent_objective") or "",
-        identity=identity,
+    preserved = job.get("project_lifecycle")
+    lifecycle = (
+        preserved
+        if preserved in {"create_new", "modify_existing"}
+        else IDENTITY.resolve_project_lifecycle(
+            job.get("parent_objective") or "",
+            identity=identity,
+        )
     )
     identity["lifecycle"] = lifecycle
     job["project_identity"] = IDENTITY.public_identity(identity)
@@ -1292,7 +1297,7 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
         str(requirements.get("project_id") or "") == "PRJ-CHAKRAOPS"
         or workspace_l.endswith("\\chakraops")
     )
-    existing_repo = (
+    existing_repo = requirements.get("project_lifecycle") == "modify_existing" or (
         (stack.startswith("node") or stack.startswith("mixed") or registered_app)
         and not sandboxish
     )
@@ -1737,21 +1742,49 @@ OBJECTIVE:
 INDEPENDENT TEST RECEIPT:
 {json.dumps(receipt, default=str)[:4000]}
 
-A successful tool exit is not approval. Decide APPROVE, CHANGES_REQUIRED, or INSUFFICIENT_EVIDENCE from the receipt and the candidate you can actually read.
+A successful tool exit is not approval. End with one line:
+DECISION: APPROVE
+or DECISION: CHANGES_REQUIRED
+or DECISION: INSUFFICIENT_EVIDENCE
+or DECISION: OBJECT
+or DECISION: HOLD
+Use OBJECT or HOLD when the evidence is present but the candidate is not acceptable. Use INSUFFICIENT_EVIDENCE when the receipt, transcript, or image is missing or does not match the candidate.
 Stay inside this workspace. Do not touch employer trees, secrets, or broker/order actions.
 """
+
+
+REVIEW_DECISIONS = {"APPROVE", "CHANGES_REQUIRED", "INSUFFICIENT_EVIDENCE", "OBJECT", "HOLD"}
+
+
+def parse_review_decision(text: str | None) -> str | None:
+    found = None
+    for match in re.finditer(
+        r"(?i)\bDECISION:\s*(APPROVE|CHANGES_REQUIRED|INSUFFICIENT_EVIDENCE|OBJECT|HOLD)\b",
+        text or "",
+    ):
+        found = match.group(1).upper()
+    return found if found in REVIEW_DECISIONS else None
 
 
 def parse_test_evidence(stdout: str | None, payload: dict | None = None) -> dict:
     text = stdout or ""
     payload = payload or {}
-    if payload.get("test_results"):
+    row = payload.get("independent_test") if isinstance(payload.get("independent_test"), dict) else None
+    if row is None and isinstance(payload.get("test_results"), dict):
         row = payload["test_results"]
+    if row and ("passed" in row or "collected" in row):
+        collected = row.get("collected")
+        passed = bool(row.get("passed"))
+        if collected == 0 or collected == "0":
+            passed = False
         return {
-            "passed": bool(row.get("passed")),
+            "passed": passed,
             "exit_code": row.get("exit_code"),
-            "stdout": str(row.get("stdout") or "")[-4000:],
-            "source": "payload",
+            "stdout": str(row.get("stdout") or row.get("stdout_tail") or "")[-4000:],
+            "source": "independent_test",
+            "collected": collected,
+            "candidate_head": row.get("candidate_head"),
+            "candidate_diff_sha256": row.get("candidate_diff_sha256"),
         }
     try:
         wrapped = json.loads(text)
@@ -1982,8 +2015,12 @@ def evaluate_autonomy_done(job: dict) -> list[str]:
                 failures.append("SPEC_DRIFT")
     if validation.get("traceability") != "PASS":
         failures.append("requirements traceability did not pass")
-    if validation.get("council") != "PASS":
+    if validation.get("council") not in {"PASS", "CHECKLIST_ONLY"}:
         failures.append("design council did not complete")
+    if validation.get("independent_rerun") != "PASS":
+        failures.append("independent validation did not pass")
+    if validation.get("review_decision") != "APPROVE":
+        failures.append("independent review did not approve")
     if not job.get("validation"):
         failures.append("validation block missing")
     return failures
@@ -2138,25 +2175,69 @@ def _submit_cursor(
     return record
 
 
+def resolve_test_adapter(workspace: str | None, test_command: str | None = None) -> dict:
+    """Structured argv for a registered project. A bare command is not left unparsed."""
+    path = ROOT / "16_WINDOWS_CLIENT" / "worker" / "test_adapters.json"
+    rows = []
+    if path.is_file():
+        rows = json.loads(path.read_text(encoding="utf-8")).get("adapters") or []
+    ws = (workspace or "").replace("/", "\\").lower()
+    chosen = next((row for row in rows if str(row.get("match_path") or "").lower() in ws), None)
+    if not chosen:
+        chosen = {
+            "id": "default-unittest",
+            "python": "python",
+            "cwd": ".",
+            "argv": ["-m", "unittest"],
+            "parser": "unittest",
+        }
+    argv = list(chosen.get("argv") or ["-m", "unittest"])
+    python = chosen.get("python") or "python"
+    if test_command:
+        tokens = [part for part in str(test_command).split() if part]
+        if tokens and tokens[0].lower().replace("\\", "/").endswith("python.exe"):
+            python = tokens[0]
+            tokens = tokens[1:]
+        elif tokens and tokens[0].lower() in {"python", "python.exe", "python3"}:
+            python = tokens[0]
+            tokens = tokens[1:]
+        if tokens:
+            argv = tokens
+    return {
+        "id": chosen.get("id") or "default-unittest",
+        "python": python,
+        "cwd": chosen.get("cwd") or ".",
+        "argv": argv,
+        "parser": chosen.get("parser") or ("pytest" if "pytest" in argv else "unittest"),
+        "test_command": " ".join(argv),
+    }
+
+
 def _submit_independent_test(job: dict, test_command: str, *, inbox_root: Path | None, orch_submit) -> dict:
     """Deterministic test on the Windows worker. Not a model assertion."""
     seq = len(job.get("child_jobs") or []) + 1
     child_id = f"{job['job_id']}-IT{seq:02d}"
     identity = job.get("project_identity") or {}
+    repo = identity.get("project_path") or job.get("workspace")
+    adapter = resolve_test_adapter(repo, test_command)
+    job["test_adapter"] = adapter
     try:
         record = orch_submit(
             job_id=child_id,
             capability="independent_test",
             objective=job.get("parent_objective") or "",
-            repo=identity.get("project_path") or job.get("workspace"),
-            prompt=test_command,
+            repo=repo,
+            prompt=adapter["test_command"],
             write=False,
             timeout_sec=effective_timeout_sec(job),
             project_id=job.get("project_id"),
             approval="A1",
             inbox_root=inbox_root,
             execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
-            test_command=test_command,
+            test_command=adapter["test_command"],
+            test_args=adapter["argv"],
+            test_python=adapter["python"],
+            test_cwd=adapter["cwd"],
         )
     except ValueError as exc:
         if "duplicate job_id" not in str(exc):
@@ -2195,6 +2276,7 @@ def _submit_codex_review(job: dict, prompt: str, *, inbox_root: Path | None, orc
             execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
             implementation_model=model,
             review_effort=effort,
+            review_task=job.get("review_task") or "acceptance",
         )
     except ValueError as exc:
         if "duplicate job_id" not in str(exc):
@@ -2549,9 +2631,14 @@ def advance_job(
                 workspace=job.get("workspace"),
                 project_id=job.get("project_id"),
             )
+            if job.get("project_lifecycle"):
+                requirements["project_lifecycle"] = job.get("project_lifecycle")
             save_json(req_path, requirements)
         else:
             requirements = load_json(req_path)
+            if job.get("project_lifecycle") and not requirements.get("project_lifecycle"):
+                requirements["project_lifecycle"] = job.get("project_lifecycle")
+                save_json(req_path, requirements)
         job["requirements_version"] = requirements["version"]
         if str(req_path) not in job["artifacts"]:
             job["artifacts"].append(str(req_path))
@@ -2580,7 +2667,7 @@ def advance_job(
         save_json(workdir / "design-v2.json", council["approved_design"])
         job["design_version"] = council["approved_design"]["version"]
         job["expected_paths"] = expected_paths_from_design(council["approved_design"])
-        job["validation"] = {"council": "PASS"}
+        job["validation"] = {"council": "CHECKLIST_ONLY", "checklist_is_consultation": False}
         job["spec_sha256"] = spec_sha256(requirements, council["approved_design"])
         checkpoint(job, "council", {"material": council["material_count"], "spec_sha256": job["spec_sha256"]})
         if job.get("workflow") == "research_report":
@@ -2993,7 +3080,19 @@ def advance_job(
                 }
                 stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
                 test_ev = parse_test_evidence(stdout, record)
-                job["validation"]["review_completed"] = record.get("state") == "COMPLETED"
+                decision = (record or {}).get("review_decision") or parse_review_decision(
+                    str((record or {}).get("reason") or "") + "\n" + stdout
+                )
+                job["validation"]["review_decision"] = decision
+                job["validation"]["review_task"] = (record or {}).get("review_task")
+                job["validation"]["review_model"] = (record or {}).get("model")
+                job["validation"]["review_effort"] = (record or {}).get("effort")
+                job["validation"]["review_completed"] = record.get("state") == "COMPLETED" and decision == "APPROVE"
+                if decision != "APPROVE":
+                    job["failure_reason"] = f"review decision {decision or 'missing'}"
+                    job["failure_class"] = "REVIEW_OBJECTION" if decision in {"OBJECT", "HOLD", "CHANGES_REQUIRED"} else "REVIEW_EVIDENCE_MISSING"
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
                 if job["validation"].get("independent_rerun") != "PASS":
                     job["validation"]["independent_test_evidence"] = test_ev
                     job["validation"]["independent_rerun"] = "PASS" if record.get("state") == "COMPLETED" and test_ev.get("passed") else "FAIL"
@@ -3072,17 +3171,30 @@ def _installed_consult_invoke(inbox_root: Path | None, orch_submit):
     """Queue a real reviewer job. A dispatch receipt is not an approval."""
 
     def _invoke(advisor: dict, evidence: dict) -> dict:
-        role = str(advisor.get("role") or "reviewer")
+        role = str(advisor.get("role") or "reviewer").lower()
+        if "ui" in role:
+            review_task = "ui_review"
+        elif "strategy" in role or "astra" in role:
+            review_task = "strategy"
+        elif "luna" in role or "triage" in role:
+            review_task = "triage"
+        else:
+            review_task = "software_review"
         job_id = f"CONSULT-{role}-{uuid.uuid4().hex[:8]}"
         record = orch_submit(
             job_id=job_id,
             capability="independent_review",
             objective="Independent consultation. Do not approve from a missing artifact.",
-            prompt=json.dumps({"advisor": role, "evidence": evidence}, default=str)[:4000],
+            repo=evidence.get("repo") or evidence.get("workspace"),
+            prompt=json.dumps(
+                {"advisor": role, "review_task": review_task, "evidence": evidence},
+                default=str,
+            )[:4000],
             write=False,
             approval="A0",
             inbox_root=inbox_root,
             implementation_model=advisor.get("model"),
+            review_task=review_task,
         )
         return {
             "status": "DISPATCHED",
@@ -3262,7 +3374,10 @@ def run_software_local(job: dict, workdir: Path, **kwargs):
         save_json_local(workdir / "council.json", council)
         save_json_local(workdir / "design-v2.json", council["approved_design"])
         job["design_version"] = council["approved_design"]["version"]
-        job["validation"] = {"council": "PASS" if council["material_count"] >= 1 else "FAIL"}
+        job["validation"] = {
+            "council": "CHECKLIST_ONLY" if council["material_count"] >= 1 else "FAIL",
+            "checklist_is_consultation": False,
+        }
         checkpoint(job, "council", {"material": council["material_count"], "fixture": FIXTURE.FIXTURE_ID})
         choice = select_coding_worker(worker_registry)
         if not choice["available"]:

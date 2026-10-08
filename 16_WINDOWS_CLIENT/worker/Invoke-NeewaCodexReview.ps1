@@ -55,13 +55,25 @@ if (-not $effort) { $effort = 'high' }
 $probedNames = @($routes.probed.PSObject.Properties.Name)
 if ($probedNames -contains $model) {
   $probe = $routes.probed.$model
-  if (-not $probe.available -and $spec.fallback_model) {
+  if (-not $probe.available) {
     $fallback = [string]$spec.fallback_model
-    $fallbackProbe = $routes.probed.$fallback
-    if ($fallbackProbe -and $fallbackProbe.available) { $model = $fallback }
+    $fallbackProbe = $null
+    if ($fallback -and ($probedNames -contains $fallback)) { $fallbackProbe = $routes.probed.$fallback }
+    if ($fallbackProbe -and $fallbackProbe.available) {
+      $model = $fallback
+    } else {
+      return New-CodexResult 'FAILED' "model unavailable and paid API fallback is disabled" $model $null
+    }
   }
 }
-$prompt = "Review context: $($spec.context). Authentication: ChatGPT sign-in. Do not request an API key or credits.`n`n$prompt"
+$prompt = @"
+Review context: $($spec.context). Authentication: ChatGPT sign-in. Do not request an API key or credits.
+Requested task: $taskName. Requested model: $model. Effort: $effort.
+End with one line: DECISION: APPROVE or DECISION: CHANGES_REQUIRED or DECISION: INSUFFICIENT_EVIDENCE or DECISION: OBJECT or DECISION: HOLD.
+A process exit of 0 is not approval.
+
+$prompt
+"@
 $last = Join-Path $JobsDir "$($Job.job_id)-codex-last.txt"
 $events = Join-Path $JobsDir "$($Job.job_id)-codex.jsonl"
 $savedKey = $env:OPENAI_API_KEY
@@ -76,4 +88,21 @@ try {
 if ($code -ne 0) {
   return New-CodexResult 'FAILED' "codex exec exited $code; API-key fallback was not used" $model $events
 }
-return New-CodexResult 'COMPLETED' "chatgpt codex exec model=$model effort=$effort" $model $last
+$decision = $null
+if (Test-Path -LiteralPath $last) {
+  $reviewText = Get-Content -Raw -LiteralPath $last
+  foreach ($match in [regex]::Matches([string]$reviewText, '(?i)DECISION:\s*(APPROVE|CHANGES_REQUIRED|INSUFFICIENT_EVIDENCE|OBJECT|HOLD)')) {
+    $decision = $match.Groups[1].Value.ToUpperInvariant()
+  }
+}
+$result = New-CodexResult 'COMPLETED' "chatgpt codex exec model=$model effort=$effort" $model $last
+$result | Add-Member -NotePropertyName review_decision -NotePropertyValue $decision -Force
+$result | Add-Member -NotePropertyName review_task -NotePropertyValue $taskName -Force
+$result | Add-Member -NotePropertyName effort -NotePropertyValue $effort -Force
+$result | Add-Member -NotePropertyName requested_model -NotePropertyValue $model -Force
+$result | Add-Member -NotePropertyName authentication -NotePropertyValue 'ChatGPT' -Force
+$result | Add-Member -NotePropertyName api_key_fallback -NotePropertyValue $false -Force
+if (-not $decision) {
+  $result.reason = "codex exited 0 without a structured decision; exit is not approval"
+}
+return $result

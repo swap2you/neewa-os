@@ -178,6 +178,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/test_project_portfolio.py`
 - `13_TESTS/test_resource_governor.py`
 - `13_TESTS/test_scoped_repair.py`
+- `13_TESTS/test_validation_followup.py`
 - `13_TESTS/test_windows_package.py`
 - `13_TESTS/test_windows_worker.py`
 - `13_TESTS/test_workspace_inventory.py`
@@ -207,6 +208,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/Install-NeewaWindowsWorker.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCodexReview.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaDrainedProcess.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaGovernedGit.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaIndependentTest.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaLocalOps.ps1`
@@ -232,6 +234,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
 - `16_WINDOWS_CLIENT/worker/neewa_a2_receipt_auth.py`
 - `16_WINDOWS_CLIENT/worker/run_personal_artifact.ps1`
+- `16_WINDOWS_CLIENT/worker/test_adapters.json`
 - `16_WINDOWS_CLIENT/worker/workspace-inventory-policy.json`
 - `AI-OPS/company/APPROVAL_MATRIX.md`
 - `AI-OPS/company/OWNER.md`
@@ -250,6 +253,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `AI-OPS/delivery/NEEWA_AUTONOMOUS_DELIVERY_IMPLEMENTATION_2026-10-08.md`
 - `AI-OPS/delivery/NEEWA_JARVIS_V1_SPEC.md`
 - `AI-OPS/delivery/NEEWA_WORK_ORDER.md`
+- `AI-OPS/delivery/NEEWA_b0915ea_Validation_and_Cursor_Followup_2026-10-08.md`
 - `AI-OPS/delivery/ORCHESTRATION.md`
 - `AI-OPS/delivery/ORCHESTRATION_ACCEPTANCE.md`
 - `AI-OPS/delivery/OWNER_DECISIONS.md`

@@ -153,6 +153,21 @@ switch ($action) {
     $artifact = Join-Path $jobsDir "$($job.job_id)-workspace-inventory.json"
     Copy-Item -LiteralPath $src -Destination $artifact -Force
   }
+  { $_ -in @('temp_probe', 'independent_test') } {
+    $script = if ($action -eq 'temp_probe') { 'Invoke-NeewaTempProbe.ps1' } else { 'Invoke-NeewaIndependentTest.ps1' }
+    $cursorResult = @(& (Join-Path $here $script) -JobFile $JobPath -OutDir $jobsDir | Where-Object { $_.status }) | Select-Object -Last 1
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
+  { $_ -in @('local_health', 'local_app_restart', 'ui_verify') } {
+    $cursorResult = & (Join-Path $here 'Invoke-NeewaLocalOps.ps1') -JobFile $JobPath -OutDir $jobsDir -Action $action
+    $artifact = $cursorResult.artifact
+    $status = [string]$cursorResult.status
+    $reason = $cursorResult.reason
+    if ($status -notin @('COMPLETED', 'FAILED', 'BLOCKED', 'CANCELLED')) { $status = 'FAILED' }
+  }
   'codex_review' {
     $cursorResult = & (Join-Path $here 'Invoke-NeewaCodexReview.ps1') -Job $job -JobsDir $jobsDir
     $artifact = $cursorResult.artifact

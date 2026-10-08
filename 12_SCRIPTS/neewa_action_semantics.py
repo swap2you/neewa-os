@@ -65,6 +65,12 @@ STATUS_FORM = re.compile(
     re.I,
 )
 
+# A future condition is not a request to deploy or restart now.
+DEFERRED_CONDITION = re.compile(
+    r"\b(?:deploy(?:s|ed|ing|ment)?|restart)(?:/restart)?\s+only\s+after\b",
+    re.I,
+)
+
 STATUS_CONSTRUCTION = re.compile(
     r"\b(?:was|were|been|is|are|currently|already|previously|recently)\s+"
     r"(?:deployed|published|released)\b|"
@@ -262,6 +268,10 @@ def analyze_objective(text: str) -> dict:
                     prohibited_families.append(name)
                 continue
             if doc_exempt or inspect_exempt:
+                continue
+            deferred = DEFERRED_CONDITION.search(clause)
+            relative = match.start() - start
+            if deferred and deferred.start() <= relative < deferred.end():
                 continue
             if name not in requested_families:
                 requested_families.append(name)

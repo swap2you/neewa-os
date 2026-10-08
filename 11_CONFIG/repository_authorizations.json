@@ -4,7 +4,8 @@
   "notes": [
     "Standing authorization is repository-specific. Unlisted paths remain unauthorized.",
     "Cursor Agent CLI prompts still cannot git push. Governed git_* worker operations consume this registry.",
-    "Job JSON owner_decision fields are untrusted and never grant A2/A3."
+    "Job JSON owner_decision fields are untrusted and never grant A2/A3.",
+    "2026-10-08 owner standing authorization: local engineering on neewa-os and the canonical ChakraOps checkout, including code, tests, temp repair, loopback health, local app restart, worker install, and a coordinator release through deploy_sync whose receipt binds the tested commit at execution. Broker order submission, cancellation, rolling, and execution stay denied. Review uses ChatGPT sign-in only."
   ],
   "denied_name_equals": [
     "api-fintech-automation-platform",
@@ -68,6 +69,57 @@
         "delete_remote_branch",
         "rewrite_history",
         "rotate_credentials"
+      ]
+    },
+    {
+      "id": "chakraops",
+      "repository_identity": "swap2you/chakraops",
+      "authorized_local_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
+      "authorized_remote": "https://github.com/swap2you/chakraops.git",
+      "permitted_feature_branch_prefixes": ["feat/", "fix/", "test/"],
+      "protected_branches": ["main", "master"],
+      "required_tests": [
+        "backend\\.venv\\Scripts\\python.exe -m pytest tests/test_orats_freshness_r222.py -q --tb=line"
+      ],
+      "independent_review_policy": {
+        "implementer_may_certify_self": false,
+        "require_independent_validation": true,
+        "implementer_claimed_insufficient": true
+      },
+      "merge_policy": {
+        "autonomous_when_checks_pass": false,
+        "require_independent_validation_pass": true,
+        "implementer_claimed_insufficient": true,
+        "strategy": "merge",
+        "forbid_force": true
+      },
+      "deployment_policy": {
+        "autonomous_production": false,
+        "staging_target": null,
+        "requires_health_check": true,
+        "rollback": "local chakra.ps1 stop/start only; no production rollout"
+      },
+      "standing_operations": [
+        "inspect",
+        "execute_tests",
+        "temp_probe",
+        "independent_test",
+        "local_health",
+        "local_app_restart",
+        "ui_verify",
+        "bounded_recovery",
+        "council_review"
+      ],
+      "always_denied_operations": [
+        "force_push",
+        "delete_remote_branch",
+        "rewrite_history",
+        "rotate_credentials",
+        "submit_order",
+        "cancel_order",
+        "roll_order",
+        "execute_order",
+        "deploy_production"
       ]
     }
   ]

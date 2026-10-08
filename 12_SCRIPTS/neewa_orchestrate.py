@@ -54,6 +54,36 @@ CAPABILITY_ROUTE = {
         "approval": "A0",
         "write": False,
     },
+    "temp_probe": {
+        "worker": "neewa-windows-worker",
+        "action": "temp_probe",
+        "approval": "A0",
+        "write": False,
+    },
+    "independent_test": {
+        "worker": "neewa-windows-worker",
+        "action": "independent_test",
+        "approval": "A1",
+        "write": False,
+    },
+    "local_health": {
+        "worker": "neewa-windows-worker",
+        "action": "local_health",
+        "approval": "A0",
+        "write": False,
+    },
+    "local_app_restart": {
+        "worker": "neewa-windows-worker",
+        "action": "local_app_restart",
+        "approval": "A1",
+        "write": False,
+    },
+    "ui_verify": {
+        "worker": "neewa-windows-worker",
+        "action": "ui_verify",
+        "approval": "A1",
+        "write": False,
+    },
     "project_inventory": {
         "worker": "neewa-windows-worker",
         "action": "workspace_inventory",

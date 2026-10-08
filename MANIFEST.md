@@ -140,6 +140,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `12_SCRIPTS/neewa_home_bridge.py`
 - `12_SCRIPTS/neewa_host_status.sh`
 - `12_SCRIPTS/neewa_mission.py`
+- `12_SCRIPTS/neewa_model_route.py`
 - `12_SCRIPTS/neewa_ops.py`
 - `12_SCRIPTS/neewa_orchestrate.py`
 - `12_SCRIPTS/neewa_project_identity.py`
@@ -157,6 +158,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `13_TESTS/SECURITY_TEST_PLAN.md`
 - `13_TESTS/test_a2_receipt_auth.py`
 - `13_TESTS/test_bootstrap_deploy_sync.py`
+- `13_TESTS/test_chakraops_delivery.py`
 - `13_TESTS/test_cursor_call.py`
 - `13_TESTS/test_date_tool_acceptance_integration.py`
 - `13_TESTS/test_deploy_sync.py`
@@ -206,8 +208,11 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCodexReview.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaCursorCall.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaGovernedGit.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaIndependentTest.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaLocalOps.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaRepoPreflight.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaScopedRepair.ps1`
+- `16_WINDOWS_CLIENT/worker/Invoke-NeewaTempProbe.ps1`
 - `16_WINDOWS_CLIENT/worker/Invoke-NeewaWindowsJob.ps1`
 - `16_WINDOWS_CLIENT/worker/NeewaPersonalWorkspace.ps1`
 - `16_WINDOWS_CLIENT/worker/New-PortfolioInventory.ps1`
@@ -222,6 +227,7 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `16_WINDOWS_CLIENT/worker/capability-manifest.yaml`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.json`
 - `16_WINDOWS_CLIENT/worker/capability_inventory.ps1`
+- `16_WINDOWS_CLIENT/worker/chatgpt_review_routes.json`
 - `16_WINDOWS_CLIENT/worker/cursor-call-policy.json`
 - `16_WINDOWS_CLIENT/worker/mcp-config.preview.json`
 - `16_WINDOWS_CLIENT/worker/neewa_a2_receipt_auth.py`

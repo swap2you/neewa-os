@@ -17,6 +17,7 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $PolicyPath) { $PolicyPath = Join-Path $here 'cursor-call-policy.json' }
 $policy = Get-Content -Raw -LiteralPath $PolicyPath | ConvertFrom-Json
 . (Join-Path $here 'NeewaPersonalWorkspace.ps1')
+. (Join-Path $here 'Invoke-NeewaIndependentTest.ps1')
 # Keep approved child folders (e.g. KidsProjects\ScienceQuest) as the Cursor workspace.
 
 function Get-AgentCli {
@@ -471,6 +472,50 @@ if ($phase -eq 'independent_validation') {
     $r.artifact = $artifact
     return $r
   }
+  if ($testCmd -match '(?i)(^|\s)-m\s+pytest\b') {
+    $tests = Invoke-AllowlistedProductTest -Repo $repo -TestCommand $testCmd -CwdRelative $(if ($Job.cwd) { [string]$Job.cwd } else { 'backend' }) -PythonRelative $(if ($Job.python) { [string]$Job.python } else { '' })
+    $stdoutCombined = ([string]$tests.stdout) + "`n" + ([string]$tests.stderr)
+    $jsonPayload = @{
+      exit_code = $tests.exit_code
+      passed = [bool]$tests.passed
+      collected = $tests.collected
+      stdout = [string]$tests.stdout
+      stderr = [string]$tests.stderr
+      command = $tests.command
+      cwd = $tests.cwd
+      candidate_head = $tests.candidate_head
+      candidate_diff_sha256 = $tests.candidate_diff_sha256
+      scratch = $tests.scratch
+    }
+    $stdoutTail = $stdoutCombined
+    if ($stdoutTail.Length -gt 3500) { $stdoutTail = $stdoutTail.Substring($stdoutTail.Length - 3500) }
+    $status = if ([bool]$tests.passed) { 'COMPLETED' } else { 'FAILED' }
+    $failureClass = $tests.failure_class
+    $reason = if ([bool]$tests.passed) { $null } else { [string]$tests.failure_class }
+    $r = New-CursorResult $status $reason $null (Add-Bootstrap @{
+      failure_class = $failureClass
+      selected_worker = 'neewa-windows-worker'
+      cli = $tests.command
+      repo = $repo
+      exit_code = $tests.exit_code
+      write = $false
+      cursor_started = $false
+      independent_test = $jsonPayload
+      test_results = $jsonPayload
+      stdout_tail = $stdoutTail
+    })
+    [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+    $r.artifact = $artifact
+    return $r
+  }
+  $r = New-CursorResult 'FAILED' "test command is not allowlisted: $testCmd" $null @{
+    failure_class = 'UNAPPROVED_TEST_COMMAND'
+    cursor_started = $false
+    write = $false
+  }
+  [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
+  $r.artifact = $artifact
+  return $r
 }
 
 $cli = if ($DryRun) { 'DRY-RUN' } else { Get-AgentCli }

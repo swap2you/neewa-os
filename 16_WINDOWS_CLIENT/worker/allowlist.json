@@ -32,6 +32,7 @@
     "password managers",
     "private browser sessions"
   ],
+  "capability_version": "2026-10-08-chakraops-1",
   "actions": {
     "ping": "A0",
     "capability_inventory": "A0",
@@ -56,7 +57,12 @@
     "git_review_pull_request": "A1",
     "git_merge_approved_pull_request": "A2",
     "home_mission_submit": "A1",
-    "home_mission_status": "A0"
+    "home_mission_status": "A0",
+    "temp_probe": "A0",
+    "independent_test": "A1",
+    "local_health": "A0",
+    "local_app_restart": "A1",
+    "ui_verify": "A1"
   },
   "cursor_call": {
     "interface": "agent --print --output-format json --workspace <approved_repo>",

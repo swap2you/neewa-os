@@ -28,7 +28,9 @@ try {
   $sshOpts = @('-o', 'BatchMode=yes', '-o', 'ConnectTimeout=8', '-o', 'LogLevel=ERROR')
 
   function Receive-RemoteJobs {
-    $tmp = Join-Path $env:TEMP 'neewa-windows-jobs'
+    $scratch = Join-Path $env:LOCALAPPDATA 'NEEWA\scratch'
+    New-Item -ItemType Directory -Force -Path $scratch | Out-Null
+    $tmp = Join-Path $scratch 'job-receive'
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
     & ssh @sshOpts $RemoteHost "mkdir -p $RemoteInbox/inbox $RemoteInbox/processing $RemoteInbox/done $RemoteInbox/failed; ls -1 $RemoteInbox/inbox/*.json 2>/dev/null" |
       ForEach-Object {
@@ -82,8 +84,27 @@ try {
       }
   }
 
+  function Write-WorkerStatus([string]$ActiveJob) {
+    $allowObj = Get-Content -Raw (Join-Path $here 'allowlist.json') | ConvertFrom-Json
+    $caps = @($allowObj.actions.PSObject.Properties.Name)
+    $statusPath = Join-Path $env:LOCALAPPDATA 'NEEWA\worker-status.json'
+    $doc = [ordered]@{
+      at = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+      host = $env:COMPUTERNAME
+      account = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+      worker_path = $here
+      capability_version = [string]$allowObj.capability_version
+      capabilities = $caps
+      active_job_id = $ActiveJob
+      heartbeat = $true
+    }
+    $doc | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $statusPath -Encoding utf8
+    & scp @sshOpts $statusPath "${RemoteHost}:$RemoteInbox/records/windows-worker-status.json" 2>$null | Out-Null
+  }
+
   do {
     try { Receive-RemoteJobs } catch { Write-Poll "poll skipped: $($_.Exception.Message)" }
+    Write-WorkerStatus ''
     Invoke-Pending
     if (-not $Once) { Start-Sleep -Seconds 15 }
   } while (-not $Once)

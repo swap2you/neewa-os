@@ -139,6 +139,11 @@ ALLOWED = {
     "git_merge_approved_pull_request",
     "home_mission_submit",
     "home_mission_status",
+    "temp_probe",
+    "independent_test",
+    "local_health",
+    "local_app_restart",
+    "ui_verify",
 }
 
 

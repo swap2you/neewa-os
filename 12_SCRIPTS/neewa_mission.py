@@ -90,6 +90,7 @@ NON_RECOVERABLE = {
     "A2_GATE",
     "A3_GATE",
 }
+INFRASTRUCTURE = {"NO_USABLE_TEMP", "TEMP_UNWRITABLE", "PYTHON_MISSING", "TEMP_PROBE_FAILED"}
 WORKER_UNAVAILABLE = {"WORKER_UNAVAILABLE", "NO_CODING_WORKER", "MISSING_WORKER"}
 BUDGET_STOP = {"BUDGET_EXHAUSTED", "COST_UNKNOWN"}
 PREFERRED_ADVISORS = (
@@ -222,6 +223,17 @@ def save_mission(mission: dict, root: Path | None = None) -> Path:
 
 def objective_key(text: str | None) -> str:
     return re.sub(r"\s+", " ", (text or "").strip().lower())
+
+
+def find_active_writer(root: Path, project_id: str | None) -> dict | None:
+    if not project_id:
+        return None
+    for mission in list_missions(root):
+        if mission.get("state") in TERMINAL:
+            continue
+        if mission.get("project_id") == project_id:
+            return mission
+    return None
 
 
 def find_active_duplicate(root: Path, objective: str, *, exclude_id: str | None = None) -> dict | None:
@@ -627,10 +639,26 @@ def create_mission(
     origin: str = "conversation",
     kind: str = DEFAULT_KIND,
     project_lifecycle: str | None = None,
+    parent_mission_id: str | None = None,
+    successor_justification: str | None = None,
     auto=None,
 ) -> dict:
     auto = auto or _auto_mod()
     jobs_root = autonomy_root(root, auto=auto)
+    parent = None
+    if parent_mission_id:
+        parent = load_mission(parent_mission_id, jobs_root)
+        if not parent:
+            raise ValueError(f"parent mission not found: {parent_mission_id}")
+        if parent.get("state") not in TERMINAL:
+            raise ValueError("parent is not terminal; refusing a competing writer")
+        if parent.get("successor_mission_id"):
+            raise ValueError(f"parent already has successor {parent.get('successor_mission_id')}")
+        writer = find_active_writer(jobs_root, parent.get("project_id") or project_id)
+        if writer:
+            raise DuplicateMission(writer)
+        if not successor_justification:
+            raise ValueError("a linked successor requires a recorded justification")
     duplicate = find_active_duplicate(jobs_root, objective)
     if duplicate:
         raise DuplicateMission(duplicate)
@@ -653,7 +681,11 @@ def create_mission(
         "job_ids": [],
         "retry_count": 0,
         "repair_cycles": 0,
+        "infrastructure_retries": 0,
         "max_repair_cycles": max_repair_cycles(),
+        "parent_mission_id": parent_mission_id,
+        "successor_mission_id": None,
+        "successor_justification": successor_justification,
         "budget": {
             "ceiling": float(budget_ceiling),
             "consumed_usd": 0.0,
@@ -676,6 +708,10 @@ def create_mission(
         "history": [{"state": "CREATED", "at": utc_now(), "note": "persisted before dispatch"}],
     }
     save_mission(mission, jobs_root)
+    if parent is not None:
+        parent["successor_mission_id"] = mission["mission_id"]
+        parent["successor_justification"] = successor_justification
+        save_mission(parent, jobs_root)
     return mission
 
 
@@ -707,6 +743,14 @@ def classify_failure(job: dict | None, *, worker_available: bool = True) -> dict
             "recoverable": False,
             "waiting": True,
             "reason": reason or "worker unavailable",
+        }
+    if cls in INFRASTRUCTURE or "No usable temporary directory" in reason:
+        return {
+            "class": "INFRASTRUCTURE",
+            "recoverable": True,
+            "infrastructure": True,
+            "waiting": False,
+            "reason": reason or cls,
         }
     if cls in BUDGET_STOP or reason in BUDGET_STOP or "BUDGET" in reason or reason == "COST_UNKNOWN":
         return {
@@ -1237,6 +1281,29 @@ def step_mission(
             transition(mission, "FAILED", classified["reason"], root)
             write_report(mission, root)
             return mission
+        if classified.get("infrastructure"):
+            same = (
+                mission.get("last_failure_signature") == signature
+                and mission.get("last_evidence_hash") == hashed
+            )
+            infra = int(mission.get("infrastructure_retries") or 0)
+            if same or infra >= 2:
+                mission["failure_reason"] = "INFRASTRUCTURE_UNCHANGED"
+                transition(mission, "FAILED", mission["failure_reason"], root)
+                write_report(mission, root)
+                return mission
+            mission["infrastructure_retries"] = infra + 1
+            mission["last_failure_signature"] = signature
+            mission["last_evidence_hash"] = hashed
+            mission["active_job_id"] = None
+            mission["repair_objective"] = (
+                f"{mission.get('owner_objective')}\n\n"
+                "INFRASTRUCTURE RETRY. The previous failure was environmental "
+                f"({classified.get('reason')}) and does not consume an implementation repair cycle. "
+                "Repair the worker environment, then rerun independent validation."
+            )
+            save_mission(mission, root)
+            return transition(mission, "PLANNING", f"infrastructure retry {mission['infrastructure_retries']}", root)
         if (
             mission.get("last_failure_signature") == signature
             and mission.get("last_evidence_hash") == hashed
@@ -1319,6 +1386,8 @@ def main() -> int:
     subp.add_argument("--origin", default="conversation")
     subp.add_argument("--kind", default=DEFAULT_KIND, choices=("sdlc", "research", "diagnostic"))
     subp.add_argument("--project-lifecycle", choices=("create_new", "modify_existing"))
+    subp.add_argument("--parent-mission-id")
+    subp.add_argument("--successor-justification")
     getp = sub.add_parser("get")
     getp.add_argument("--mission-id", required=True)
     getp.add_argument("--root")
@@ -1355,6 +1424,8 @@ def main() -> int:
             origin=args.origin,
             kind=args.kind,
             project_lifecycle=args.project_lifecycle,
+            parent_mission_id=args.parent_mission_id,
+            successor_justification=args.successor_justification,
         )
         print(json.dumps(public_mission(mission), indent=2))
         return 0

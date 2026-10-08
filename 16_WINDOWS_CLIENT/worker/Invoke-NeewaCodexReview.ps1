@@ -41,10 +41,27 @@ if ($login -notmatch 'Logged in using ChatGPT') {
   return New-CodexResult 'FAILED' 'ChatGPT sign-in is not active for this identity' $null $null
 }
 
-$model = [string]$Job.model
-if (-not $model) { $model = 'gpt-6-astra' }
-$effort = [string]$Job.effort
+$routes = Get-Content -Raw -LiteralPath (Join-Path $here 'chatgpt_review_routes.json') | ConvertFrom-Json
+if ($routes.api_key_fallback -or $routes.paid_api) {
+  return New-CodexResult 'FAILED' 'paid API fallback is disabled' $null $null
+}
+$taskName = [string]$Job.review_task
+if (-not $taskName) { $taskName = 'software_review' }
+$spec = $routes.tasks.$taskName
+if (-not $spec) { $spec = $routes.tasks.acceptance }
+$model = [string]$spec.model
+$effort = [string]$spec.effort
 if (-not $effort) { $effort = 'high' }
+$probedNames = @($routes.probed.PSObject.Properties.Name)
+if ($probedNames -contains $model) {
+  $probe = $routes.probed.$model
+  if (-not $probe.available -and $spec.fallback_model) {
+    $fallback = [string]$spec.fallback_model
+    $fallbackProbe = $routes.probed.$fallback
+    if ($fallbackProbe -and $fallbackProbe.available) { $model = $fallback }
+  }
+}
+$prompt = "Review context: $($spec.context). Authentication: ChatGPT sign-in. Do not request an API key or credits.`n`n$prompt"
 $last = Join-Path $JobsDir "$($Job.job_id)-codex-last.txt"
 $events = Join-Path $JobsDir "$($Job.job_id)-codex.jsonl"
 $savedKey = $env:OPENAI_API_KEY

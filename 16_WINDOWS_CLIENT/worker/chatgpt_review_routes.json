@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "authentication": "ChatGPT sign-in",
+  "api_key_fallback": false,
+  "paid_api": false,
+  "contexts": [
+    "strategy/downside",
+    "data/software reliability",
+    "UI/requirements"
+  ],
+  "tasks": {
+    "triage": {
+      "context": "extraction/summary/triage",
+      "model": "gpt-5.6-luna",
+      "effort": "medium",
+      "fallback_model": null
+    },
+    "software_review": {
+      "context": "data/software reliability",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "fallback_model": "gpt-6-astra"
+    },
+    "ui_review": {
+      "context": "UI/requirements",
+      "model": "gpt-5.6-sol",
+      "effort": "high",
+      "fallback_model": "gpt-6-astra"
+    },
+    "strategy": {
+      "context": "strategy/downside",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "fallback_model": null
+    },
+    "acceptance": {
+      "context": "strategy/downside",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "fallback_model": null
+    }
+  },
+  "probed": {
+    "gpt-5.6-luna": {
+      "available": true,
+      "effort": "medium",
+      "authentication": "ChatGPT sign-in",
+      "response": "pong",
+      "probed_at": "2026-10-08T13:24:00Z"
+    },
+    "gpt-6-sol": {
+      "available": false,
+      "effort": "high",
+      "authentication": "ChatGPT sign-in",
+      "reason": "not supported when using Codex with a ChatGPT account",
+      "probed_at": "2026-10-08T13:24:10Z"
+    },
+    "gpt-5.6-sol": {
+      "available": true,
+      "effort": "high",
+      "authentication": "ChatGPT sign-in",
+      "response": "pong",
+      "probed_at": "2026-10-08T13:24:40Z"
+    },
+    "gpt-6-astra": {
+      "available": true,
+      "effort": "high",
+      "authentication": "ChatGPT sign-in",
+      "response": "pong",
+      "probed_at": "2026-10-08T13:24:25Z"
+    }
+  }
+}

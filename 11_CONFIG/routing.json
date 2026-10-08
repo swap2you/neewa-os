@@ -45,5 +45,11 @@
       ]
     }
   ],
-  "policy": "Select the least expensive capable route; use deterministic tools before any model; high-risk work must not use routine tier."
+  "policy": "Select the least expensive capable route; use deterministic tools before any model; high-risk work must not use routine tier.",
+  "chatgpt_sso_review": {
+    "authentication": "ChatGPT sign-in",
+    "api_key_fallback": false,
+    "paid_api": false,
+    "routes_file": "16_WINDOWS_CLIENT/worker/chatgpt_review_routes.json"
+  }
 }

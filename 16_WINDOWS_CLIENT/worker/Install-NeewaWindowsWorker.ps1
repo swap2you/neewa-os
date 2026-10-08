@@ -21,7 +21,12 @@ $required = @(
   'NeewaPersonalWorkspace.ps1',
   'Resolve-NeewaResultFolder.ps1',
   'allowlist.json',
-  'neewa_a2_receipt_auth.py'
+  'neewa_a2_receipt_auth.py',
+  'Invoke-NeewaTempProbe.ps1',
+  'Invoke-NeewaIndependentTest.ps1',
+  'Invoke-NeewaLocalOps.ps1',
+  'Invoke-NeewaCodexReview.ps1',
+  'chatgpt_review_routes.json'
 )
 $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $pwsh = (Get-Command pwsh -ErrorAction SilentlyContinue).Source

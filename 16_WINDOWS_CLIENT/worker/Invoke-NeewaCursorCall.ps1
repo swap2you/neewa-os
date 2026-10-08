@@ -603,7 +603,17 @@ if ($DryRun) {
   }
   $proc = New-Object System.Diagnostics.Process
   $proc.StartInfo = $psi
+  $stdoutQueue = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
+  $stderrQueue = New-Object System.Collections.Concurrent.ConcurrentQueue[string]
+  $proc.add_OutputDataReceived({
+    if ($null -ne $EventArgs.Data) { $stdoutQueue.Enqueue([string]$EventArgs.Data) }
+  })
+  $proc.add_ErrorDataReceived({
+    if ($null -ne $EventArgs.Data) { $stderrQueue.Enqueue([string]$EventArgs.Data) }
+  })
   [void]$proc.Start()
+  $proc.BeginOutputReadLine()
+  $proc.BeginErrorReadLine()
   [System.IO.File]::WriteAllText($pidPath, [string]$proc.Id, [System.Text.UTF8Encoding]::new($false))
   $heartbeatPath = Join-Path $JobsDir "$jobId-cursor-call.heartbeat.json"
   $publish = Join-Path $here 'Publish-NeewaJobProgress.ps1'
@@ -633,12 +643,20 @@ if ($DryRun) {
     [void]$proc.WaitForExit(15000)
   }
   $exited = $proc.HasExited
-  if ($exited) {
-    $stdoutText = $proc.StandardOutput.ReadToEnd()
-    $stderrText = $proc.StandardError.ReadToEnd()
-    [System.IO.File]::WriteAllText($stdoutFile, $stdoutText, [System.Text.UTF8Encoding]::new($false))
-    [System.IO.File]::WriteAllText($stderrFile, $stderrText, [System.Text.UTF8Encoding]::new($false))
+  function Join-NeewaStream($Queue) {
+    $rows = New-Object System.Collections.Generic.List[string]
+    while ($Queue.Count -gt 0) {
+      $line = $null
+      if ($Queue.TryDequeue([ref]$line)) { $rows.Add($line) }
+    }
+    $text = ($rows -join "`n")
+    if ($text.Length -gt 200000) { return $text.Substring($text.Length - 200000) }
+    return $text
   }
+  $stdoutText = Join-NeewaStream $stdoutQueue
+  $stderrText = Join-NeewaStream $stderrQueue
+  [System.IO.File]::WriteAllText($stdoutFile, $stdoutText, [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($stderrFile, $stderrText, [System.Text.UTF8Encoding]::new($false))
 }
 if (-not $exited) {
   Stop-ProcessTree -ProcessId $proc.Id

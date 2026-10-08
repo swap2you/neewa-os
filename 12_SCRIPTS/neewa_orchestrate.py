@@ -531,20 +531,35 @@ def _merge_sidecar(root: Path, folder: str, job_id: str, payload: dict) -> dict:
 def inspect_folders(job_id: str, root: Path) -> tuple[str | None, dict | None]:
     """Prefer a valid done/failed receipt over a stale inbox or processing claim."""
     queue: tuple[str, dict] | None = None
+    terminals: list[tuple[str, str, dict, float]] = []
     for folder, inferred in (
         ("done", "VALIDATING"),
         ("failed", "FAILED"),
         ("inbox", "QUEUED"),
         ("processing", "RUNNING"),
     ):
-        payload = _read_queue_file(root / folder / f"{job_id}.json")
+        path = root / folder / f"{job_id}.json"
+        payload = _read_queue_file(path)
         if payload is None:
             continue
         payload = _merge_sidecar(root, folder, job_id, payload)
         if folder in {"done", "failed"} and _terminal_status(payload):
-            return inferred, payload
+            terminals.append((inferred, folder, payload, path.stat().st_mtime))
+            continue
         if folder in {"inbox", "processing"} and queue is None:
             queue = (inferred, payload)
+    if len(terminals) > 1:
+        terminals.sort(key=lambda item: item[3])
+        inferred, folder, payload, _mtime = terminals[-1]
+        payload = dict(payload)
+        payload["receipt_conflict"] = {
+            "selected": folder,
+            "candidates": [item[1] for item in terminals],
+            "reason": "multiple terminal receipts; newest selected and both retained",
+        }
+        return inferred, payload
+    if terminals:
+        return terminals[0][0], terminals[0][2]
     if queue:
         return queue
     return None, None

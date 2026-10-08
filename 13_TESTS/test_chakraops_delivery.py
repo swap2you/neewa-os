@@ -406,3 +406,73 @@ if ($script:RemoteCalls.Count -ne $calls) {{ exit 11 }}
             timeout=60,
         )
         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
+
+class ContractBehaviorTests(unittest.TestCase):
+    def test_parse_utc_accepts_fractional_and_rejects_naive_or_future(self):
+        parsed = AUTO.parse_utc("2026-10-08T13:45:58.7279552Z")
+        self.assertEqual(parsed.year, 2026)
+        self.assertIsNone(AUTO.parse_utc("2026-10-08T13:45:58"))
+        self.assertIsNone(AUTO.parse_utc("2099-01-01T00:00:00Z"))
+
+    def test_checklist_is_not_a_consultation(self):
+        council = AUTO.run_council(
+            {"summary": "scoped change", "acceptance": ["R1"], "components": ["readme.md"], "version": "DES-v1"},
+            {"requirements": [{"id": "R1", "text": "keep the note", "kind": "functional"}], "workflow": "sdlc"},
+        )
+        self.assertFalse(council["checklist_is_consultation"])
+        self.assertEqual(council["independence_class"], "deterministic_only")
+        self.assertEqual(council["roles"]["INDEPENDENT_CODE_REVIEWER"]["decision"], "CHECKLIST_ONLY")
+
+    def test_conflicting_terminal_receipts_are_reported(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job_id = "JOB-CONFLICT"
+            for folder in ("done", "failed", "processing"):
+                (root / folder).mkdir()
+            (root / "processing" / f"{job_id}.json").write_text(
+                json.dumps({"status": "RUNNING"}), encoding="utf-8"
+            )
+            (root / "failed" / f"{job_id}.json").write_text(
+                json.dumps({"status": "FAILED", "reason": "old"}), encoding="utf-8"
+            )
+            done = root / "done" / f"{job_id}.json"
+            done.write_text(json.dumps({"status": "COMPLETED"}), encoding="utf-8")
+            folder, payload = ORCH.inspect_folders(job_id, root)
+            self.assertEqual(folder, "VALIDATING")
+            self.assertEqual(payload["status"], "COMPLETED")
+            self.assertEqual(payload["receipt_conflict"]["selected"], "done")
+            self.assertIn("failed", payload["receipt_conflict"]["candidates"])
+
+    def test_owner_review_continues_one_stage_and_historical_review_stays(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            mission = MISSION.create_mission(
+                "build a disposable note with a test",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                kind="sdlc",
+                project_id="PRJ-NEEWA",
+            )
+            self.assertTrue(mission["auto_continue"])
+            self.assertEqual(mission["stage_plan"][1]["status"], "not_started")
+            mission["state"] = "OWNER_REVIEW"
+            MISSION.save_mission(mission, root)
+            continued = MISSION.step_mission(mission, root=root)
+            self.assertEqual(continued["state"], "PLANNING")
+            self.assertEqual(continued["active_stage_id"], "follow_through")
+            historical = MISSION.create_mission(
+                "diagnostic only",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                kind="diagnostic",
+            )
+            historical["state"] = "OWNER_REVIEW"
+            MISSION.save_mission(historical, root)
+            stayed = MISSION.step_mission(historical, root=root)
+            self.assertEqual(stayed["state"], "OWNER_REVIEW")
+
+    def test_parent_job_records_the_shared_standard(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = AUTO.create_parent_job("repair the note", root=Path(tmp) / "jobs")
+            self.assertEqual(job["delivery_standard"], "AI-OPS/delivery/PERSONAL_AUTONOMY_STANDARD.md")

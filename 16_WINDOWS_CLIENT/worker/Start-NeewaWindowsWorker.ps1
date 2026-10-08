@@ -221,6 +221,7 @@ try {
           return
         }
         Write-Poll "invoke $($_.Name)"
+        Write-WorkerStatus $_.BaseName
         $result = & $invoke -JobPath $_.FullName
         Write-Output ($result | ConvertTo-Json -Compress)
         try {

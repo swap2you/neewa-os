@@ -374,6 +374,7 @@ def create_parent_job(
         ceiling = budget_ceiling
     job = {
         "schema_version": 3,
+        "delivery_standard": "AI-OPS/delivery/PERSONAL_AUTONOMY_STANDARD.md",
         "job_id": new_parent_id(),
         "coordinator": "neewa-chief",
         "origin": origin,
@@ -630,12 +631,22 @@ def release_open_reservation(job: dict) -> None:
 
 
 def parse_utc(stamp: str | None) -> datetime | None:
+    """Parse an aware ISO-8601 timestamp. Naive or far-future values are unknown."""
     if not stamp:
         return None
+    text = str(stamp).strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
     try:
-        return datetime.strptime(str(stamp), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
+    if parsed.tzinfo is None:
+        return None
+    parsed = parsed.astimezone(timezone.utc)
+    if parsed - datetime.now(timezone.utc) > timedelta(minutes=5):
+        return None
+    return parsed
 
 
 def effective_timeout_sec(job: dict, default: int = 600) -> int:
@@ -1554,6 +1565,7 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
         "reviewer_identity": "neewa_autonomy.run_council",
         "independence_class": "deterministic_only",
         "limitation": "INDEPENDENCE_UNAVAILABLE",
+        "checklist_is_consultation": False,
         "roles": {
             "IMPLEMENTER": {
                 "decision": "CLAIM",
@@ -1561,12 +1573,12 @@ def run_council(design: dict, requirements: dict | None = None) -> dict:
                 "identity": "neewa_autonomy.implementer",
             },
             "INDEPENDENT_CODE_REVIEWER": {
-                "decision": "PASS" if not material else "CHANGES_REQUESTED",
+                "decision": "CHECKLIST_ONLY" if not material else "CHANGES_REQUESTED",
                 "identity": "neewa_autonomy.run_council.quality_engineer",
                 "independence_class": "deterministic_only",
             },
             "SECURITY_REVIEWER": {
-                "decision": "PASS"
+                "decision": "CHECKLIST_ONLY"
                 if not any(f["role"] == "security_privacy" and f["severity"] == "material" for f in findings)
                 else "CHANGES_REQUESTED",
                 "identity": "neewa_autonomy.run_council.security_privacy",
@@ -1716,16 +1728,17 @@ Rules:
 
 
 def build_validation_prompt(job: dict, requirements: dict, design: dict) -> str:
-    test_cmd = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
-    return f"""Independently rerun tests for this approved NEEWA work package. Do not expand scope.
+    receipt = (job.get("validation") or {}).get("independent_test_receipt") or {}
+    return f"""Read the deterministic independent-test receipt. Do not rerun tests and do not edit files.
 
 OBJECTIVE:
 {job['parent_objective']}
 
-Run the repository test command only: {test_cmd}
-Do not create a new Python CLI. Do not change unrelated files.
-Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
-Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
+INDEPENDENT TEST RECEIPT:
+{json.dumps(receipt, default=str)[:4000]}
+
+A successful tool exit is not approval. Decide APPROVE, CHANGES_REQUIRED, or INSUFFICIENT_EVIDENCE from the receipt and the candidate you can actually read.
+Stay inside this workspace. Do not touch employer trees, secrets, or broker/order actions.
 """
 
 
@@ -2121,6 +2134,41 @@ def _submit_cursor(
         {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
     )
     job["active_child_id"] = child_id
+    save_job(job)
+    return record
+
+
+def _submit_independent_test(job: dict, test_command: str, *, inbox_root: Path | None, orch_submit) -> dict:
+    """Deterministic test on the Windows worker. Not a model assertion."""
+    seq = len(job.get("child_jobs") or []) + 1
+    child_id = f"{job['job_id']}-IT{seq:02d}"
+    identity = job.get("project_identity") or {}
+    try:
+        record = orch_submit(
+            job_id=child_id,
+            capability="independent_test",
+            objective=job.get("parent_objective") or "",
+            repo=identity.get("project_path") or job.get("workspace"),
+            prompt=test_command,
+            write=False,
+            timeout_sec=effective_timeout_sec(job),
+            project_id=job.get("project_id"),
+            approval="A1",
+            inbox_root=inbox_root,
+            execution_phase=IDENTITY.PHASE_INDEPENDENT_VALIDATION,
+            test_command=test_command,
+        )
+    except ValueError as exc:
+        if "duplicate job_id" not in str(exc):
+            raise
+        record = {"job_id": child_id, "state": "QUEUED", "adopted_duplicate": True}
+    if str(record.get("state") or "").upper() == "BLOCKED":
+        return record
+    job.setdefault("child_jobs", []).append(
+        {"job_id": child_id, "at": utc_now(), "state": record.get("state")}
+    )
+    job["active_child_id"] = child_id
+    job["independent_test_child_id"] = child_id
     save_job(job)
     return record
 
@@ -2834,7 +2882,7 @@ def advance_job(
         if job.get("workflow") == "research_report":
             job["validation"]["independent_rerun"] = "LOCAL_CORPUS"
         elif job.get("origin") in INDEPENDENT_VALIDATION_ORIGINS and job.get("workflow") == "sdlc":
-            if not job.get("validation_child_id"):
+            if not job.get("independent_test_child_id"):
                 last = job.get("last_child") or {}
                 identity = job.get("project_identity") or {}
                 impl_path = identity.get("project_path") or job.get("workspace")
@@ -2851,6 +2899,48 @@ def advance_job(
                     finalize_budget(job)
                     transition(job, "FAILED", job["failure_reason"])
                     return job
+                test_command = design.get("test_command") or requirements.get("test_command") or "python -m unittest"
+                submitted = _submit_independent_test(
+                    job,
+                    test_command,
+                    inbox_root=inbox_root,
+                    orch_submit=orch_submit,
+                )
+                if submitted.get("state") == "BLOCKED":
+                    job["validation"]["independent_rerun"] = "UNVERIFIED"
+                    job["validation"]["independent_rerun_reason"] = submitted.get("failure_reason")
+                else:
+                    job["validation"]["independent_rerun"] = "pending"
+                    save_job(job)
+                    return job
+            elif job.get("active_child_id") == job.get("independent_test_child_id"):
+                record = job.pop("_harvested_child", None)
+                if record is None:
+                    record = orch_harvest(job["active_child_id"], inbox_root)
+                if _is_blocked_child(record):
+                    return apply_blocked_child(job, record)
+                if str((record or {}).get("failure_class") or "") == "WAIT_EXPIRED" or not _child_terminal(record):
+                    held = consider_unfinished_child(job, record)
+                    if held is not None:
+                        return held
+                    save_job(job)
+                    return job
+                if str((record or {}).get("state") or "").upper() in {"FAILED", "CANCELLED"}:
+                    return apply_failed_child(job, record)
+                stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
+                test_ev = parse_test_evidence(stdout, record)
+                receipt = (record or {}).get("independent_test") or (record or {}).get("test_results") or test_ev
+                job["validation"]["independent_test_receipt"] = receipt
+                job["validation"]["independent_test_evidence"] = test_ev
+                job["active_child_id"] = None
+                if not test_ev.get("passed"):
+                    job["validation"]["independent_rerun"] = "FAIL"
+                    job["failure_reason"] = "independent test did not pass"
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
+                job["validation"]["independent_rerun"] = "PASS"
+                save_job(job)
+            if not job.get("validation_child_id"):
                 if budget_allows(job, "codex"):
                     prompt = build_validation_prompt(job, requirements, design)
                     submitted = _submit_codex_review(
@@ -2860,16 +2950,16 @@ def advance_job(
                         orch_submit=orch_submit,
                     )
                     if submitted.get("state") == "BLOCKED":
-                        job["validation"]["independent_rerun"] = "UNVERIFIED"
-                        job["validation"]["independent_rerun_reason"] = submitted.get("failure_reason")
+                        job["validation"]["review_status"] = "UNVERIFIED"
+                        job["validation"]["review_reason"] = submitted.get("failure_reason")
                     else:
                         job["validation_child_id"] = job.get("active_child_id")
-                        job["validation"]["independent_rerun"] = "pending"
+                        job["validation"]["review_status"] = "pending"
                         save_job(job)
                         return job
                 else:
-                    job["validation"]["independent_rerun"] = "UNVERIFIED"
-                    job["validation"]["independent_rerun_reason"] = budget_decision(job).get("reason")
+                    job["validation"]["review_status"] = "UNVERIFIED"
+                    job["validation"]["review_reason"] = budget_decision(job).get("reason")
             elif job.get("active_child_id") == job.get("validation_child_id"):
                 record = job.pop("_harvested_child", None)
                 if record is None:
@@ -2903,11 +2993,13 @@ def advance_job(
                 }
                 stdout = ((record.get("validation") or {}).get("stdout_tail") if isinstance(record.get("validation"), dict) else None) or ""
                 test_ev = parse_test_evidence(stdout, record)
-                job["validation"]["independent_test_evidence"] = test_ev
-                job["validation"]["independent_rerun"] = "PASS" if record.get("state") == "COMPLETED" and test_ev.get("passed") else "FAIL"
-                if test_ev.get("passed"):
-                    job["validation"]["tests"] = "PASS"
-                    job["validation"]["test_evidence"] = test_ev
+                job["validation"]["review_completed"] = record.get("state") == "COMPLETED"
+                if job["validation"].get("independent_rerun") != "PASS":
+                    job["validation"]["independent_test_evidence"] = test_ev
+                    job["validation"]["independent_rerun"] = "PASS" if record.get("state") == "COMPLETED" and test_ev.get("passed") else "FAIL"
+                    if test_ev.get("passed"):
+                        job["validation"]["tests"] = "PASS"
+                        job["validation"]["test_evidence"] = test_ev
                 job["active_child_id"] = None
         else:
             job["validation"].setdefault("independent_rerun", "IMPLEMENTER_CLAIMED")
@@ -2976,6 +3068,36 @@ def run_until_idle(
     return job
 
 
+def _installed_consult_invoke(inbox_root: Path | None, orch_submit):
+    """Queue a real reviewer job. A dispatch receipt is not an approval."""
+
+    def _invoke(advisor: dict, evidence: dict) -> dict:
+        role = str(advisor.get("role") or "reviewer")
+        job_id = f"CONSULT-{role}-{uuid.uuid4().hex[:8]}"
+        record = orch_submit(
+            job_id=job_id,
+            capability="independent_review",
+            objective="Independent consultation. Do not approve from a missing artifact.",
+            prompt=json.dumps({"advisor": role, "evidence": evidence}, default=str)[:4000],
+            write=False,
+            approval="A0",
+            inbox_root=inbox_root,
+            implementation_model=advisor.get("model"),
+        )
+        return {
+            "status": "DISPATCHED",
+            "reason": "windows reviewer job queued; exit is not approval",
+            "response": {
+                "job_id": record.get("job_id") or job_id,
+                "decision": None,
+                "approval": False,
+                "model": advisor.get("model"),
+            },
+        }
+
+    return _invoke
+
+
 def runner_once(
     *,
     root: Path | None = None,
@@ -2997,13 +3119,19 @@ def runner_once(
     mission_mod = SourceFileLoader(
         "neewa_mission_runner", str(ROOT / "12_SCRIPTS" / "neewa_mission.py")
     ).load_module()
+    forward = dict(advance_kwargs)
+    forward.setdefault("consult_invoke", True)
+    if "invoke_fn" not in forward:
+        forward["invoke_fn"] = _installed_consult_invoke(
+            inbox_root, forward.get("orch_submit") or ORCH.submit
+        )
     results.extend(
         mission_mod.supervisor_once(
             root=root,
             inbox_root=inbox_root,
             auto=sys.modules[__name__],
             worker_registry=worker_registry,
-            **advance_kwargs,
+            **forward,
         )
     )
     for job in list_parent_jobs(root):

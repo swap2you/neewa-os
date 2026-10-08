@@ -137,7 +137,7 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             def harvest(job_id, inbox_root=None):
                 harvests.append(job_id)
                 child = self._completed_child(job_id)
-                if str(job_id).endswith("-RV02"):
+                if "-IT" in str(job_id) or "-RV" in str(job_id):
                     child["execution_phase"] = "independent_validation"
                     child["cursor_started"] = False
                     child["cli"] = "python -m unittest"
@@ -204,17 +204,20 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
             self._assert_identity(finished)
             self.assertEqual(finished["workspace"], DATE_TOOL_PATH)
 
-            self.assertEqual(len(submits), 2)
-            self.assertEqual([item.get("approval") for item in submits], ["A1", "A0"])
+            self.assertEqual(len(submits), 3)
+            self.assertEqual([item.get("approval") for item in submits], ["A1", "A1", "A0"])
             self.assertTrue(all(item.get("repo") == DATE_TOOL_PATH for item in submits))
             self.assertEqual(submits[0].get("project_lifecycle"), "create_new")
             self.assertEqual(submits[0].get("execution_phase"), "implementation")
             self.assertTrue(submits[0].get("write"))
+            self.assertEqual(submits[1].get("capability"), "independent_test")
             self.assertEqual(submits[1].get("execution_phase"), "independent_validation")
             self.assertFalse(submits[1].get("write"))
-            self.assertEqual(submits[1].get("capability"), "independent_review")
-            self.assertEqual(submits[1].get("implementation_model"), "gpt-6-astra")
-            self.assertEqual(submits[1].get("review_effort"), "high")
+            self.assertEqual(submits[2].get("execution_phase"), "independent_validation")
+            self.assertFalse(submits[2].get("write"))
+            self.assertEqual(submits[2].get("capability"), "independent_review")
+            self.assertEqual(submits[2].get("implementation_model"), "gpt-6-astra")
+            self.assertEqual(submits[2].get("review_effort"), "high")
             self.assertEqual(finished.get("project_lifecycle"), "create_new")
             self.assertEqual((finished.get("project_bootstrap") or {}).get("bootstrap_result"), "created")
             self.assertEqual((finished.get("project_bootstrap") or {}).get("target_directory_state"), "empty")
@@ -286,11 +289,11 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
                 again, root=root, orch_submit=submit, orch_harvest=harvest
             )
             self.assertEqual(third["state"], "OWNER_REVIEW")
-            self.assertEqual(len(submits), 2)
+            self.assertEqual(len(submits), 3)
             self.assertEqual(len(third.get("budget", {}).get("invocations") or []), 2)
             self.assertEqual(third["budget"]["reserved_usd"], 0.0)
             self.assertEqual((third.get("budget_finalized") or {}).get("at"), finalized_at)
-            self.assertEqual(len(third.get("child_jobs") or []), 2)
+            self.assertEqual(len(third.get("child_jobs") or []), 3)
 
     def test_failed_child_closes_parent_without_stale_executing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -336,7 +339,7 @@ class DateToolAcceptanceIntegrationTests(unittest.TestCase):
                 return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
 
             def harvest(job_id, inbox_root=None):
-                if str(job_id).endswith("-RV02"):
+                if "-IT" in str(job_id) or "-RV" in str(job_id):
                     return {
                         "job_id": job_id,
                         "state": "FAILED",

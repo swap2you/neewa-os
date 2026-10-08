@@ -48,7 +48,7 @@ ALLOWED_TRANSITIONS = {
     "VALIDATING": {"OWNER_REVIEW", "RECOVERING", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
     "RECOVERING": {"PLANNING", "EXECUTING", "VALIDATING", "OWNER_REVIEW", "WAITING", "BLOCKED", "FAILED", "CANCELLED"},
     "WAITING": {"PLANNING", "EXECUTING", "RECOVERING", "BLOCKED", "CANCELLED", "FAILED"},
-    "OWNER_REVIEW": set(),
+    "OWNER_REVIEW": {"PLANNING"},
     "BLOCKED": set(),
     "FAILED": set(),
     "CANCELLED": set(),
@@ -121,6 +121,53 @@ class DuplicateMission(Exception):
 
 class HostPathUnmounted(ValueError):
     pass
+
+
+def default_stage_plan(project_id: str | None, objective: str) -> list[dict]:
+    if project_id == "PRJ-CHAKRAOPS":
+        return [
+            {"id": "orats_reconciliation", "status": "in_progress", "objective": objective},
+            {
+                "id": "no_signal_evidence",
+                "status": "not_started",
+                "objective": (
+                    "Produce actual no-signal evidence for the canonical ChakraOps checkout: "
+                    "stage counts, data availability, filters, rejection reasons, universe and windows. "
+                    "Do not manufacture a qualified trade. Broker order actions stay denied."
+                ),
+            },
+        ]
+    return [
+        {"id": "delivery", "status": "in_progress", "objective": objective},
+        {
+            "id": "follow_through",
+            "status": "not_started",
+            "objective": (
+                "Continue the remaining acceptance items for this personal project. "
+                "Do not repeat completed work. Broker and payment actions stay denied."
+            ),
+        },
+    ]
+
+
+def stage_can_continue(mission: dict) -> bool:
+    if mission.get("state") != "OWNER_REVIEW" or not mission.get("auto_continue"):
+        return False
+    return any(str(stage.get("status") or "") == "not_started" for stage in mission.get("stage_plan") or [])
+
+
+def advance_stage(mission: dict, root: Path) -> dict:
+    """Start the next planned stage on this same mission. Do not open another writer mission."""
+    for stage in mission.get("stage_plan") or []:
+        if stage.get("status") == "in_progress":
+            stage["status"] = "completed"
+            stage["completed_at"] = utc_now()
+    nxt = next(stage for stage in mission["stage_plan"] if stage.get("status") == "not_started")
+    nxt["status"] = "in_progress"
+    mission["stage_objective"] = nxt["objective"]
+    mission["active_stage_id"] = nxt["id"]
+    mission["active_job_id"] = None
+    return transition(mission, "PLANNING", f"next stage {nxt['id']}", root)
 
 
 def utc_now() -> str:
@@ -229,7 +276,7 @@ def find_active_writer(root: Path, project_id: str | None) -> dict | None:
     if not project_id:
         return None
     for mission in list_missions(root):
-        if mission.get("state") in TERMINAL:
+        if mission.get("state") in TERMINAL and not stage_can_continue(mission):
             continue
         if mission.get("project_id") == project_id:
             return mission
@@ -241,7 +288,7 @@ def find_active_duplicate(root: Path, objective: str, *, exclude_id: str | None 
     if not key:
         return None
     for mission in list_missions(root):
-        if mission.get("state") in TERMINAL:
+        if mission.get("state") in TERMINAL and not stage_can_continue(mission):
             continue
         if exclude_id and mission.get("mission_id") == exclude_id:
             continue
@@ -670,6 +717,8 @@ def create_mission(
         "coordinator": "neewa-mission-supervisor",
         "origin": origin,
         "kind": kind or DEFAULT_KIND,
+        "auto_continue": (kind or DEFAULT_KIND) == "sdlc",
+        "stage_plan": default_stage_plan(project_id, objective) if (kind or DEFAULT_KIND) == "sdlc" else [],
         "owner_objective": objective,
         "workspace": workspace,
         "project_id": project_id,
@@ -1053,8 +1102,10 @@ def step_mission(
     **advance_kwargs,
 ) -> dict:
     auto = auto or _auto_mod()
-    if mission.get("state") in TERMINAL:
+    if mission.get("state") in TERMINAL and not stage_can_continue(mission):
         return mission
+    if stage_can_continue(mission):
+        return advance_stage(mission, root)
     kind = mission.get("kind") or DEFAULT_KIND
 
     if mission["state"] == "CREATED":
@@ -1117,8 +1168,10 @@ def step_mission(
             return transition(mission, "BLOCKED", mission["failure_reason"], root)
         save_mission(mission, root)
         job = auto.create_parent_job(
-            mission["owner_objective"] if mission.get("repair_cycles", 0) == 0 else (
-                mission.get("repair_objective") or mission["owner_objective"]
+            mission.get("stage_objective") or (
+                mission["owner_objective"] if mission.get("repair_cycles", 0) == 0 else (
+                    mission.get("repair_objective") or mission["owner_objective"]
+                )
             ),
             project_id=mission.get("project_id"),
             workspace=mission.get("workspace"),
@@ -1361,7 +1414,7 @@ def supervisor_once(
     save_json(jobs_root / "mission-heartbeat.json", heartbeat)
     results = []
     for mission in list_missions(jobs_root):
-        if mission.get("state") in TERMINAL:
+        if mission.get("state") in TERMINAL and not stage_can_continue(mission):
             results.append({"mission_id": mission["mission_id"], "state": mission["state"], "skipped": "terminal"})
             continue
         updated = step_mission(

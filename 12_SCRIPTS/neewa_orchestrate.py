@@ -623,6 +623,17 @@ def harvest(job_id: str, inbox_root: Path | None = None) -> dict | None:
             and (record.get("validation") or {}).get("worker_status") == payload.get("status")
         )
         if already:
+            changed = False
+            for key in ("review_decision", "review_task", "model", "effort"):
+                if payload.get(key) not in (None, "", []) and record.get(key) != payload.get(key):
+                    record[key] = payload.get(key)
+                    changed = True
+            if payload.get("independent_test") and not record.get("independent_test"):
+                record["independent_test"] = payload.get("independent_test")
+                record["test_results"] = payload.get("test_results") or payload.get("independent_test")
+                changed = True
+            if changed:
+                save_record(record, inbox_root)
             return record
         if record["state"] != "VALIDATING" and status == "COMPLETED":
             append_state(record, "VALIDATING", "windows-jobs/done")

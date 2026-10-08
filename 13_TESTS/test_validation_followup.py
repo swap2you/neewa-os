@@ -104,6 +104,11 @@ class IndependentContractTests(unittest.TestCase):
             self.assertEqual(record["review_decision"], "OBJECT")
             self.assertEqual(record["model"], "gpt-5.6-sol")
             self.assertEqual(record["state"], "COMPLETED")
+            record.pop("review_decision", None)
+            ORCH.save_record(record, root)
+            again = ORCH.harvest(job_id, root)
+            self.assertEqual(again["review_decision"], "OBJECT")
+            self.assertEqual(again["state"], "COMPLETED")
 
     def test_object_review_fails_done_gate_and_mission_success(self):
         job = {

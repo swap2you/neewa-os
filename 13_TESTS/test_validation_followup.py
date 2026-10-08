@@ -27,23 +27,29 @@ class IndependentContractTests(unittest.TestCase):
         self.assertEqual(adapter["argv"], ["-m", "unittest"])
         self.assertEqual(adapter["cwd"], ".")
         self.assertEqual(adapter["id"], "lifecycle-canary-unittest")
-        job = {
-            "job_id": "JOB-IT",
-            "parent_objective": "fixture",
-            "workspace": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa-lifecycle-canary",
-            "project_identity": {},
-            "child_jobs": [],
-        }
-        seen = {}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job = {
+                "job_id": "JOB-IT",
+                "parent_objective": "fixture",
+                "workspace": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa-lifecycle-canary",
+                "project_identity": {},
+                "child_jobs": [],
+                "_path": str(root / "JOB-IT.json"),
+            }
+            seen = {}
 
-        def submit(**kwargs):
-            seen.update(kwargs)
-            return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+            def submit(**kwargs):
+                seen.update(kwargs)
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
 
-        AUTO._submit_independent_test(job, "python -m unittest", inbox_root=None, orch_submit=submit)
-        self.assertEqual(seen["test_args"], ["-m", "unittest"])
-        self.assertEqual(seen["test_cwd"], ".")
-        self.assertTrue(seen["test_python"])
+            AUTO._submit_independent_test(job, "python -m unittest", inbox_root=None, orch_submit=submit)
+            self.assertEqual(seen["test_args"], ["-m", "unittest"])
+            self.assertEqual(seen["test_cwd"], ".")
+            self.assertTrue(seen["test_python"])
+            saved = Path(job["_path"])
+            self.assertEqual(saved.resolve().parent, root.resolve())
+            self.assertTrue(saved.is_file())
 
     def test_absent_stdout_uses_independent_artifact(self):
         evidence = AUTO.parse_test_evidence("", {

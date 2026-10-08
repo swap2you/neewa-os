@@ -89,6 +89,7 @@ if ($code -ne 0) {
   return New-CodexResult 'FAILED' "codex exec exited $code; API-key fallback was not used" $model $events
 }
 $decision = $null
+$reviewText = ''
 if (Test-Path -LiteralPath $last) {
   $reviewText = Get-Content -Raw -LiteralPath $last
   foreach ($match in [regex]::Matches([string]$reviewText, '(?i)DECISION:\s*(APPROVE|CHANGES_REQUIRED|INSUFFICIENT_EVIDENCE|OBJECT|HOLD)')) {
@@ -97,6 +98,7 @@ if (Test-Path -LiteralPath $last) {
 }
 $result = New-CodexResult 'COMPLETED' "chatgpt codex exec model=$model effort=$effort" $model $last
 $result | Add-Member -NotePropertyName review_decision -NotePropertyValue $decision -Force
+$result | Add-Member -NotePropertyName review_text -NotePropertyValue ([string]$reviewText).Substring(0, [Math]::Min(12000, ([string]$reviewText).Length)) -Force
 $result | Add-Member -NotePropertyName review_task -NotePropertyValue $taskName -Force
 $result | Add-Member -NotePropertyName effort -NotePropertyValue $effort -Force
 $result | Add-Member -NotePropertyName requested_model -NotePropertyValue $model -Force
@@ -106,3 +108,4 @@ if (-not $decision) {
   $result.reason = "codex exited 0 without a structured decision; exit is not approval"
 }
 return $result
+

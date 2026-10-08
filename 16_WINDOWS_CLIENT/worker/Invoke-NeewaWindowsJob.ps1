@@ -238,6 +238,7 @@ $result = [pscustomobject]@{
   artifact_paths = $(if ($cursorResult -and $cursorResult.PSObject.Properties['artifact_paths']) { @($cursorResult.artifact_paths) } else { @() })
   stdout_tail = $(if ($cursorResult -and $cursorResult.PSObject.Properties['stdout_tail']) { $cursorResult.stdout_tail } else { $null })
   review_decision = $(if ($cursorResult -and $cursorResult.PSObject.Properties['review_decision']) { $cursorResult.review_decision } else { $null })
+  review_text = $(if ($cursorResult -and $cursorResult.PSObject.Properties['review_text']) { $cursorResult.review_text } else { $null })
   review_task = $(if ($cursorResult -and $cursorResult.PSObject.Properties['review_task']) { $cursorResult.review_task } else { $null })
   model = $(if ($cursorResult -and $cursorResult.PSObject.Properties['model']) { $cursorResult.model } else { $null })
   effort = $(if ($cursorResult -and $cursorResult.PSObject.Properties['effort']) { $cursorResult.effort } else { $null })
@@ -246,3 +247,4 @@ $result = [pscustomobject]@{
 }
 $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $stampFile -Encoding utf8
 return $result
+

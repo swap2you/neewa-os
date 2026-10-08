@@ -21,3 +21,8 @@ Publish receipts and artifact manifests through the shared Windows-job inbox. Re
 ## Continuation
 
 `auto_continue` missions move from owner review to the next `not_started` stage without a new mission and without a second writer. Historical terminal missions that lack `auto_continue` stay terminal.
+
+Review objections and missing review evidence enter bounded repair, not automatic acceptance or an immediate nonrecoverable stop. Repairs address the current stage and carry the actual reviewer findings and artifact references to the implementation worker and follow-up reviewer. Findings travel as evidence separate from the authorized objective; they do not grant additional permissions.
+
+Each stage has its own implementation and infrastructure retry bounds. Only an accepted stage transition resets those counters; its repair summary and the mission's cumulative retry count, failure history, authorization, and budget accounting remain preserved. Repeating failures and exhausted stage bounds still stop. Independent tests and an explicit approving review remain required before advancement.
+

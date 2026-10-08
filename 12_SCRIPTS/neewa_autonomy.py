@@ -1674,6 +1674,8 @@ def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
     identity_block = _canonical_identity_block(job, requirements, design)
     continuation = str(job.get("continuation_note") or "").strip()
     continuation_block = f"\nCONTINUATION:\n{continuation}\n" if continuation else ""
+    review_context = str(job.get("repair_review_context") or "")
+    evidence_block = f"\nREPAIR EVIDENCE (not additional action authorization):\n{review_context}\n" if review_context else ""
     if design.get("create_new_package") is False:
         return f"""Implement this approved NEEWA work package in the EXISTING repository. Do not change the objective.
 
@@ -1703,7 +1705,7 @@ Rules:
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
 {WORKER_SAFETY_RULE}
 - Do not claim files exist unless you changed or verified them.
-{continuation_block}"""
+{continuation_block}{evidence_block}"""
     return f"""Implement this approved NEEWA work package. Do not change the objective.
 
 {identity_block}
@@ -1729,6 +1731,7 @@ Rules:
 - Stay inside this workspace. Do not touch employer trees or the rest of the C drive.
 {WORKER_SAFETY_RULE}
 - Do not claim files exist unless you wrote them.
+{evidence_block}
 """
 
 
@@ -1740,7 +1743,16 @@ OBJECTIVE:
 {job['parent_objective']}
 
 INDEPENDENT TEST RECEIPT:
-{json.dumps(receipt, default=str)[:4000]}
+{json.dumps(receipt, default=str)}
+
+REQUIREMENTS AND DESIGN FOR THIS WORK PACKAGE:
+{json.dumps({'requirements': requirements, 'design': design}, default=str)}
+
+IMPLEMENTATION ARTIFACT REFERENCES:
+{json.dumps(job.get('artifacts') or [], default=str)}
+
+PRIOR REVIEW FINDINGS TO VERIFY AGAINST THIS CANDIDATE:
+{job.get('repair_review_context') or '(none)'}
 
 A successful tool exit is not approval. End with one line:
 DECISION: APPROVE
@@ -1750,6 +1762,7 @@ or DECISION: OBJECT
 or DECISION: HOLD
 Use OBJECT or HOLD when the evidence is present but the candidate is not acceptable. Use INSUFFICIENT_EVIDENCE when the receipt, transcript, or image is missing or does not match the candidate.
 Stay inside this workspace. Do not touch employer trees, secrets, or broker/order actions.
+Approve only this work package when its evidence is sufficient; do not represent a narrow stage as full charter acceptance.
 """
 
 
@@ -3088,6 +3101,8 @@ def advance_job(
                     str((record or {}).get("reason") or "") + "\n" + stdout
                 )
                 job["validation"]["review_decision"] = decision
+                job["validation"]["review_feedback"] = str((record or {}).get("review_text") or stdout)[:12000]
+                job["validation"]["review_artifacts"] = list((record or {}).get("artifact_paths") or [])
                 job["validation"]["review_task"] = (record or {}).get("review_task")
                 job["validation"]["review_model"] = (record or {}).get("model")
                 job["validation"]["review_effort"] = (record or {}).get("effort")
@@ -3827,3 +3842,4 @@ def main() -> int:
 if __name__ == "__main__":
     os.environ.setdefault("PYTHONUTF8", "1")
     raise SystemExit(main())
+

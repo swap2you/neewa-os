@@ -247,11 +247,13 @@ Durable repository source only. Generated `evidence/` is excluded.
 - `AI-OPS/delivery/COST_GOVERNANCE.md`
 - `AI-OPS/delivery/DESIGN_COUNCIL.md`
 - `AI-OPS/delivery/FAILOVER_POLICY.md`
+- `AI-OPS/delivery/NEEWA_AUTONOMOUS_DELIVERY_IMPLEMENTATION_2026-10-08.md`
 - `AI-OPS/delivery/NEEWA_JARVIS_V1_SPEC.md`
 - `AI-OPS/delivery/NEEWA_WORK_ORDER.md`
 - `AI-OPS/delivery/ORCHESTRATION.md`
 - `AI-OPS/delivery/ORCHESTRATION_ACCEPTANCE.md`
 - `AI-OPS/delivery/OWNER_DECISIONS.md`
+- `AI-OPS/delivery/PERSONAL_AUTONOMY_STANDARD.md`
 - `AI-OPS/delivery/PROJECT_ACCESS.md`
 - `AI-OPS/delivery/RELEASE_REPORT.md`
 - `AI-OPS/delivery/REQUIREMENTS_ENGINE.md`

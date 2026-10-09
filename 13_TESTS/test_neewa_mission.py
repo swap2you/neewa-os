@@ -1,6 +1,8 @@
 import json
+import copy
 import tempfile
 import unittest
+from unittest.mock import patch
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
 
@@ -281,6 +283,86 @@ class MissionSupervisorTests(unittest.TestCase):
         classified = self.mission.classify_failure({"state": "FAILED", "failure_class": "REVIEW_EVIDENCE_MISSING"})
         self.assertTrue(classified["recoverable"])
         self.assertFalse(self.mission.job_meets_mission_success({"state": "OWNER_REVIEW", "validation": {"independent_rerun": "PASS"}}))
+
+    def _accepted_final_stage(self, tmp, state="OWNER_REVIEW"):
+        root, mission = self._create(tmp, kind="sdlc", objective="build a CLI with tests")
+        mission.update(state=state, active_stage_id="follow_through", stage_objective="Verify remaining acceptance",
+                       repair_cycles=2, retry_count=7, terminal_result="OWNER_REVIEW")
+        mission["stage_plan"] = [
+            {"id": "delivery", "status": "completed", "objective": "Build CLI"},
+            {"id": "follow_through", "status": "in_progress", "objective": "Verify remaining acceptance"},
+        ]
+        mission["failure_history"] = [{"reason": "preserved failure"}]
+        job = self.auto.create_parent_job("Verify remaining acceptance", workspace=SANDBOX, root=root,
+                                          mission_id=mission["mission_id"], origin="mission-supervisor")
+        job.update(state="OWNER_REVIEW", validation={
+            "independent_rerun": "PASS", "traceability": "PASS", "review_decision": "APPROVE",
+            "independent_test_receipt": {"job_id": "IT-7", "collected": 7,
+                                         "candidate_head": "a" * 40, "transcript_sha256": "b" * 64},
+        })
+        self.auto.save_job(job)
+        mission["active_job_id"] = job["job_id"]
+        mission["job_ids"] = [job["job_id"]]
+        self.mission.save_mission(mission, root)
+        return root, mission, job
+
+    def test_accepted_final_stage_closes_during_validation_without_dispatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission, job = self._accepted_final_stage(Path(tmp), state="VALIDATING")
+            mission["auto_continue"] = False
+            with patch.object(self.auto, "create_parent_job", side_effect=AssertionError("unexpected dispatch")):
+                updated = self._step(mission, root)
+            stage = updated["stage_plan"][-1]
+            self.assertEqual(updated["state"], "OWNER_REVIEW")
+            self.assertEqual(stage["status"], "completed")
+            self.assertEqual(stage["completion_job_id"], job["job_id"])
+            self.assertEqual(stage["completion_evidence"]["collected"], 7)
+
+    def test_persisted_final_stage_reconciliation_is_idempotent_and_preserves_history_budget(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission, job = self._accepted_final_stage(Path(tmp))
+            before = copy.deepcopy(mission)
+            with patch.object(self.auto, "create_parent_job", side_effect=AssertionError("unexpected dispatch")):
+                self.mission.supervisor_once(root=root, auto=self.auto)
+                repaired = self.mission.load_mission(mission["mission_id"], root)
+                self.assertEqual(repaired["stage_plan"][-1]["status"], "completed")
+                self.mission.supervisor_once(root=root, auto=self.auto)
+                repeated = self.mission.load_mission(mission["mission_id"], root)
+            self.assertEqual(repeated, repaired)
+            for key in ("budget", "retry_count", "repair_cycles", "failure_history", "terminal_result", "job_ids"):
+                self.assertEqual(repeated[key], before[key], key)
+            report = json.loads((root / "work" / mission["mission_id"] / "final-report.json").read_text())
+            self.assertEqual(report["stage_plan"][-1]["completion_job_id"], job["job_id"])
+
+    def test_final_stage_rejects_wrong_or_incomplete_acceptance_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission, job = self._accepted_final_stage(Path(tmp))
+            changes = (
+                {"mission_id": "other-mission"}, {"mission_stage_id": "delivery"},
+                {"parent_objective": "Build CLI"}, {"job_id": "other-job"},
+                {"validation": {"independent_rerun": "IMPLEMENTER_CLAIMED", "traceability": "PASS", "review_decision": "APPROVE"}},
+                {"validation": {"independent_rerun": "PASS", "traceability": "FAIL", "review_decision": "APPROVE"}},
+                {"validation": {"independent_rerun": "PASS", "traceability": "PASS", "review_decision": "OBJECT"}},
+            )
+            for change in changes:
+                with self.subTest(change=change):
+                    candidate = dict(job, **change)
+                    original = copy.deepcopy(mission)
+                    self.assertFalse(self.mission.complete_accepted_stage(mission, candidate))
+                    self.assertEqual(mission, original)
+            self.assertFalse(self.mission.complete_accepted_stage(mission, None))
+
+    def test_final_stage_reconciliation_does_not_reopen_historical_terminals_or_ambiguous_stages(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission, job = self._accepted_final_stage(Path(tmp))
+            for state in ("FAILED", "CANCELLED", "BLOCKED"):
+                historical = copy.deepcopy(mission)
+                historical["state"] = state
+                self.assertFalse(self.mission.reconcile_final_stage(historical, root, self.auto))
+                self.assertEqual(historical["stage_plan"][-1]["status"], "in_progress")
+            mission["stage_plan"][0]["status"] = "in_progress"
+            self.assertFalse(self.mission.complete_accepted_stage(mission, job))
+            self.assertFalse(self.mission.reconcile_final_stage(mission, root, self.auto))
 
     def test_stage_advance_preserves_repair_history_and_starts_fresh_stage(self):
         with tempfile.TemporaryDirectory() as tmp:

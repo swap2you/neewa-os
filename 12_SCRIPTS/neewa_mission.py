@@ -242,6 +242,74 @@ def stage_can_continue(mission: dict) -> bool:
     return any(str(stage.get("status") or "") == "not_started" for stage in mission.get("stage_plan") or [])
 
 
+def complete_accepted_stage(mission: dict, job: dict | None) -> bool:
+    """Record accepted work independently of whether another stage exists.
+
+    This only consumes an already finalized, owned job. It never dispatches or
+    rewrites a job, and legacy jobs must match the active stage's exact objective.
+    """
+    if not job_meets_mission_success(job):
+        return False
+    validation = job.get("validation") or {}
+    if validation.get("traceability") != "PASS":
+        return False
+    if (job.get("mission_id") != mission.get("mission_id")
+            or job.get("job_id") != mission.get("active_job_id")
+            or job.get("job_id") not in (mission.get("job_ids") or [])):
+        return False
+    active = [stage for stage in mission.get("stage_plan") or []
+              if stage.get("status") == "in_progress"]
+    if len(active) != 1:
+        return False
+    stage = active[0]
+    if mission.get("active_stage_id") and stage.get("id") != mission["active_stage_id"]:
+        return False
+    if job.get("mission_stage_id"):
+        if job["mission_stage_id"] != stage.get("id"):
+            return False
+    elif job.get("parent_objective") not in {
+        stage.get("objective"), mission.get("repair_objective")
+    } or not job.get("parent_objective"):
+        return False
+    receipt = validation.get("independent_test_receipt") or {}
+    stage.update(status="completed", completed_at=utc_now(), completion_job_id=job["job_id"])
+    stage["completion_evidence"] = {
+        key: receipt.get(key) for key in (
+            "job_id", "collected", "candidate_head", "candidate_diff_sha256",
+            "candidate_worktree_sha256", "transcript", "transcript_sha256"
+        )
+    }
+    stage["completion_evidence"].update(
+        traceability=validation["traceability"], review_decision=validation["review_decision"],
+        review_artifacts=list(validation.get("review_artifacts") or []),
+    )
+    stage["repair_summary"] = {
+        key: mission.get(key) for key in (
+            "repair_cycles", "infrastructure_retries", "last_failure_signature", "last_evidence_hash"
+        )
+    }
+    return True
+
+
+def reconcile_final_stage(mission: dict, root: Path, auto) -> bool:
+    """Repair only the persisted accepted-final-stage bookkeeping defect."""
+    plan = mission.get("stage_plan") or []
+    if (mission.get("state") != "OWNER_REVIEW" or mission.get("kind") != "sdlc"
+            or not plan or plan[-1].get("status") != "in_progress"
+            or any(stage.get("status") != "completed" for stage in plan[:-1])):
+        return False
+    job = _resume_owned_job(mission, auto, root)
+    if not complete_accepted_stage(mission, job):
+        return False
+    mission.setdefault("history", []).append({
+        "state": "OWNER_REVIEW", "at": utc_now(),
+        "note": f"recorded accepted final stage {plan[-1]['id']} from {job['job_id']}; no dispatch",
+    })
+    save_mission(mission, root)
+    write_report(mission, root)
+    return True
+
+
 def advance_stage(mission: dict, root: Path) -> dict:
     """Start the next planned stage on this same mission. Do not open another writer mission."""
     for stage in mission.get("stage_plan") or []:
@@ -1114,6 +1182,7 @@ def write_report(mission: dict, root: Path) -> dict:
         "state": mission.get("state"),
         "terminal_result": mission.get("terminal_result") or mission.get("state"),
         "active_job_id": mission.get("active_job_id"),
+        "stage_plan": mission.get("stage_plan") or [],
         "job_ids": list(mission.get("job_ids") or []),
         "repair_cycles": mission.get("repair_cycles"),
         "retry_count": mission.get("retry_count"),
@@ -1190,6 +1259,8 @@ def _resume_owned_job(mission: dict, auto, root: Path) -> dict | None:
 def _attach_job(mission: dict, job: dict) -> None:
     job_id = job["job_id"]
     job["mission_id"] = mission["mission_id"]
+    if mission.get("active_stage_id"):
+        job["mission_stage_id"] = mission["active_stage_id"]
     mission["active_job_id"] = job_id
     if job_id not in mission["job_ids"]:
         mission["job_ids"].append(job_id)
@@ -1221,6 +1292,7 @@ def step_mission(
     if [stage.get("id") for stage in mission.get("stage_plan") or []] != before_ids:
         save_mission(mission, root)
     if mission.get("state") in TERMINAL and not stage_can_continue(mission):
+        reconcile_final_stage(mission, root, auto)
         return mission
     if stage_can_continue(mission):
         return advance_stage(mission, root)
@@ -1391,6 +1463,7 @@ def step_mission(
             )
             sync_budget_from_job(mission, job)
         if job and job_meets_mission_success(job):
+            complete_accepted_stage(mission, job)
             transition(mission, "OWNER_REVIEW", "validation reconciled", root)
             write_report(mission, root)
             return mission
@@ -1544,6 +1617,7 @@ def supervisor_once(
         })
     for mission in list_missions(jobs_root):
         if mission.get("state") in TERMINAL and not stage_can_continue(mission):
+            reconcile_final_stage(mission, jobs_root, auto)
             results.append({"mission_id": mission["mission_id"], "state": mission["state"], "skipped": "terminal"})
             continue
         updated = step_mission(

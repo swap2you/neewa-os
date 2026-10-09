@@ -1,4 +1,6 @@
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 from importlib.machinery import SourceFileLoader
@@ -1892,6 +1894,65 @@ class ListParentJobsTests(unittest.TestCase):
 class ChakraOpsContinuationTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_autonomy_chakra", str(AUTO)).load_module()
+
+    def test_registered_test_scope_and_prompt_use_backend_context(self):
+        objective = "Run tests/test_orats_freshness_r222.py and inspect backend/app/api/data_health.py."
+        workspace = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        reqs = self.mod.build_requirements(objective, workspace=workspace, project_id="PRJ-CHAKRAOPS")
+        design = self.mod.initial_design(reqs, objective)
+        self.assertIn("backend/tests/test_orats_freshness_r222.py", design["components"])
+        self.assertNotIn("tests/test_orats_freshness_r222.py", design["components"])
+        self.assertIn("backend/app/api/data_health.py", design["components"])
+        prompt = self.mod.build_worker_prompt({"parent_objective": objective, "workspace": workspace}, reqs, design)
+        self.assertIn("Push-Location -LiteralPath 'backend' -ErrorAction Stop", prompt)
+        self.assertIn("& '.\\.venv\\Scripts\\python.exe' '-m' 'pytest' 'tests/test_orats_freshness_r222.py'", prompt)
+        self.assertIn("Do not create a root test loader", prompt)
+        adapter = self.mod.resolve_test_adapter(workspace, design["test_command"])
+        self.assertEqual(adapter["cwd"], "backend")
+        self.assertEqual(adapter["argv"][2], "tests/test_orats_freshness_r222.py")
+
+    def test_registered_test_paths_do_not_double_prefix_or_expand_scope(self):
+        workspace = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        objective = "Inspect backend/tests/test_orats_freshness_r222.py and docs/NEEWA.md."
+        reqs = self.mod.build_requirements(objective, workspace=workspace, project_id="PRJ-CHAKRAOPS")
+        design = self.mod.initial_design(reqs, objective)
+        self.assertIn("backend/tests/test_orats_freshness_r222.py", design["components"])
+        self.assertIn("docs/NEEWA.md", design["components"])
+        self.assertNotIn("backend/backend/tests/test_orats_freshness_r222.py", design["components"])
+        adapter = self.mod.resolve_test_adapter(workspace)
+        for cwd in ("../outside", r"C:\outside", "C:outside", "/outside", r"\outside"):
+            with self.subTest(cwd=cwd), self.assertRaises(ValueError):
+                self.mod.repository_test_paths(dict(adapter, cwd=cwd))
+        canary = self.mod.resolve_test_adapter(r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa-lifecycle-canary")
+        self.assertEqual(self.mod.repository_test_paths(canary), {})
+        self.assertIn("& 'python' '-m' 'unittest'", self.mod.render_registered_test_command(canary, "unused"))
+
+    def test_registered_targets_reject_drive_relative_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "16_WINDOWS_CLIENT" / "worker" / "test_adapters.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"adapters": [{"id": "probe", "argv": [
+                "C:outside.py", "/outside.py", "../outside.py", "tests/valid.py"]}]}))
+            prior = self.mod.ROOT
+            try:
+                self.mod.ROOT = root
+                self.assertEqual(self.mod.resolve_test_adapter_targets("probe"), ["tests/valid.py"])
+            finally:
+                self.mod.ROOT = prior
+
+    def test_rendered_command_does_not_run_after_failed_cwd(self):
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if not shell:
+            self.skipTest("PowerShell is required for this execution probe")
+        with tempfile.TemporaryDirectory() as tmp:
+            adapter = {"id": "probe", "cwd": "missing", "python": "Write-Output",
+                       "argv": ["UNEXPECTED_COMMAND_EXECUTION"]}
+            command = self.mod.render_registered_test_command(adapter, "unused")
+            result = subprocess.run([shell, "-NoProfile", "-Command", command], cwd=tmp,
+                                    capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("UNEXPECTED_COMMAND_EXECUTION", result.stdout)
 
     def test_existing_chakraops_design_is_not_a_new_python_cli(self):
         objective = (

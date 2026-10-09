@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -415,6 +416,136 @@ class WindowsRunnerTests(unittest.TestCase):
                 if mutate:
                     self.assertEqual(reviewed["failure_class"], "REVIEW_EVIDENCE_INVALID")
                     self.assertIn("during review", reviewed["reason"])
+
+    def _fake_native_review(self, folder, body, *, timeout=5, npm=False, missing_launcher=False):
+        self._shell()
+        scripts = folder / "worker"
+        shutil.copytree(WORKER, scripts)
+        (scripts / "NeewaPersonalWorkspace.ps1").write_text(
+            "function Resolve-ApprovedRepo { param($Requested) return $Requested }\n", encoding="utf-8")
+        fake = folder / ("codex.ps1" if npm else "mock-codex.ps1")
+        if npm:
+            if not shutil.which("node.exe"):
+                self.skipTest("Native node runtime required for npm-shim fixture")
+            fake.write_text("throw 'npm shim must not be executed'\n", encoding="utf-8")
+            entry = folder / "node_modules" / "@openai" / "codex" / "bin" / "codex.js"
+            entry.parent.mkdir(parents=True)
+            entry.write_text(body, encoding="utf-8")
+        else:
+            fake.write_text("[Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)\n"
+                            "if ($args[0] -eq 'login') { 'Logged in using ChatGPT'; exit 0 }\n" + body,
+                            encoding="utf-8")
+        if missing_launcher:
+            fake = folder / "missing-codex.exe"
+        prompt = 'Review a "quoted" fixture.\nPaths include C:\\test\\ and braces {}. Unicode: λ漢字.\n' * 1000
+        spec = folder / "review.json"
+        spec.write_text(json.dumps({"job_id": "JOB-FAKE-NATIVE", "repo": str(folder),
+                                    "prompt": prompt, "timeout_sec": timeout}), encoding="utf-8")
+        result = folder / "result.json"
+        diagnostic = self._powershell(folder,
+            f"function Get-Command {{ [CmdletBinding()]param([string]$Name)\n"
+            f"if ($Name -eq 'codex') {{ return [pscustomobject]@{{ Source = '{fake}' }} }}\n"
+            "Microsoft.PowerShell.Core\\Get-Command $Name }\n"
+            "$env:OPENAI_API_KEY = 'fixture-only-key'\n$env:CODEX_API_KEY = 'fixture-only-key'\n"
+            f"$job = Get-Content -Raw '{spec}' | ConvertFrom-Json\n"
+            f"& '{scripts / 'Invoke-NeewaCodexReview.ps1'}' -Job $job -JobsDir '{folder}' | ConvertTo-Json -Depth 10 | Set-Content '{result}' -Encoding utf8\n"
+            "if ($env:OPENAI_API_KEY -ne 'fixture-only-key' -or $env:CODEX_API_KEY -ne 'fixture-only-key') { throw 'Parent environment changed' }\n")
+        return json.loads(result.read_text(encoding="utf-8-sig")), diagnostic, prompt
+
+    def test_native_review_drains_streams_and_preserves_arguments_without_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            result, diagnostic, prompt = self._fake_native_review(folder,
+                "if ($env:OPENAI_API_KEY -or $env:CODEX_API_KEY) { exit 11 }\n"
+                f"[System.IO.File]::WriteAllText('{folder / 'arguments.json'}', (ConvertTo-Json -InputObject @($args)))\n"
+                f"[System.IO.File]::WriteAllText('{folder / 'stdin.txt'}', [Console]::In.ReadToEnd())\n"
+                "[Console]::Out.WriteLine(('x' * 70000)); [Console]::Error.WriteLine(('y' * 70000))\n"
+                "$i = [Array]::IndexOf($args, '-o')\n"
+                "[System.IO.File]::WriteAllText($args[$i + 1], 'DECISION: APPROVE')\nexit 0\n")
+            self.assertEqual(result["status"], "COMPLETED", str(result) + diagnostic)
+            self.assertEqual(result["review_decision"], "APPROVE")
+            args = json.loads((folder / "arguments.json").read_text())
+            self.assertEqual(args[args.index("-s") + 1], "read-only")
+            self.assertEqual(args[args.index("-C") + 1], str(folder))
+            self.assertIn('forced_login_method="chatgpt"', args)
+            self.assertEqual(args[-1], "-")
+            input_text = (folder / "stdin.txt").read_text(encoding="utf-8")
+            self.assertTrue(input_text.endswith(prompt))
+            self.assertGreater(len(input_text), 56000)
+            events = (folder / "JOB-FAKE-NATIVE-codex.jsonl").read_text()
+            self.assertIn("x" * 60000, events)
+            self.assertIn("y" * 60000, events)
+
+    def test_native_review_quota_and_timeout_never_reuse_stale_approval(self):
+        for body, timeout, failure in (("[Console]::Error.WriteLine('usage limit reached'); exit 1\n", 5, "QUOTA"),
+                                       ("Start-Sleep -Seconds 20\n", 1, "TIMEOUT")):
+            with self.subTest(failure=failure), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                (folder / "JOB-FAKE-NATIVE-codex-last.txt").write_text("DECISION: APPROVE")
+                result, diagnostic, _ = self._fake_native_review(folder, body, timeout=timeout)
+                self.assertEqual(result["status"], "FAILED", str(result) + diagnostic)
+                self.assertEqual(result["failure_class"], failure)
+                self.assertIsNone(result.get("review_decision"))
+                self.assertFalse((folder / "JOB-FAKE-NATIVE-codex-last.txt").exists())
+                self.assertTrue(Path(result["artifact"]).exists())
+
+    def test_native_review_npm_shim_uses_existing_node_entry_pair(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            result, diagnostic, _ = self._fake_native_review(folder,
+                "const fs=require('fs'); const a=process.argv.slice(2);\n"
+                "if(process.env.OPENAI_API_KEY || process.env.CODEX_API_KEY) process.exit(11);\n"
+                "if(a[0]==='login'){console.log('Logged in using ChatGPT');process.exit(0);}\n"
+                "fs.readFileSync(0, 'utf8');\n"
+                "fs.writeFileSync(a[a.indexOf('-o')+1], 'DECISION: HOLD');\n", npm=True)
+            self.assertEqual(result["status"], "COMPLETED", str(result) + diagnostic)
+            self.assertEqual(result["review_decision"], "HOLD")
+
+    def test_native_review_launch_error_returns_failed_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            result, diagnostic, _ = self._fake_native_review(folder, "", missing_launcher=True)
+            self.assertEqual(result["status"], "FAILED", str(result) + diagnostic)
+            self.assertEqual(result["failure_class"], "CODEX_LAUNCH")
+            self.assertIsNone(result.get("review_decision"))
+            self.assertTrue(Path(result["artifact"]).is_file())
+
+    def test_native_review_closed_stdin_hang_is_bounded_and_child_stopped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            pid_file = folder / "child.pid"
+            result, diagnostic, _ = self._fake_native_review(folder,
+                "const fs=require('fs'); const a=process.argv.slice(2);\n"
+                "if(a[0]==='login'){console.log('Logged in using ChatGPT');process.exit(0);}\n"
+                f"fs.writeFileSync({json.dumps(str(pid_file))}, String(process.pid));\n"
+                "fs.closeSync(0); setTimeout(()=>{}, 20000);\n", timeout=2, npm=True)
+            self.assertEqual(result["status"], "FAILED", str(result) + diagnostic)
+            self.assertEqual(result["failure_class"], "TIMEOUT")
+            self.assertIsNone(result.get("review_decision"))
+            pid = int(pid_file.read_text())
+            observed = self._powershell(folder, f"[bool](Get-Process -Id {pid} -ErrorAction SilentlyContinue)\n")
+            self.assertEqual(observed.strip(), "False")
+
+    def test_native_review_exited_parent_with_inherited_pipes_times_out_and_stops_descendant(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            child_file = folder / "descendant.json"
+            result, diagnostic, _ = self._fake_native_review(folder,
+                "const fs=require('fs'), cp=require('child_process'); const a=process.argv.slice(2);\n"
+                "if(a[0]==='login'){console.log('Logged in using ChatGPT');process.exit(0);}\n"
+                "fs.readFileSync(0, 'utf8');\n"
+                "const child=cp.spawn(process.execPath,['-e','console.log(\"DESCENDANT_READY\");setTimeout(()=>{},6000)'],{stdio:['ignore',1,2],detached:true}); child.unref();\n"
+                f"fs.writeFileSync({json.dumps(str(child_file))},JSON.stringify({{pid:child.pid,started:Date.now()}}));\n"
+                "setTimeout(()=>{fs.writeFileSync(a[a.indexOf('-o')+1],'DECISION: APPROVE');\n"
+                "console.log('DECISION: APPROVE'); process.exit(0);},200);\n", timeout=1, npm=True)
+            child = json.loads(child_file.read_text())
+            self.assertLess(time.time() - child["started"] / 1000, 4,
+                            "Inherited output pipes exceeded the review deadline")
+            self.assertEqual(result["status"], "FAILED", str(result) + diagnostic)
+            self.assertEqual(result["failure_class"], "TIMEOUT")
+            self.assertIsNone(result.get("review_decision"))
+            observed = self._powershell(folder, f"[bool](Get-Process -Id {int(child['pid'])} -ErrorAction SilentlyContinue)\n")
+            self.assertEqual(observed.strip(), "False")
 
     def test_installed_script_parses_and_drains_both_streams(self):
         if os.name != "nt":

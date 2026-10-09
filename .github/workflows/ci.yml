@@ -36,4 +36,6 @@ jobs:
           python-version: '3.13'
       - name: Native Windows worker evidence and candidate checks
         run: python -m unittest discover -s 13_TESTS -p test_validation_followup.py -v
+      - name: Native Cursor receipt parsing regressions
+        run: python -m unittest discover -s 13_TESTS -p test_cursor_call.py -v
 

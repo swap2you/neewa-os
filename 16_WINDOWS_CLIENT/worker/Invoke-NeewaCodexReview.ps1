@@ -10,6 +10,52 @@ $policy = Get-Content -Raw -LiteralPath (Join-Path $here 'cursor-call-policy.jso
 . (Join-Path $here 'NeewaPersonalWorkspace.ps1')
 . (Join-Path $here 'Invoke-NeewaIndependentTest.ps1')
 
+function Invoke-NeewaCodexNative {
+  param([string]$CliPath, [string[]]$Tokens, [int]$TimeoutMs, [string]$InputText)
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $launchTokens = @()
+  $extension = [System.IO.Path]::GetExtension($CliPath)
+  $base = Split-Path -Parent $CliPath
+  $entry = Join-Path $base 'node_modules/@openai/codex/bin/codex.js'
+  if ($extension -in @('.ps1', '.cmd') -and [System.IO.Path]::GetFileNameWithoutExtension($CliPath) -eq 'codex' -and (Test-Path -LiteralPath $entry)) {
+    # Resolve the standard npm shim to its native node/entry-point pair. The
+    # PowerShell shim cannot safely own native redirection on every PS version.
+    $node = Join-Path $base 'node.exe'
+    if (-not (Test-Path -LiteralPath $node)) { $node = (Get-Command node.exe -ErrorAction Stop).Source }
+    $psi.FileName = $node
+    $launchTokens = @($entry)
+  } elseif ($extension -eq '.ps1') {
+    $psi.FileName = (Get-Process -Id $PID).Path
+    $launchTokens = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $CliPath)
+  } elseif ($extension -eq '.exe') {
+    $psi.FileName = $CliPath
+  } else { throw 'Unsupported Codex CLI launcher; native executable or verified npm shim required' }
+  $launchTokens += $Tokens
+  if ($null -ne $psi.PSObject.Properties['ArgumentList']) {
+    foreach ($token in $launchTokens) { [void]$psi.ArgumentList.Add($token) }
+  } else {
+    # Windows CommandLineToArgvW quoting, including embedded quotes and trailing
+    # backslashes. Never interpolate the prompt into a shell command.
+    $quoted = foreach ($token in $launchTokens) {
+      $value = [regex]::Replace([string]$token, '(\\*)"', '$1$1\"')
+      $value = [regex]::Replace($value, '(\\+)$', '$1$1')
+      '"' + $value + '"'
+    }
+    $psi.Arguments = $quoted -join ' '
+  }
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.RedirectStandardInput = $PSBoundParameters.ContainsKey('InputText')
+  $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
+  if ($psi.RedirectStandardInput) { $psi.StandardInputEncoding = [System.Text.UTF8Encoding]::new($false) }
+  $psi.CreateNoWindow = $true
+  [void]$psi.EnvironmentVariables.Remove('OPENAI_API_KEY')
+  [void]$psi.EnvironmentVariables.Remove('CODEX_API_KEY')
+  return Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs $TimeoutMs -MaxChars 16777216 -InputText $InputText
+}
+
 function New-CodexResult([string]$Status, [string]$Reason, [string]$Model, [string]$Artifact) {
   return [pscustomobject]@{
     job_id = [string]$Job.job_id
@@ -92,8 +138,17 @@ $codex = Get-Command codex -ErrorAction SilentlyContinue
 if (-not $codex) {
   return New-CodexResult 'FAILED' 'codex CLI is not installed for this identity' $null $null
 }
-$login = & $codex.Source login status 2>&1 | Out-String
-if ($login -notmatch 'Logged in using ChatGPT') {
+$events = Join-Path $JobsDir "$($Job.job_id)-codex.jsonl"
+try {
+  $loginRun = Invoke-NeewaCodexNative -CliPath $codex.Source -Tokens @('login', 'status') -TimeoutMs 20000
+} catch {
+  $r = New-CodexResult 'FAILED' ('Codex native launch failed: ' + $_.Exception.Message) $null $events
+  $r.failure_class = 'CODEX_LAUNCH'
+  [System.IO.File]::WriteAllText($events, $r.reason, [System.Text.UTF8Encoding]::new($false))
+  return $r
+}
+$login = $loginRun.Stdout + $loginRun.Stderr
+if ($loginRun.TimedOut -or $loginRun.ExitCode -ne 0 -or $login -notmatch 'Logged in using ChatGPT') {
   return New-CodexResult 'FAILED' 'ChatGPT sign-in is not active for this identity' $null $null
 }
 
@@ -131,18 +186,36 @@ A process exit of 0 is not approval.
 $prompt
 "@
 $last = Join-Path $JobsDir "$($Job.job_id)-codex-last.txt"
-$events = Join-Path $JobsDir "$($Job.job_id)-codex.jsonl"
-$savedKey = $env:OPENAI_API_KEY
-Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+$timeoutMs = 600000
+if ($Job.PSObject.Properties['timeout_sec'] -and [int]$Job.timeout_sec -gt 0) {
+  $timeoutMs = [Math]::Min(900000, [Math]::Max(1000, [int]$Job.timeout_sec * 1000))
+}
 try {
+  if (Test-Path -LiteralPath $last) { Remove-Item -LiteralPath $last -Force }
   $configArg = 'model_reasoning_effort="' + $effort + '"'
-  & $codex.Source exec --skip-git-repo-check -s read-only -C $repo -m $model -c $configArg --json -o $last $prompt 1> $events 2>&1
-  $code = $LASTEXITCODE
-} finally {
-  if ($null -ne $savedKey) { $env:OPENAI_API_KEY = $savedKey }
+  $ran = Invoke-NeewaCodexNative -CliPath $codex.Source -Tokens @('exec', '--skip-git-repo-check', '-s', 'read-only', '-C', $repo, '-m', $model, '-c', $configArg, '-c', 'forced_login_method="chatgpt"', '--json', '-o', $last, '-') -TimeoutMs $timeoutMs -InputText $prompt
+  [System.IO.File]::WriteAllText($events, ($ran.Stdout + "`n" + $ran.Stderr), [System.Text.UTF8Encoding]::new($false))
+  $code = $ran.ExitCode
+} catch {
+  $r = New-CodexResult 'FAILED' ('Codex native launch failed: ' + $_.Exception.Message) $model $events
+  $r.failure_class = 'CODEX_LAUNCH'
+  [System.IO.File]::WriteAllText($events, $r.reason, [System.Text.UTF8Encoding]::new($false))
+  return $r
+}
+if ($ran.TimedOut) {
+  $r = New-CodexResult 'FAILED' 'Codex review exceeded its bounded timeout; approval was not recorded' $model $events
+  $r.failure_class = 'TIMEOUT'
+  return $r
 }
 if ($code -ne 0) {
-  return New-CodexResult 'FAILED' "codex exec exited $code; API-key fallback was not used" $model $events
+  $r = New-CodexResult 'FAILED' "codex exec exited $code; API-key fallback was not used" $model $events
+  $r.failure_class = if (($ran.Stdout + $ran.Stderr) -match '(?i)quota|usage limit|rate limit') { 'QUOTA' } else { 'CODEX_EXIT' }
+  return $r
+}
+if ($ran.InputFailed) {
+  $r = New-CodexResult 'FAILED' 'Codex did not consume the complete review prompt; approval was not recorded' $model $events
+  $r.failure_class = 'CODEX_INPUT'
+  return $r
 }
 $decision = $null
 $reviewText = ''

@@ -100,18 +100,129 @@ class CursorCallTests(unittest.TestCase):
         path.write_text(json.dumps(policy), encoding="utf-8")
         return path, sandbox
 
+    def _fake_cli_completion(self, output: str) -> dict:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            policy, repo = self._isolated_policy(root / "policy-home")
+            jobs = root / "jobs"
+            jobs.mkdir()
+            cli = root / "agent.cmd"
+            cli.write_text("@exit /b 0\n", encoding="utf-8")
+            captured = root / "fake-output.txt"
+            captured.write_text(output, encoding="utf-8")
+            (root / "cursor-agent.ps1").write_text(
+                "[Console]::Write([System.IO.File]::ReadAllText('"
+                + str(captured).replace("'", "''") + "'))\nexit 0\n", encoding="utf-8"
+            )
+            result = self._run_cursor_script(
+                {"job_id": "JOB-TEST-CLI-EVIDENCE", "prompt": "Say hello and do not edit files.",
+                 "repo": str(repo), "write": False, "timeout_sec": 30},
+                str(cli), jobs, policy_path=policy,
+            )
+            log = Path(result["log"]).read_text(encoding="utf-8")
+            self.assertIn(output.strip(), log)
+            return result
+
+    def test_long_wrapped_cli_result_preserves_implementer_marker(self):
+        claim = {"passed": True, "exit_code": 0, "stdout": "1833 passed", "stderr": ""}
+        text = "long explanation " * 600 + "\nTEST_JSON:" + json.dumps(claim)
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": text}))
+        self.assertEqual(result["status"], "COMPLETED")
+        mod = SourceFileLoader("cursor_claim_parser", str(ROOT / "12_SCRIPTS" / "neewa_autonomy.py")).load_module()
+        parsed = mod.parse_test_evidence(result["stdout_tail"])
+        self.assertEqual(parsed["source"], "TEST_JSON")
+        self.assertTrue(parsed["passed"])
+        self.assertEqual(parsed["stdout"], "1833 passed")
+        self.assertNotIn("independent_test", result)
+        self.assertNotIn("test_results", result)
+
+    def test_wrapped_marker_survives_long_trailing_notification(self):
+        text = 'TEST_JSON:{"passed":false,"exit_code":1,"stderr":"actual test failure"}\n' + "notification " * 600
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": text}) + '\n{"type":"notification","message":"done"}')
+        self.assertEqual(result["status"], "COMPLETED")
+        mod = SourceFileLoader("cursor_trailing_parser", str(ROOT / "12_SCRIPTS" / "neewa_autonomy.py")).load_module()
+        parsed = mod.parse_test_evidence(result["stdout_tail"])
+        self.assertEqual(parsed["source"], "TEST_JSON")
+        self.assertFalse(parsed["passed"])
+        self.assertEqual(parsed["exit_code"], 1)
+
+    def test_numeric_pass_count_and_immediate_notification_preserve_actual_claim(self):
+        mod = SourceFileLoader("cursor_numeric_parser", str(ROOT / "12_SCRIPTS" / "neewa_autonomy.py")).load_module()
+        for count in (15, 0):
+            with self.subTest(count=count):
+                claim = {"passed": count, "exit_code": 0 if count else 1,
+                         "stdout": '15 passed; literal braces {} and quote " retained', "stderr": ""}
+                text = "explanation " * 600 + "\nTEST_JSON:" + json.dumps(claim) + '{"type":"notification"}'
+                result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": text}))
+                self.assertEqual(result["status"], "COMPLETED")
+                parsed = mod.parse_test_evidence(result["stdout_tail"])
+                self.assertEqual(parsed["source"], "TEST_JSON")
+                self.assertEqual(parsed["passed"], bool(count))
+                self.assertEqual(parsed["stdout"], claim["stdout"])
+
+    def test_wrapped_result_without_marker_does_not_invent_tests(self):
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": "Implementation complete; no tests reported."}))
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertNotIn("TEST_JSON:", result["stdout_tail"])
+        self.assertNotIn("independent_test", result)
+
+    def test_malformed_or_error_cli_envelope_cannot_complete(self):
+        for output in ('{"result":"TEST_JSON:{"passed":true,"exit_code":0}',
+                       json.dumps({"type": "result", "subtype": "error", "is_error": True,
+                                   "result": 'TEST_JSON:{"passed":true,"exit_code":0}'}),
+                       json.dumps({"type": "result", "subtype": "error", "is_error": True})):
+            with self.subTest(output=output):
+                result = self._fake_cli_completion(output)
+                self.assertEqual(result["status"], "FAILED")
+                self.assertEqual(result["failure_class"], "CLI_EXIT")
+
+    def test_invalid_final_marker_does_not_reuse_earlier_success_claim(self):
+        text = 'TEST_JSON:{"passed":true,"exit_code":0}\nTEST_JSON:not-json'
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": text}))
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertNotIn("TEST_JSON:", result["stdout_tail"])
+
+    def test_truncated_final_jsonl_result_does_not_reuse_success(self):
+        success = json.dumps({"type": "result", "subtype": "success", "result":
+                              'TEST_JSON:{"passed":true,"exit_code":0}'})
+        output = success + '\n{"type":"result","subtype":"error","is_error":true,"result":"interrupted'
+        result = self._fake_cli_completion(output)
+        self.assertEqual(result["status"], "FAILED")
+        self.assertEqual(result["failure_class"], "CLI_EXIT")
+        self.assertNotIn("TEST_JSON:", result.get("stdout_tail", ""))
+
+    def test_inline_example_does_not_override_actual_failed_claim(self):
+        text = ('An example is TEST_JSON:{"passed":true,"exit_code":0}\n'
+                'TEST_JSON:{"passed":false,"exit_code":1,"stderr":"actual failure"}')
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": text}))
+        self.assertEqual(result["status"], "COMPLETED")
+        mod = SourceFileLoader("cursor_inline_example_parser", str(ROOT / "12_SCRIPTS" / "neewa_autonomy.py")).load_module()
+        parsed = mod.parse_test_evidence(result["stdout_tail"])
+        self.assertFalse(parsed["passed"])
+        self.assertEqual(parsed["exit_code"], 1)
+        self.assertEqual(parsed["stdout"], "actual failure")
+        self.assertEqual(result["stdout_tail"].count("TEST_JSON:"), 1)
+
+    def test_inline_example_without_actual_claim_does_not_invent_tests(self):
+        text = 'Example only: TEST_JSON:{"passed":true,"exit_code":0}'
+        result = self._fake_cli_completion(json.dumps({"type": "result", "subtype": "success", "result": text}))
+        self.assertEqual(result["status"], "COMPLETED")
+        self.assertNotIn("TEST_JSON:", result["stdout_tail"])
+
     def test_missing_cli_is_blocked_not_success(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-MISSING-CLI",
                     "prompt": "Say hello and do not edit files.",
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": False,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertNotEqual(result["status"], "COMPLETED")
@@ -120,15 +231,17 @@ class CursorCallTests(unittest.TestCase):
     def test_denied_repo_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-DENIED-REPO",
                     "prompt": "list files",
-                    "repo": r"C:\Development\Workspace\OratsUtil",
+                    "repo": str(repo / "OratsUtil"),
                     "write": False,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("denied", result["reason"].lower())
@@ -136,15 +249,17 @@ class CursorCallTests(unittest.TestCase):
     def test_sensitive_prompt_is_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-SENSITIVE",
                     "prompt": "git push origin main and then live trade",
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertIn("sensitive", result["reason"].lower())
@@ -152,16 +267,18 @@ class CursorCallTests(unittest.TestCase):
     def test_stack_label_expected_path_blocked_before_agent(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-FASTAPI-NEXT",
                     "prompt": "implement a helper",
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                     "expected_paths": ["FastAPI/Next.js"],
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertEqual(result["status"], "BLOCKED")
         self.assertEqual(result.get("failure_class"), "MALFORMED_EXPECTED_PATH")
@@ -169,6 +286,7 @@ class CursorCallTests(unittest.TestCase):
     def test_prohibition_list_is_not_sensitive_intent(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-NO-PURCHASES",
@@ -177,11 +295,12 @@ class CursorCallTests(unittest.TestCase):
                         "No publication, deployment, external messages, purchases, "
                         "or destructive actions."
                     ),
-                    "repo": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertNotIn("sensitive", (result.get("reason") or "").lower())
         self.assertIn(result["status"], {"BLOCKED", "FAILED"})
@@ -204,7 +323,7 @@ class CursorCallTests(unittest.TestCase):
                     "write": False,
                     "timeout_sec": 0,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -224,15 +343,17 @@ class CursorCallTests(unittest.TestCase):
         )
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-56E-CHILD",
                     "prompt": prompt,
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertNotIn("sensitive", (result.get("reason") or "").lower())
         self.assertIn("not installed", (result.get("reason") or "").lower())
@@ -244,6 +365,7 @@ class CursorCallTests(unittest.TestCase):
     def test_comma_separated_prohibition_bullet_is_not_sensitive(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             result = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-COMMA-NO",
@@ -252,36 +374,40 @@ class CursorCallTests(unittest.TestCase):
                         "- Do not publish, deploy to production, send external messages, "
                         "purchase anything, or take destructive actions."
                     ),
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertIn("not installed", (result.get("reason") or "").lower())
 
     def test_affirmative_deploy_and_purchase_remain_blocked(self):
         with tempfile.TemporaryDirectory() as tmp:
             jobs = Path(tmp)
+            policy, repo = self._isolated_policy(jobs / "policy-home")
             deploy = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-DEPLOY-YES",
                     "prompt": "Please deploy this to production after the tests pass.",
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
             purchase = self._run_cursor_script(
                 {
                     "job_id": "JOB-TEST-BUY-YES",
                     "prompt": "Purchase a new domain for this app.",
-                    "repo": r"C:\Development\Workspace\NEEWA-OS",
+                    "repo": str(repo),
                     "write": True,
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
+                policy_path=policy,
             )
         self.assertEqual(deploy["status"], "BLOCKED")
         self.assertIn("sensitive", (deploy.get("reason") or "").lower())
@@ -304,7 +430,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "create_new",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -324,7 +450,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "create_new",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -349,7 +475,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "create_new",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -368,7 +494,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "create_new",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -394,7 +520,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "modify_existing",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -420,7 +546,7 @@ class CursorCallTests(unittest.TestCase):
                     "write": True,
                     "project_lifecycle": "create_new",
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -436,7 +562,7 @@ class CursorCallTests(unittest.TestCase):
                     "project_lifecycle": "create_new",
                     "workspace_root": str(sandbox),
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -451,7 +577,7 @@ class CursorCallTests(unittest.TestCase):
                     "write": True,
                     "project_lifecycle": "create_new",
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
                 dry_run=True,
@@ -496,7 +622,7 @@ class CursorCallTests(unittest.TestCase):
             }
             result = self._run_cursor_script(
                 job,
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
             )
@@ -510,7 +636,7 @@ class CursorCallTests(unittest.TestCase):
             self.assertIs(result.get("cursor_started"), False)
             again = self._run_cursor_script(
                 {**job, "job_id": "JOB-TEST-VALIDATE-REPEAT"},
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
             )
@@ -542,7 +668,7 @@ class CursorCallTests(unittest.TestCase):
                     "implementation_repo": str(missing),
                     "expected_paths": ["sample.py"],
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
             )
@@ -562,7 +688,7 @@ class CursorCallTests(unittest.TestCase):
                     "implementation_repo": str(sandbox / "other_tool"),
                     "expected_paths": ["sample.py", "test_sample.py"],
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
             )
@@ -580,7 +706,7 @@ class CursorCallTests(unittest.TestCase):
                     "implementation_completed": False,
                     "expected_paths": ["sample.py", "test_sample.py"],
                 },
-                r"C:\neewa-missing\agent.exe",
+                str(jobs / "missing-agent.exe"),
                 jobs,
                 policy_path=policy,
             )

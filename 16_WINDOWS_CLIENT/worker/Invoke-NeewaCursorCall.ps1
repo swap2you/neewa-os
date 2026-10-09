@@ -290,6 +290,81 @@ function Get-CursorUsage([string]$text) {
   return $null
 }
 
+function Get-CursorCompletionText([string]$text) {
+  # Decode the CLI envelope before truncation. TEST_JSON remains an implementer
+  # claim; only the separate independent-test action can establish a rerun.
+  $decoded = $text
+  $envelope = $null
+  $jsonDecoded = $false
+  try {
+    $obj = $text.Trim() | ConvertFrom-Json
+    $jsonDecoded = $true
+    if ($obj.type -eq 'result' -or $obj.PSObject.Properties['result']) { $envelope = $obj }
+  } catch {
+    foreach ($line in ($text -split "`r?`n")) {
+      try {
+        $obj = $line | ConvertFrom-Json
+        if ($obj.type -eq 'result' -or $obj.PSObject.Properties['result']) { $envelope = $obj }
+      } catch {
+        # A truncated later JSONL result must not leave an earlier success in
+        # force. Plain CLI log lines may accompany envelopes; malformed JSON
+        # transport lines are not trustworthy completion evidence.
+        if ($line.TrimStart().StartsWith('{')) {
+          return @{ failure = 'Cursor Agent CLI JSON envelope could not be decoded'; tail = '' }
+        }
+      }
+    }
+  }
+  if ($envelope) {
+    if ($envelope.is_error -eq $true -or ($envelope.subtype -and $envelope.subtype -ne 'success')) {
+      return @{ failure = 'Cursor Agent CLI returned an error result envelope'; tail = '' }
+    }
+    if ($envelope.result -isnot [string]) {
+      return @{ failure = 'Cursor Agent CLI result must be text'; tail = '' }
+    }
+    $decoded = $envelope.result
+  } elseif (-not $jsonDecoded -and $text.TrimStart().StartsWith('{')) {
+    return @{ failure = 'Cursor Agent CLI JSON envelope could not be decoded'; tail = '' }
+  }
+  $markers = [regex]::Matches($decoded, '(?m)^TEST_JSON:([^\r\n]*)')
+  $marker = ''
+  if ($markers.Count) {
+    try {
+      # A notification may follow the object on the same line. Find the JSON
+      # object's boundary without confusing braces or escaped quotes in strings.
+      $raw = $markers[$markers.Count - 1].Groups[1].Value.TrimStart()
+      $depth = 0; $quoted = $false; $escaped = $false; $claimText = ''
+      if ($raw.StartsWith('{')) {
+        for ($i = 0; $i -lt $raw.Length; $i++) {
+          $char = $raw[$i]
+          if ($quoted) {
+            if ($escaped) { $escaped = $false }
+            elseif ($char -eq '\') { $escaped = $true }
+            elseif ($char -eq '"') { $quoted = $false }
+          } elseif ($char -eq '"') { $quoted = $true }
+          elseif ($char -eq '{') { $depth++ }
+          elseif ($char -eq '}') {
+            $depth--
+            if ($depth -eq 0) { $claimText = $raw.Substring(0, $i + 1); break }
+          }
+        }
+      }
+      $claim = $claimText | ConvertFrom-Json
+      $passedIsCount = ($claim.passed -is [int] -or $claim.passed -is [long]) -and $claim.passed -ge 0
+      if (($claim.passed -is [bool] -or $passedIsCount) -and $claim.PSObject.Properties['exit_code']) {
+        $marker = 'TEST_JSON:' + ($claim | ConvertTo-Json -Depth 8 -Compress)
+      }
+    } catch { }
+    # Never expose an earlier marker or a truncated escaped JSON marker.
+  }
+  # The controller searches anywhere in the tail. Strip inline explanatory
+  # examples as well as line markers, then append only the final actual claim.
+  $decoded = [regex]::Replace($decoded, 'TEST_JSON:[^\r\n]*', '')
+  $tail = if ($decoded) { $decoded.Substring([Math]::Max(0, $decoded.Length - 4000)) } else { '' }
+  if ($marker) { $tail += "`n" + $marker }
+  return @{ failure = $null; tail = $tail }
+}
+
 function New-CursorResult($status, $reason, $artifact, $extra) {
   $obj = [ordered]@{
     job_id = $jobId
@@ -694,9 +769,10 @@ $combined = @("exit=$exitCode duration_sec=$duration cli=$cli repo=$repo write=$
 [System.IO.File]::WriteAllText($logPath, $combined, [System.Text.UTF8Encoding]::new($false))
 
 $authFail = ($stderr + $stdout) -match '(?i)(authentication required|not logged in|login required|unauthorized|unauthenticated|please run ''agent login''|AUTH_REQUIRED)'
-if ($exitCode -ne 0 -or $authFail) {
+$completion = Get-CursorCompletionText $stdout
+if ($exitCode -ne 0 -or $authFail -or $completion.failure) {
   $status = if ($authFail) { 'BLOCKED' } else { 'FAILED' }
-  $reason = if ($authFail) { 'Cursor Agent CLI is not authenticated' } else { "Cursor Agent CLI exited $exitCode" }
+  $reason = if ($authFail) { 'Cursor Agent CLI is not authenticated' } elseif ($completion.failure) { $completion.failure } else { "Cursor Agent CLI exited $exitCode" }
   $failureClass = if ($authFail) { 'AUTH_REQUIRED' } else { 'CLI_EXIT' }
   $r = New-CursorResult $status $reason $artifact @{
     cli = $cli
@@ -705,7 +781,9 @@ if ($exitCode -ne 0 -or $authFail) {
     duration_sec = $duration
     log = $logPath
     failure_class = $failureClass
-    stdout_tail = if ($stdout) { $stdout.Substring([Math]::Max(0, $stdout.Length - 2000)) } else { '' }
+    # A failed CLI transport cannot provide test claims; its full diagnostic
+    # output remains available in the log, outside controller test parsing.
+    stdout_tail = ''
     usage = $usage
   }
   [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))
@@ -770,7 +848,7 @@ $r = New-CursorResult 'COMPLETED' $null $artifact @{
   duration_sec = $duration
   log = $logPath
   artifact_paths = $created
-  stdout_tail = if ($stdout) { $stdout.Substring([Math]::Max(0, $stdout.Length - 4000)) } else { '' }
+  stdout_tail = $completion.tail
   usage = $usage
 }
 [System.IO.File]::WriteAllText($artifact, ($r | ConvertTo-Json -Depth 8), [System.Text.UTF8Encoding]::new($false))

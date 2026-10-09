@@ -332,7 +332,8 @@ class WindowsRunnerTests(unittest.TestCase):
             self.assertEqual(receipt["collected"], 1)
             self.assertTrue(receipt["candidate_stable"])
             transcript = Path(receipt["transcript"])
-            self.assertTrue(transcript.is_relative_to(repo))
+            self.assertTrue(transcript.resolve().is_relative_to(repo.resolve()),
+                            f"transcript={transcript}; candidate={repo}")
             self.assertEqual(receipt["transcript_sha256"], hashlib.sha256(transcript.read_bytes()).hexdigest())
             self.assertEqual(self._git(repo, "status", "--porcelain"), b"")
 

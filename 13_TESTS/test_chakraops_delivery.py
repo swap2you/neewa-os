@@ -150,7 +150,7 @@ class WorkerTempTests(unittest.TestCase):
         review = (WORKER / "Invoke-NeewaCodexReview.ps1").read_text(encoding="utf-8")
         tests = (WORKER / "Invoke-NeewaIndependentTest.ps1").read_text(encoding="utf-8")
         probe = (WORKER / "Invoke-NeewaTempProbe.ps1").read_text(encoding="utf-8")
-        self.assertIn("-s read-only", review)
+        self.assertIn("'-s', 'read-only'", review)
         self.assertIn("OPENAI_API_KEY", review)
         self.assertIn("ZERO_COLLECTED", tests)
         self.assertIn("NO_USABLE_TEMP", tests)

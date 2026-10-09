@@ -37,8 +37,27 @@ $boundReceipt = $null
 function Test-NeewaReviewTranscript {
   param([string]$Repo, $Receipt)
   try {
-    $path = [System.IO.Path]::GetFullPath([string]$Receipt.transcript)
-    $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\')
+    # Worker/Python TEMP paths can use 8.3 aliases for the same existing directory.
+    # Expand those aliases before containment; reparse points remain prohibited below.
+    if (-not ('NeewaEvidencePath' -as [type])) {
+      Add-Type -TypeDefinition @'
+using System;
+using System.Text;
+using System.Runtime.InteropServices;
+public static class NeewaEvidencePath {
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+  private static extern uint GetLongPathName(string path, StringBuilder result, uint capacity);
+  public static string Expand(string path) {
+    var result = new StringBuilder(32768);
+    uint length = GetLongPathName(path, result, (uint)result.Capacity);
+    if (length == 0 || length >= result.Capacity) throw new InvalidOperationException("Cannot resolve evidence path");
+    return result.ToString();
+  }
+}
+'@
+    }
+    $path = [NeewaEvidencePath]::Expand([System.IO.Path]::GetFullPath([string]$Receipt.transcript))
+    $root = [NeewaEvidencePath]::Expand([System.IO.Path]::GetFullPath($Repo)).TrimEnd('\')
     if (-not $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
     $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
     if ($item.PSIsContainer) { return $false }

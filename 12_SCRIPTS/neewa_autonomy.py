@@ -3154,7 +3154,9 @@ def advance_job(
         else:
             job["validation"].setdefault("independent_rerun", "IMPLEMENTER_CLAIMED")
 
-        test_ev = (job.get("validation") or {}).get("test_evidence") or {}
+        validation = job.get("validation") or {}
+        test_ev = (validation.get("independent_test_evidence")
+                   if validation.get("independent_rerun") == "PASS" else None) or validation.get("test_evidence") or {}
         trace = traceability(
             requirements,
             design,

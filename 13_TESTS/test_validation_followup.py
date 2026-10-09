@@ -40,6 +40,8 @@ class IndependentContractTests(unittest.TestCase):
             first = AUTO.advance_job(job, root=root, orch_submit=submit,
                 orch_harvest=lambda *_: {"state": "COMPLETED", "independent_test": receipt})
             self.assertEqual(first["validation"]["traceability"], "PASS")
+            # A persisted job may predate the harvest-time evidence-copy repair.
+            first["validation"]["test_evidence"] = {"passed": True, "stdout": "1 passed"}
             second = AUTO.advance_job(first, root=root, orch_submit=submit,
                 orch_harvest=lambda *_: {"state": "COMPLETED", "review_decision": "APPROVE"})
             self.assertEqual(second["state"], "OWNER_REVIEW", second.get("failure_reason"))

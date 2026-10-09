@@ -1,4 +1,5 @@
 import json
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -683,6 +684,10 @@ class GeneralAutonomyTests(unittest.TestCase):
             self.assertGreaterEqual(calls["submit"], 2)
             self.assertEqual(job["validation"].get("independent_rerun"), "PASS")
             self.assertEqual(job["state"], "OWNER_REVIEW")
+            reviewed = job["validation"]["controller_review_evidence"]["documents"]["RELEASE_CANDIDATE.md"]
+            self.assertEqual(reviewed["sha256"], hashlib.sha256(reviewed["content"].encode("utf-8")).hexdigest())
+            self.assertNotIn(job["validation_child_id"], reviewed["content"])
+            self.assertIn(job["validation_child_id"], (self.mod.job_workdir(job, root) / "RELEASE_CANDIDATE.md").read_text())
 
     def test_mission_supervisor_origin_submits_validation_child(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1894,6 +1899,59 @@ class ListParentJobsTests(unittest.TestCase):
 class ChakraOpsContinuationTests(unittest.TestCase):
     def setUp(self):
         self.mod = SourceFileLoader("neewa_autonomy_chakra", str(AUTO)).load_module()
+
+    def test_controller_evidence_preserves_bytes_and_observed_outcomes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job = {"job_id": "JOB-PROBE", "_path": str(root / "JOB-PROBE.json"),
+                   "mission_id": "MISSION-CURRENT", "parent_objective": "Preserve MISSION-FAILED and MISSION-MISSING"}
+            wd = root / "work" / job["job_id"]
+            wd.mkdir(parents=True)
+            raw = b"candidate\r\nnot an approval\r\n"
+            (wd / "RELEASE_CANDIDATE.md").write_bytes(raw)
+            (root / "MISSION-FAILED.json").write_text(json.dumps({"mission_id": "MISSION-FAILED", "state": "FAILED", "failure_reason": "MAX_REPAIR_CYCLES", "successor_mission_id": "MISSION-CURRENT", "secret": "excluded"}))
+            evidence = self.mod.controller_review_evidence(job)
+            doc = evidence["documents"]["RELEASE_CANDIDATE.md"]
+            self.assertEqual(doc["content"].encode("utf-8"), raw)
+            self.assertEqual(doc["sha256"], hashlib.sha256(raw).hexdigest())
+            self.assertEqual(evidence["missions"]["MISSION-FAILED"]["state"], "FAILED")
+            self.assertEqual(evidence["missions"]["MISSION-FAILED"]["successor_mission_id"], "MISSION-CURRENT")
+            self.assertNotIn("secret", evidence["missions"]["MISSION-FAILED"])
+            self.assertFalse(evidence["missions"]["MISSION-MISSING"]["available"])
+            self.assertFalse(evidence["missions"]["MISSION-CURRENT"]["available"])
+            prompt = self.mod.build_validation_prompt(job, {}, {})
+            self.assertIn(doc["sha256"], prompt)
+            self.assertIn("git diff --binary --no-ext-diff --no-textconv HEAD --", prompt)
+            (wd / "RELEASE_CANDIDATE.md").write_text("later report")
+            self.assertEqual(job["validation"]["controller_review_evidence"]["documents"]["RELEASE_CANDIDATE.md"], doc)
+
+    def test_controller_evidence_rejects_unavailable_or_traversing_job(self):
+        self.assertFalse(self.mod.controller_review_evidence({"job_id": "JOB-PROBE"})["available"])
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = self.mod.controller_review_evidence({"job_id": "../outside", "_path": str(Path(tmp) / "job.json")})
+            self.assertFalse(evidence["available"])
+
+    def test_failed_review_gates_do_not_generate_document_or_dispatch_review(self):
+        for rerun, trace, blocked_submit in (("UNVERIFIED", "PASS", False), ("PASS", "FAIL", False), (None, "PASS", True)):
+            with self.subTest(rerun=rerun, trace=trace, blocked_submit=blocked_submit), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                job = self.mod.create_parent_job(CHANGELOG_OBJECTIVE, root=root, origin="conversation")
+                wd = self.mod.job_workdir(job, root)
+                self.mod.save_json(wd / "requirements.json", {})
+                self.mod.save_json(wd / "design-v1.json", {})
+                job["state"] = "VALIDATING"
+                job["validation"] = {"independent_rerun": rerun, "traceability": trace}
+                job["last_child"] = {"state": "COMPLETED"}
+                if not blocked_submit:
+                    job["independent_test_child_id"] = "JOB-PROBE-IT"
+                calls = []
+                def submit(**kwargs):
+                    calls.append(kwargs["capability"])
+                    return {"state": "BLOCKED", "failure_reason": "test unavailable"}
+                result = self.mod.advance_job(job, root=root, orch_submit=submit)
+                self.assertEqual(result["state"], "FAILED")
+                self.assertNotIn("codex_review", calls)
+                self.assertFalse((wd / "RELEASE_CANDIDATE.md").exists())
 
     def test_registered_test_scope_and_prompt_use_backend_context(self):
         objective = "Run tests/test_orats_freshness_r222.py and inspect backend/app/api/data_health.py."

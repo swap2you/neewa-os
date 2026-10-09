@@ -49,6 +49,40 @@ class MissionSupervisorTests(unittest.TestCase):
             self.assertIsNone(loaded["active_job_id"])
             self.assertEqual(loaded["max_repair_cycles"], 3)
 
+    def test_chakraops_following_stages_dispatch_as_software_with_safety_gates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root, mission = self._create(Path(tmp), kind="sdlc", project_id="PRJ-CHAKRAOPS",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps", objective="Repair ORATS with tests")
+            for stage in mission["stage_plan"][1:]:
+                with self.subTest(stage=stage["id"]):
+                    job = self.auto.create_parent_job(stage["objective"], project_id=mission["project_id"],
+                        workspace=mission["workspace"], root=root, mission_id=mission["mission_id"])
+                    self.assertEqual(job["workflow"], "sdlc")
+                    gate = self.auto.authorize_execution(approval_level="A1", owner_decision=None,
+                        prompt=stage["objective"], repo=mission["workspace"], write=True)
+                    self.assertTrue(gate["allowed"], gate)
+                    bad = self.auto.authorize_execution(approval_level="A1", owner_decision=None,
+                        prompt=stage["objective"] + " Place order now.", repo=mission["workspace"], write=True)
+                    self.assertFalse(bad["allowed"])
+
+    def test_stage_routing_migrates_only_unstarted_exact_legacy_objectives(self):
+        old_text = dict(self.mission.CHAKRAOPS_STAGES)["no_signal_evidence"] + " Broker order actions stay denied."
+        mission = {"project_id": "PRJ-CHAKRAOPS", "stage_plan": [
+            {"id":"orats_reconciliation", "status":"in_progress", "objective":"Owner original"},
+            {"id":"no_signal_evidence", "status":"not_started", "objective":old_text},
+            {"id":"strategy_explanation", "status":"not_started", "objective":"Owner scoped custom objective"},
+            {"id":"position_math", "status":"completed", "objective":"Preserved accepted objective"},
+        ]}
+        self.mission.ensure_stage_plan(mission)
+        plan = {s["id"]:s for s in mission["stage_plan"]}
+        self.assertTrue(plan["no_signal_evidence"]["objective"].startswith("Implement and verify"))
+        self.assertEqual(plan["orats_reconciliation"]["objective"], "Owner original")
+        self.assertEqual(plan["strategy_explanation"]["objective"], "Owner scoped custom objective")
+        self.assertEqual(plan["position_math"]["objective"], "Preserved accepted objective")
+        before = copy.deepcopy(mission)
+        self.mission.ensure_stage_plan(mission)
+        self.assertEqual(mission, before)
+
     def test_execution_after_conversation_termination(self):
         with tempfile.TemporaryDirectory() as tmp:
             root, mission = self._create(Path(tmp), kind="diagnostic")

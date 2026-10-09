@@ -148,6 +148,13 @@ CHAKRAOPS_STAGES = (
 )
 
 
+def chakraops_stage_objective(text: str) -> str:
+    return (
+        "Implement and verify this registered charter stage in the existing ChakraOps application, "
+        "with meaningful tests and a release candidate. " + text + " Broker order actions stay denied."
+    )
+
+
 def default_stage_plan(project_id: str | None, objective: str) -> list[dict]:
     if project_id == "PRJ-CHAKRAOPS":
         stages = []
@@ -155,7 +162,7 @@ def default_stage_plan(project_id: str | None, objective: str) -> list[dict]:
             stages.append({
                 "id": stage_id,
                 "status": "in_progress" if index == 0 else "not_started",
-                "objective": objective if index == 0 else text + " Broker order actions stay denied.",
+                "objective": objective if index == 0 else chakraops_stage_objective(text),
             })
         return stages
     return [
@@ -179,11 +186,15 @@ def ensure_stage_plan(mission: dict) -> None:
     known = {str(stage.get("id") or "") for stage in plan}
     for stage_id, text in CHAKRAOPS_STAGES:
         if stage_id in known:
+            for stage in plan:
+                if (stage.get("id") == stage_id and stage.get("status") == "not_started"
+                        and stage.get("objective") == text + " Broker order actions stay denied."):
+                    stage["objective"] = chakraops_stage_objective(text)
             continue
         plan.append({
             "id": stage_id,
             "status": "not_started",
-            "objective": text + " Broker order actions stay denied.",
+            "objective": chakraops_stage_objective(text),
         })
     mission["stage_plan"] = plan
 

@@ -31,7 +31,7 @@ function Invoke-NeewaDrainedProcess {
     }
     $proc.WaitForExit()
     if ($BinaryOutput) {
-      $stdoutTask.GetAwaiter().GetResult()
+      [void]$stdoutTask.GetAwaiter().GetResult()
       $outBytes = $buffer.ToArray()
     } else {
       try { $outText = [string]$stdoutTask.GetAwaiter().GetResult() } catch { $outText = '' }

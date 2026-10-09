@@ -331,8 +331,10 @@ class WindowsRunnerTests(unittest.TestCase):
             identity_file = folder / "identity.json"
             source = WORKER / "Invoke-NeewaIndependentTest.ps1"
             def identity():
-                self._powershell(folder, f". '{source}'\nGet-NeewaRepoIdentity -Repo '{repo}' | ConvertTo-Json | Set-Content -LiteralPath '{identity_file}' -Encoding utf8\n")
-                return json.loads(identity_file.read_text(encoding="utf-8-sig"))
+                diagnostic = self._powershell(folder, f"$VerbosePreference = 'Continue'\n. '{source}'\nGet-NeewaRepoIdentity -Repo '{repo}' | ConvertTo-Json | Set-Content -LiteralPath '{identity_file}' -Encoding utf8\n")
+                value = json.loads(identity_file.read_text(encoding="utf-8-sig"))
+                self.assertTrue(value["head"], diagnostic)
+                return value
             clean = identity()
             self.assertEqual(clean["diff_sha256"], hashlib.sha256(b"").hexdigest())
             (repo / "value.txt").write_text("staged\n", encoding="utf-8")

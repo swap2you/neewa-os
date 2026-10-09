@@ -131,6 +131,7 @@ function Get-NeewaRepoIdentity {
     $sha.Dispose()
     return [pscustomobject]@{ head = $head; diff_sha256 = $diffHash; worktree_sha256 = $worktreeHash }
   } catch {
+    Write-Verbose ('Git candidate identity failed: ' + $_.Exception.Message)
     return [pscustomobject]@{ head = $null; diff_sha256 = $null; worktree_sha256 = $null }
   }
 }

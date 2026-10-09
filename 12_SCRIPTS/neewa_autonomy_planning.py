@@ -42,7 +42,9 @@ ALLOWED_FILE_SUFFIXES = {".md", ".py", ".ts", ".tsx", ".js", ".json", ".toml", "
 
 def normalize_rel_path(path: str) -> str:
     text = (path or "").strip().replace("\\", "/")
-    return text.lstrip("./")
+    while text.startswith("./"):
+        text = text[2:]
+    return text
 
 
 def is_repo_relative_file(path: str) -> bool:
@@ -68,7 +70,10 @@ def is_repo_relative_file(path: str) -> bool:
 
 
 def extract_mentioned_paths(text: str) -> list[str]:
-    raw = re.findall(r"[\w./\\-]+\.(?:md|py|ts|tsx|js|json|toml|yml|yaml)", text or "")
+    raw = re.findall(
+        r"(?<![\w:./\\-])(?:[A-Za-z]:)?[\w./\\-]+\.(?:json|tsx|toml|yaml|md|py|ts|js|yml)(?!\w)",
+        text or "",
+    )
     out = []
     seen = set()
     for item in raw:

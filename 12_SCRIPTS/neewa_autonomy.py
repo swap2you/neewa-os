@@ -1194,11 +1194,16 @@ def build_requirements(
     workflow: str | None = None,
     workspace: str | None = None,
     project_id: str | None = None,
+    mission_stage_id: str | None = None,
 ) -> dict:
     if fixture == FIXTURE.FIXTURE_ID:
         return FIXTURE.fixture_build_requirements(objective)
     workflow = workflow or classify_intent(objective)["workflow"]
     inspect = PLANNING.inspect_workspace(workspace, project_id)
+    stage_row = (load_json(PLANNING.STACKS).get("projects") or {}).get(project_id) or {}
+    stage_command = (stage_row.get("stage_test_commands") or {}).get(mission_stage_id)
+    if stage_command and IDENTITY.win_paths_equal(workspace, stage_row.get("workspace_path")):
+        inspect["test_command"] = stage_command
     identity = IDENTITY.resolve_project_identity(objective, workspace=workspace)
     slug = identity.get("project_name") if identity.get("allowed") else product_slug(objective, workspace)
     clauses = split_objective_clauses(objective)
@@ -1306,7 +1311,9 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "created_at": utc_now(),
         }
     stack = requirements.get("stack") or "python-stdlib"
-    mentioned = PLANNING.extract_mentioned_paths(objective)
+    # Controller repair diagnostics describe the old failure, not new output paths.
+    path_objective = re.split(r"\n\nREPAIR CYCLE \d+/\d+\.", objective, maxsplit=1)[0]
+    mentioned = PLANNING.extract_mentioned_paths(path_objective)
     sandboxish = (
         stack in {"", "unknown", "python-stdlib", "python"}
         or "cursor-sandbox" in objective.lower()
@@ -2782,6 +2789,7 @@ def advance_job(
                 workflow=job.get("workflow"),
                 workspace=job.get("workspace"),
                 project_id=job.get("project_id"),
+                mission_stage_id=job.get("mission_stage_id"),
             )
             if job.get("project_lifecycle"):
                 requirements["project_lifecycle"] = job.get("project_lifecycle")

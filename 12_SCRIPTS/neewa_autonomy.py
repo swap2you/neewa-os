@@ -380,6 +380,12 @@ def create_parent_job(
     resolved = PLANNING.resolve_project(project_id, workspace)
     if resolved.get("allowed") and resolved.get("workspace"):
         workspace = resolved["workspace"]
+    model_row = (load_json(PLANNING.STACKS).get("projects") or {}).get(project_id) or {}
+    implementation_model = "grok-4.7-high"
+    if resolved.get("allowed") and IDENTITY.win_paths_equal(
+        workspace, model_row.get("workspace_path")
+    ):
+        implementation_model = model_row.get("implementation_model") or implementation_model
     budgets = load_json(BUDGETS)
     if budget_ceiling is None:
         ceiling = budgets["job_defaults"]["max_cost"]
@@ -439,7 +445,7 @@ def create_parent_job(
         "baseline_id": load_baseline_lock().get("baseline_id"),
         "lease": None,
         "timeout_sec": 600,
-        "implementation_model": "grok-4.7-high",
+        "implementation_model": implementation_model,
         "review_model": "gpt-6-astra",
         "review_effort": "high",
         "stage_continuations": 0,

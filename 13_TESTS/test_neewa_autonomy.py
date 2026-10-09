@@ -501,6 +501,50 @@ class GeneralAutonomyTests(unittest.TestCase):
         self.assertIn("software", row["capabilities"])
         self.assertIn("documentation", row["capabilities"])
 
+    def test_mission_follow_through_in_existing_workspace_stays_executable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                "Continue the remaining acceptance items for this personal project. "
+                "Do not repeat completed work. Broker and payment actions stay denied.",
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                origin="mission-supervisor",
+            )
+            self.assertEqual(job["workflow"], "draft_review")
+            job = self.mod.run_until_idle(
+                job,
+                root=root,
+                orch_submit=lambda **k: {"job_id": "x", "state": "DISPATCHED"},
+                orch_harvest=lambda *a, **k: None,
+                stop_before="DESIGN",
+            )
+            self.assertEqual(job["workflow"], "sdlc")
+            self.assertNotEqual(job.get("failure_reason"), "NO_EXECUTABLE_WORKFLOW")
+            self.assertIn(job["state"], {"REQUIREMENTS", "DESIGN"})
+
+    def test_mission_owner_gate_is_not_relabeled_executable(self):
+        row = self.mod.classify_intent("buy shares and place a broker order")
+        self.assertIn(row["workflow"], {"owner_gate", "prepare_then_gate"})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
+            job = self.mod.create_parent_job(
+                "buy shares and place a broker order",
+                project_id="PRJ-NEEWA",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox",
+                root=root,
+                origin="mission-supervisor",
+            )
+            job = self.mod.run_until_idle(
+                job,
+                root=root,
+                orch_submit=lambda **k: {"job_id": "x", "state": "DISPATCHED"},
+                orch_harvest=lambda *a, **k: None,
+            )
+            self.assertNotEqual(job.get("workflow"), "sdlc")
+            self.assertIn(job["state"], {"BLOCKED"})
+
     def test_classified_does_not_stall_draft_review_with_tests(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "jobs"

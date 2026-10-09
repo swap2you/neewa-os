@@ -316,6 +316,18 @@ def maybe_reclassify(job: dict) -> dict:
         elif "research" in caps:
             target = "research_report"
             fresh = {**fresh, "reason": "reclassified from capabilities before dispatch"}
+    if (
+        job.get("origin") == "mission-supervisor"
+        and job.get("workspace")
+        and target not in executable | gated
+    ):
+        target = "research_report" if "research" in caps else "sdlc"
+        fresh = {
+            **fresh,
+            "intent": "research" if target == "research_report" else "software",
+            "approval": "A0" if target == "research_report" else "A1",
+            "reason": "mission stage in an existing workspace stays executable",
+        }
     if target and target != current:
         job.setdefault("reclassification", []).append(
             {

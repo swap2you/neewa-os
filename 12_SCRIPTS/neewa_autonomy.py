@@ -1705,6 +1705,7 @@ Rules:
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
 {WORKER_SAFETY_RULE}
 - Do not claim files exist unless you changed or verified them.
+- Before handoff, commit the scoped source changes in an existing Git repository. Report the commit and remaining dirty paths. Do not commit generated evidence, credentials, licensed data, or account data.
 {continuation_block}{evidence_block}"""
     return f"""Implement this approved NEEWA work package. Do not change the objective.
 
@@ -1753,6 +1754,12 @@ IMPLEMENTATION ARTIFACT REFERENCES:
 
 PRIOR REVIEW FINDINGS TO VERIFY AGAINST THIS CANDIDATE:
 {job.get('repair_review_context') or '(none)'}
+
+CONTROLLER TRACEABILITY ROWS:
+{json.dumps((job.get('validation') or {}).get('traceability_rows') or [], default=str)}
+
+RELEASE EVIDENCE OWNERSHIP:
+For an existing repository the controller owns release/traceability evidence in the job workspace. Do not require a product-root RELEASE_CANDIDATE.md or claim that generated evidence was committed. Check the actual requirement kind and evidence, not a fixed REQ-number from another job.
 
 A successful tool exit is not approval. End with one line:
 DECISION: APPROVE
@@ -2027,7 +2034,12 @@ def evaluate_autonomy_done(job: dict) -> list[str]:
             if recomputed != job["spec_sha256"]:
                 failures.append("SPEC_DRIFT")
     if validation.get("traceability") != "PASS":
-        failures.append("requirements traceability did not pass")
+        rows = validation.get("traceability_rows") or []
+        missing = [{"requirement": row.get("requirement"), "check": row.get("check"),
+                    "result": row.get("result"), "evidence": row.get("evidence")}
+                   for row in rows if row.get("result") != "PASS"]
+        failures.append("requirements traceability did not pass" +
+                        (": " + json.dumps(missing, default=str) if missing else ": no row evidence recorded"))
     if validation.get("council") not in {"PASS", "CHECKLIST_ONLY"}:
         failures.append("design council did not complete")
     decision = validation.get("review_decision")
@@ -2294,6 +2306,7 @@ def _submit_codex_review(job: dict, prompt: str, *, inbox_root: Path | None, orc
             implementation_model=model,
             review_effort=effort,
             review_task=job.get("review_task") or "acceptance",
+            test_receipt=(job.get("validation") or {}).get("independent_test_receipt"),
         )
     except ValueError as exc:
         if "duplicate job_id" not in str(exc):
@@ -2974,6 +2987,7 @@ def advance_job(
         )
         save_json(workdir / "traceability.json", trace)
         job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
+        job["validation"]["traceability_rows"] = trace["rows"]
         if str(workdir / "traceability.json") not in job["artifacts"]:
             job["artifacts"].append(str(workdir / "traceability.json"))
         transition(job, "VALIDATING")
@@ -3043,6 +3057,22 @@ def advance_job(
                     transition(job, "FAILED", job["failure_reason"])
                     return job
                 job["validation"]["independent_rerun"] = "PASS"
+                for artifact in receipt.get("workspace_artifacts") or []:
+                    if artifact not in job["artifacts"]:
+                        job["artifacts"].append(artifact)
+                trace = traceability(requirements, design,
+                                    expected_paths=job.get("expected_paths") or [], test_evidence=test_ev,
+                                    workspace=job.get("workspace"), artifacts=job.get("artifacts") or [],
+                                    independent_rerun="PASS")
+                job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
+                job["validation"]["traceability_rows"] = trace["rows"]
+                save_json(workdir / "traceability.json", trace)
+                if not trace["all_pass"]:
+                    job["failure_class"] = "VALIDATION"
+                    job["failure_reason"] = next(item for item in evaluate_autonomy_done(job)
+                                                 if item.startswith("requirements traceability"))
+                    transition(job, "FAILED", job["failure_reason"])
+                    return job
                 save_job(job)
             if not job.get("validation_child_id"):
                 if budget_allows(job, "codex"):
@@ -3134,6 +3164,7 @@ def advance_job(
         )
         save_json(workdir / "traceability.json", trace)
         job["validation"]["traceability"] = "PASS" if trace["all_pass"] else "FAIL"
+        job["validation"]["traceability_rows"] = trace["rows"]
         rc = write_release_candidate(workdir, job, trace)
         if str(rc) not in job["artifacts"]:
             job["artifacts"].append(str(rc))

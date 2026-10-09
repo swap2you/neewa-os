@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -19,6 +20,26 @@ WORKER = ROOT / "16_WINDOWS_CLIENT" / "worker"
 
 
 class IndependentContractTests(unittest.TestCase):
+    def test_traceability_failure_reports_exact_requirement_and_evidence(self):
+        job = {"state": "VALIDATING", "validation": {"traceability": "FAIL", "traceability_rows": [
+            {"requirement": "REQ-003", "check": "negative_path", "result": "FAIL", "evidence": ["negative-path not observed"]}]}}
+        failure = next(row for row in AUTO.evaluate_autonomy_done(job) if row.startswith("requirements traceability"))
+        self.assertIn("REQ-003", failure)
+        self.assertIn("negative_path", failure)
+        self.assertIn("negative-path not observed", failure)
+
+    def test_review_receipt_is_forwarded_as_structured_worker_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt = {"candidate_identity_schema": 2, "candidate_head": "abc", "transcript": "evidence.txt"}
+            job = {"job_id": "JOB-REVIEW", "parent_objective": "verify a local change", "workspace": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\canary",
+                   "validation": {"independent_test_receipt": receipt}, "child_jobs": [], "_path": str(Path(tmp) / "JOB-REVIEW.json")}
+            seen = {}
+            def submit(**kwargs):
+                seen.update(kwargs)
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+            AUTO._submit_codex_review(job, "review", inbox_root=None, orch_submit=submit)
+            self.assertEqual(seen["test_receipt"], receipt)
+
     def test_review_prompt_keeps_receipt_tail_and_artifact_references(self):
         job = {"parent_objective": "Verify one error-handling stage", "artifacts": ["done/ui-evidence.png"],
                "repair_review_context": "Check the invalid-input objection", "validation": {
@@ -232,6 +253,100 @@ class IndependentContractTests(unittest.TestCase):
 
 
 class WindowsRunnerTests(unittest.TestCase):
+    def _shell(self):
+        if os.name != "nt":
+            self.skipTest("Native Windows worker proof")
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if not shell:
+            self.skipTest("PowerShell is required")
+        return shell
+
+    def _git(self, repo, *args):
+        return subprocess.check_output(["git", "-C", str(repo), *args], stderr=subprocess.PIPE)
+
+    def _repo(self, folder, mutate=False):
+        repo = folder / "candidate with spaces"
+        repo.mkdir()
+        self._git(repo, "init")
+        self._git(repo, "config", "user.name", "contract fixture")
+        self._git(repo, "config", "user.email", "fixture@example.invalid")
+        self._git(repo, "config", "core.autocrlf", "false")
+        (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        (repo / "value.txt").write_text("original\n", encoding="utf-8")
+        action = "Path('value.txt').write_text('mutated')" if mutate else "self.assertEqual(42, 42)"
+        (repo / "test_candidate.py").write_text(
+            "import unittest\nfrom pathlib import Path\nclass Contract(unittest.TestCase):\n    def test_candidate(self):\n        " + action + "\n", encoding="utf-8")
+        self._git(repo, "add", ".")
+        self._git(repo, "commit", "-m", "candidate baseline")
+        return repo
+
+    def _powershell(self, folder, text):
+        script = folder / "proof.ps1"
+        script.write_text("$ErrorActionPreference = 'Stop'\n" + text, encoding="utf-8")
+        ran = subprocess.run([self._shell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+                             capture_output=True, text=True, timeout=90)
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        return ran.stdout
+
+    def _receipt(self, folder, repo):
+        out = folder / "bridge"
+        out.mkdir()
+        spec = folder / "job.json"
+        spec.write_text(json.dumps({"job_id": "JOB-WINDOWS-CONTRACT", "repo": str(repo),
+                                    "python": "python", "cwd": ".", "args": ["-m", "unittest"]}), encoding="utf-8")
+        runner = WORKER / "Invoke-NeewaIndependentTest.ps1"
+        self._powershell(folder, f"& '{runner}' -JobFile '{spec}' -OutDir '{out}'\n")
+        return json.loads((out / "JOB-WINDOWS-CONTRACT-independent-test.json").read_text(encoding="utf-8-sig"))
+
+    def test_git_identity_hashes_raw_staged_and_unstaged_diff(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder)
+            identity_file = folder / "identity.json"
+            source = WORKER / "Invoke-NeewaIndependentTest.ps1"
+            def identity():
+                self._powershell(folder, f". '{source}'\nGet-NeewaRepoIdentity -Repo '{repo}' | ConvertTo-Json | Set-Content -LiteralPath '{identity_file}' -Encoding utf8\n")
+                return json.loads(identity_file.read_text(encoding="utf-8-sig"))
+            clean = identity()
+            self.assertEqual(clean["diff_sha256"], hashlib.sha256(b"").hexdigest())
+            (repo / "value.txt").write_text("staged\n", encoding="utf-8")
+            self._git(repo, "add", "value.txt")
+            (repo / "test_candidate.py").write_text((repo / "test_candidate.py").read_text() + "# unstaged\n", encoding="utf-8")
+            dirty = identity()
+            raw = self._git(repo, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD", "--")
+            self.assertEqual(dirty["diff_sha256"], hashlib.sha256(raw).hexdigest())
+            (repo / "untracked.txt").write_text("one", encoding="utf-8")
+            first = identity()
+            (repo / "untracked.txt").write_text("two", encoding="utf-8")
+            second = identity()
+            self.assertNotEqual(first["worktree_sha256"], second["worktree_sha256"])
+
+    def test_test_transcript_is_readable_inside_unchanged_candidate(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder)
+            receipt = self._receipt(folder, repo)
+            self.assertTrue(receipt["passed"], receipt)
+            self.assertEqual(receipt["collected"], 1)
+            self.assertTrue(receipt["candidate_stable"])
+            transcript = Path(receipt["transcript"])
+            self.assertTrue(transcript.is_relative_to(repo))
+            self.assertEqual(receipt["transcript_sha256"], hashlib.sha256(transcript.read_bytes()).hexdigest())
+            self.assertEqual(self._git(repo, "status", "--porcelain"), b"")
+
+    def test_passing_test_that_changes_candidate_is_rejected(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder, mutate=True)
+            receipt = self._receipt(folder, repo)
+            self.assertFalse(receipt["passed"])
+            self.assertFalse(receipt["candidate_stable"])
+            self.assertEqual(receipt["failure_class"], "CANDIDATE_CHANGED")
+            self.assertEqual(receipt["collected"], 1)
+
     def test_installed_script_parses_and_drains_both_streams(self):
         if os.name != "nt":
             self.skipTest("Windows runner proof")

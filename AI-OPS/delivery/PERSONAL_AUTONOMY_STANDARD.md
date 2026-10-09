@@ -26,3 +26,11 @@ Review objections and missing review evidence enter bounded repair, not automati
 
 Each stage has its own implementation and infrastructure retry bounds. Only an accepted stage transition resets those counters; its repair summary and the mission's cumulative retry count, failure history, authorization, and budget accounting remain preserved. Repeating failures and exhausted stage bounds still stop. Independent tests and an explicit approving review remain required before advancement.
 
+## Candidate and review contract
+
+Worker receipts hash the exact UTF-8 Git `diff HEAD --binary --no-ext-diff --no-textconv` output, including staged and unstaged changes. A separate worktree fingerprint binds status and nonignored untracked-file contents. Tests that change that candidate fail as `CANDIDATE_CHANGED`. A schema-2 receipt carries both identities; review verifies the candidate before and after consultation.
+
+Full test transcripts live in the candidate workspace under `.neewa/evidence/<job_id>/`, with a SHA-256 digest and a shared-inbox copy. That generated directory is excluded through local Git metadata; it must not be committed or published. The reviewer checks the digest and workspace access before a model call. Product source is committed by the implementation worker; controller release and traceability documents remain generated evidence, not a required product-root file.
+
+Machine traceability is checked before consultation. Failed rows retain their requirement ID, check, result, and observed evidence in the failure receipt and repair context. No root test-loader, checklist, or model approval may substitute for satisfying those rows. Native Windows CI must exercise stream draining, raw candidate hashes, transcript access, and candidate-change rejection; a Linux-only suite is insufficient proof of the Windows worker.
+

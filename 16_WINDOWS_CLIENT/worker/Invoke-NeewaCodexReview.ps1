@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $policy = Get-Content -Raw -LiteralPath (Join-Path $here 'cursor-call-policy.json') | ConvertFrom-Json
 . (Join-Path $here 'NeewaPersonalWorkspace.ps1')
+. (Join-Path $here 'Invoke-NeewaIndependentTest.ps1')
 
 function New-CodexResult([string]$Status, [string]$Reason, [string]$Model, [string]$Artifact) {
   return [pscustomobject]@{
@@ -30,6 +31,29 @@ if (-not $prompt) {
 $repo = Resolve-ApprovedRepo $requested
 if (-not $repo) {
   return New-CodexResult 'BLOCKED' 'repo is outside the personal workspace roots or is explicitly excluded' $null $null
+}
+
+$boundReceipt = $null
+if ($Job.PSObject.Properties['test_receipt'] -and $Job.test_receipt) {
+  $boundReceipt = $Job.test_receipt
+  $candidate = Get-NeewaRepoIdentity -Repo $repo
+  $transcriptPath = [string]$boundReceipt.transcript
+  $prefix = [System.IO.Path]::GetFullPath($repo).TrimEnd('\') + '\'
+  $accessible = $false
+  try {
+    $accessible = [System.IO.Path]::GetFullPath($transcriptPath).StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $transcriptPath)
+    if ($accessible) { $accessible = (Get-FileHash -LiteralPath $transcriptPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq [string]$boundReceipt.transcript_sha256 }
+  } catch { $accessible = $false }
+  if (-not $accessible -or -not $boundReceipt.passed -or -not $boundReceipt.candidate_stable -or $boundReceipt.candidate_identity_schema -ne 2) {
+    $r = New-CodexResult 'FAILED' 'Review requires a hash-verified transcript inside the candidate workspace and a stable schema-2 receipt' $null $null
+    $r.failure_class = 'REVIEW_EVIDENCE_INVALID'
+    return $r
+  }
+  if ($candidate.head -ne $boundReceipt.candidate_head -or $candidate.worktree_sha256 -ne $boundReceipt.candidate_worktree_sha256) {
+    $r = New-CodexResult 'FAILED' 'Candidate changed after independent tests; rerun tests on the current candidate' $null $null
+    $r.failure_class = 'CANDIDATE_CHANGED'
+    return $r
+  }
 }
 
 $codex = Get-Command codex -ErrorAction SilentlyContinue
@@ -97,6 +121,15 @@ if (Test-Path -LiteralPath $last) {
   }
 }
 $result = New-CodexResult 'COMPLETED' "chatgpt codex exec model=$model effort=$effort" $model $last
+if ($boundReceipt) {
+  $afterReview = Get-NeewaRepoIdentity -Repo $repo
+  if ($afterReview.head -ne $boundReceipt.candidate_head -or $afterReview.worktree_sha256 -ne $boundReceipt.candidate_worktree_sha256) {
+    $result.status = 'FAILED'
+    $result.reason = 'Candidate changed during review; approval is invalid'
+    $result.failure_class = 'CANDIDATE_CHANGED'
+    $decision = $null
+  }
+}
 $result | Add-Member -NotePropertyName review_decision -NotePropertyValue $decision -Force
 $result | Add-Member -NotePropertyName review_text -NotePropertyValue ([string]$reviewText).Substring(0, [Math]::Min(12000, ([string]$reviewText).Length)) -Force
 $result | Add-Member -NotePropertyName review_task -NotePropertyValue $taskName -Force

@@ -111,22 +111,64 @@ function Get-NeewaUnittestOutcome {
 
 function Get-NeewaRepoIdentity {
   param([string]$Repo)
-  $head = $null
-  $diffHash = $null
   $git = Get-Command git -ErrorAction SilentlyContinue
-  if (-not $git) { return [pscustomobject]@{ head = $null; diff_sha256 = $null } }
-  $native = $PSNativeCommandUseErrorActionPreference
-  $PSNativeCommandUseErrorActionPreference = $false
+  if (-not $git) { return [pscustomobject]@{ head = $null; diff_sha256 = $null; worktree_sha256 = $null } }
   try {
-    $head = (& $git.Source -C $Repo rev-parse HEAD 2>$null | Select-Object -First 1)
-    $diff = & $git.Source -C $Repo diff 2>$null | Out-String
+    $head = (Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'rev-parse HEAD').Trim()
+    # Preserve Git's exact bytes/newlines, and include staged plus unstaged changes.
+    $diff = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'diff --binary --no-ext-diff --no-textconv HEAD --'
+    $status = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'status --porcelain=v1 --untracked-files=all'
     $sha = [System.Security.Cryptography.SHA256]::Create()
     $bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$diff)
     $diffHash = ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
-  } finally {
-    $PSNativeCommandUseErrorActionPreference = $native
+    $untracked = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'ls-files -z --others --exclude-standard'
+    $parts = @($diffHash, $status)
+    foreach ($relative in @($untracked -split "`0" | Where-Object { $_ })) {
+      $file = Join-Path $Repo $relative
+      if ((Get-Item -LiteralPath $file -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint) { throw 'untracked reparse point cannot establish candidate identity' }
+      $parts += $relative + "`t" + (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    $worktreeHash = ([System.BitConverter]::ToString($sha.ComputeHash([System.Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))))).Replace('-', '').ToLowerInvariant()
+    $sha.Dispose()
+    return [pscustomobject]@{ head = $head; diff_sha256 = $diffHash; worktree_sha256 = $worktreeHash }
+  } catch {
+    return [pscustomobject]@{ head = $null; diff_sha256 = $null; worktree_sha256 = $null }
   }
-  return [pscustomobject]@{ head = $head; diff_sha256 = $diffHash }
+}
+
+function Invoke-NeewaGitRead {
+  param([string]$Git, [string]$Repo, [string]$Arguments)
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $Git
+  $psi.Arguments = '-C "' + $Repo.Replace('"', '\"') + '" ' + $Arguments
+  $psi.UseShellExecute = $false
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
+  $ran = Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs 20000 -MaxChars 16777216
+  if ($ran.TimedOut -or $ran.ExitCode -ne 0 -or $ran.Stdout.Length -ge 16777216) { throw 'Git identity command failed or exceeded its limit' }
+  return [string]$ran.Stdout
+}
+
+function Get-NeewaWorkspaceEvidenceDir {
+  param([string]$Repo, [string]$JobId)
+  if ($JobId -notmatch '^[A-Za-z0-9_-]+$') { throw 'invalid evidence job id' }
+  $git = (Get-Command git -ErrorAction Stop).Source
+  $exclude = (Invoke-NeewaGitRead -Git $git -Repo $Repo -Arguments 'rev-parse --git-path info/exclude').Trim()
+  if (-not [System.IO.Path]::IsPathRooted($exclude)) { $exclude = Join-Path $Repo $exclude }
+  $old = if (Test-Path -LiteralPath $exclude) { [System.IO.File]::ReadAllText($exclude) } else { '' }
+  if (($old -split "`n" | ForEach-Object { $_.Trim() }) -notcontains '/.neewa/evidence/') {
+    [System.IO.Directory]::CreateDirectory((Split-Path -Parent $exclude)) | Out-Null
+    [System.IO.File]::WriteAllText($exclude, $old.TrimEnd() + "`n/.neewa/evidence/`n", [System.Text.UTF8Encoding]::new($false))
+  }
+  $dir = [System.IO.Path]::GetFullPath($Repo)
+  foreach ($part in @('.neewa', 'evidence', $JobId)) {
+    $dir = Join-Path $dir $part
+    if ((Test-Path -LiteralPath $dir) -and ((Get-Item -LiteralPath $dir -Force).Attributes -band [System.IO.FileAttributes]::ReparsePoint)) { throw 'evidence directory cannot be a reparse point' }
+    [System.IO.Directory]::CreateDirectory($dir) | Out-Null
+  }
+  return $dir
 }
 
 function Invoke-AllowlistedProductTest {
@@ -151,10 +193,18 @@ function Invoke-AllowlistedProductTest {
     scratch = $null
     candidate_head = $null
     candidate_diff_sha256 = $null
+    candidate_worktree_sha256 = $null
+    candidate_stable = $false
   }
   $identity = Get-NeewaRepoIdentity -Repo $Repo
   $result.candidate_head = $identity.head
   $result.candidate_diff_sha256 = $identity.diff_sha256
+  $result.candidate_worktree_sha256 = $identity.worktree_sha256
+  if (-not $identity.head -or -not $identity.worktree_sha256) {
+    $result.failure_class = 'CANDIDATE_IDENTITY_MISSING'
+    $result.stderr = 'Cannot bind tests to a Git candidate'
+    return [pscustomobject]$result
+  }
   $parsed = @($ArgumentList | Where-Object { $_ })
   if (-not $parsed -and $TestCommand) {
     $parsed = @($TestCommand -split '\s+' | Where-Object { $_ })
@@ -281,9 +331,20 @@ $pythonRel = $null
 $cwdRel = $null
 if ($job.PSObject.Properties['python'] -and $job.python) { $pythonRel = [string]$job.python }
 if ($job.PSObject.Properties['cwd'] -and $job.cwd) { $cwdRel = [string]$job.cwd }
+$evidenceError = $false
+try {
+  $evidenceDir = Get-NeewaWorkspaceEvidenceDir -Repo $repo -JobId ([string]$job.job_id)
+} catch {
+  $evidenceError = $true
+  $evidenceDir = $OutDir
+}
 $ran = Invoke-AllowlistedProductTest -Repo $repo -PythonRelative $pythonRel -CwdRelative $cwdRel -ArgumentList $argList -TestCommand ([string]$job.test_command)
 $artifact = Join-Path $OutDir ("{0}-independent-test.json" -f $job.job_id)
-$transcript = Join-Path $OutDir ("{0}-independent-test-transcript.txt" -f $job.job_id)
+if ($evidenceError) { $ran.passed = $false; $ran.failure_class = 'REVIEW_EVIDENCE_INVALID' }
+$transcript = Join-Path $evidenceDir ("{0}-independent-test-transcript.txt" -f $job.job_id)
+$after = Get-NeewaRepoIdentity -Repo $repo
+$ran.candidate_stable = ($ran.candidate_head -and $ran.candidate_head -eq $after.head -and $ran.candidate_worktree_sha256 -eq $after.worktree_sha256)
+if ($ran.passed -and -not $ran.candidate_stable) { $ran.passed = $false; $ran.failure_class = 'CANDIDATE_CHANGED' }
 $status = if ($ran.passed) { 'COMPLETED' } else { 'FAILED' }
 $reason = if ($ran.passed) { $null } else { $ran.failure_class }
 $stdoutText = [string]$ran.stdout
@@ -305,11 +366,19 @@ $payload = [ordered]@{
   scratch = $ran.scratch
   candidate_head = $ran.candidate_head
   candidate_diff_sha256 = $ran.candidate_diff_sha256
+  candidate_worktree_sha256 = $ran.candidate_worktree_sha256
+  candidate_identity_schema = 2
+  candidate_stable = [bool]$ran.candidate_stable
   transcript = $transcript
+  transcript_sha256 = (Get-FileHash -LiteralPath $transcript -Algorithm SHA256).Hash.ToLowerInvariant()
+  workspace_artifacts = @($transcript)
   stdout_tail = $(if ($stdoutText.Length -gt 2000) { $stdoutText.Substring($stdoutText.Length - 2000) } else { $stdoutText })
   stderr_tail = $(if ($stderrText.Length -gt 2000) { $stderrText.Substring($stderrText.Length - 2000) } else { $stderrText })
 }
 $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $artifact -Encoding utf8
+if ($evidenceDir -ne $OutDir) {
+  Copy-Item -LiteralPath $artifact -Destination (Join-Path $evidenceDir (Split-Path -Leaf $artifact)) -Force
+}
 [pscustomobject]@{
   job_id = $job.job_id
   status = $status
@@ -327,3 +396,4 @@ $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $artifact -Encodin
 }
 }
 }
+

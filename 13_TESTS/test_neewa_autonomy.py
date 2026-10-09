@@ -2104,6 +2104,31 @@ class ChakraOpsContinuationTests(unittest.TestCase):
             self.assertEqual(job["review_effort"], "high")
             self.assertEqual(job["timeout_sec"], 600)
 
+    def test_canonical_chakraops_uses_verified_executor(self):
+        canonical = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        with tempfile.TemporaryDirectory() as tmp:
+            for workspace in (None, canonical, canonical.lower().replace("\\", "/")):
+                job = self.mod.create_parent_job(
+                    "Repair ChakraOps with tests", project_id="PRJ-CHAKRAOPS",
+                    workspace=workspace, root=Path(tmp) / "jobs",
+                )
+                self.assertEqual(job["implementation_model"], "claude-opus-5-5-high")
+                self.assertEqual(job["review_model"], "gpt-6-astra")
+                self.assertEqual(job["timeout_sec"], 600)
+
+    def test_chakraops_executor_does_not_apply_to_other_workspaces(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for workspace in (
+                r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\neewa-lifecycle-canary",
+                r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps\nested",
+                r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps-other",
+            ):
+                job = self.mod.create_parent_job(
+                    "Repair with tests", project_id="PRJ-CHAKRAOPS",
+                    workspace=workspace, root=Path(tmp) / "jobs",
+                )
+                self.assertEqual(job["implementation_model"], "grok-4.7-high")
+
 
 if __name__ == "__main__":
     unittest.main()

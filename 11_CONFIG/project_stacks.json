@@ -29,6 +29,7 @@
     },
     "PRJ-CHAKRAOPS": {
       "workspace_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
+      "implementation_model": "claude-opus-5-5-high",
       "stack": "mixed",
       "stack_label": "FastAPI/React/Vite",
       "test_command": "backend\\.venv\\Scripts\\python.exe -m pytest tests/test_orats_freshness_r222.py -q --tb=line",

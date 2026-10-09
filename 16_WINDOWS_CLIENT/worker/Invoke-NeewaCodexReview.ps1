@@ -60,14 +60,17 @@ public static class NeewaEvidencePath {
     $root = [NeewaEvidencePath]::Expand([System.IO.Path]::GetFullPath($Repo)).TrimEnd('\')
     if (-not $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
     $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
-    if ($item.PSIsContainer) { return $false }
+    if ($item -is [System.IO.DirectoryInfo]) { return $false }
     while ($item.FullName -ne $root) {
       if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
-      $item = if ($item.PSIsContainer) { $item.Parent } else { $item.Directory }
+      $item = if ($item -is [System.IO.DirectoryInfo]) { $item.Parent } else { $item.Directory }
       if (-not $item) { return $false }
     }
     return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -eq [string]$Receipt.transcript_sha256
-  } catch { return $false }
+  } catch {
+    Write-Verbose ('Review transcript validation failed: ' + $_.Exception.Message)
+    return $false
+  }
 }
 if ($Job.PSObject.Properties['test_receipt'] -and $Job.test_receipt) {
   $boundReceipt = $Job.test_receipt

@@ -393,6 +393,7 @@ class WindowsRunnerTests(unittest.TestCase):
                     "function Resolve-ApprovedRepo { param($Requested) return $Requested }\n", encoding="utf-8")
                 fake = folder / "mock-codex.ps1"
                 fake.write_text("if ($args[0] -eq 'login') { 'Logged in using ChatGPT'; return }\n"
+                    f"[System.IO.File]::WriteAllText('{folder / 'model-called.txt'}', 'called')\n"
                     "$i = [Array]::IndexOf($args, '-o')\n"
                     "[System.IO.File]::WriteAllText($args[$i + 1], 'DECISION: APPROVE')\n" +
                     (f"[System.IO.File]::AppendAllText('{receipt['transcript']}', 'changed during review')\n" if mutate else "") +
@@ -401,17 +402,19 @@ class WindowsRunnerTests(unittest.TestCase):
                 spec.write_text(json.dumps({"job_id": "JOB-REVIEW", "repo": str(repo), "prompt": "review fixture",
                                             "test_receipt": receipt}), encoding="utf-8")
                 result = folder / "review-result.json"
-                self._powershell(folder,
-                    f"function Get-Command {{ [CmdletBinding()]param([string]$Name)\n"
+                diagnostic = self._powershell(folder,
+                    f"$VerbosePreference = 'Continue'\nfunction Get-Command {{ [CmdletBinding()]param([string]$Name)\n"
                     f"if ($Name -eq 'codex') {{ return [pscustomobject]@{{ Source = '{fake}' }} }}\n"
                     "Microsoft.PowerShell.Core\\Get-Command $Name }\n" +
                     f"$job = Get-Content -Raw '{spec}' | ConvertFrom-Json\n"
                     f"& '{scripts / 'Invoke-NeewaCodexReview.ps1'}' -Job $job -JobsDir '{folder}' | ConvertTo-Json -Depth 10 | Set-Content '{result}' -Encoding utf8\n")
                 reviewed = json.loads(result.read_text(encoding="utf-8-sig"))
+                self.assertTrue((folder / "model-called.txt").is_file(), str(reviewed) + diagnostic)
                 self.assertEqual(reviewed["status"], "FAILED" if mutate else "COMPLETED", reviewed)
                 self.assertEqual(reviewed["review_decision"], None if mutate else "APPROVE")
                 if mutate:
                     self.assertEqual(reviewed["failure_class"], "REVIEW_EVIDENCE_INVALID")
+                    self.assertIn("during review", reviewed["reason"])
 
     def test_installed_script_parses_and_drains_both_streams(self):
         if os.name != "nt":

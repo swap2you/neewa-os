@@ -3050,6 +3050,8 @@ def advance_job(
                 receipt = (record or {}).get("independent_test") or (record or {}).get("test_results") or test_ev
                 job["validation"]["independent_test_receipt"] = receipt
                 job["validation"]["independent_test_evidence"] = test_ev
+                # Carry the same authoritative evidence through post-review traceability.
+                job["validation"]["test_evidence"] = test_ev
                 job["active_child_id"] = None
                 if not test_ev.get("passed"):
                     job["validation"]["independent_rerun"] = "FAIL"

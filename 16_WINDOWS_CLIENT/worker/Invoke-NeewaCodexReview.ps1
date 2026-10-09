@@ -34,16 +34,26 @@ if (-not $repo) {
 }
 
 $boundReceipt = $null
+function Test-NeewaReviewTranscript {
+  param([string]$Repo, $Receipt)
+  try {
+    $path = [System.IO.Path]::GetFullPath([string]$Receipt.transcript)
+    $root = [System.IO.Path]::GetFullPath($Repo).TrimEnd('\')
+    if (-not $path.StartsWith($root + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $false }
+    $item = Get-Item -LiteralPath $path -Force -ErrorAction Stop
+    if ($item.PSIsContainer) { return $false }
+    while ($item.FullName -ne $root) {
+      if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { return $false }
+      $item = if ($item.PSIsContainer) { $item.Parent } else { $item.Directory }
+      if (-not $item) { return $false }
+    }
+    return (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -eq [string]$Receipt.transcript_sha256
+  } catch { return $false }
+}
 if ($Job.PSObject.Properties['test_receipt'] -and $Job.test_receipt) {
   $boundReceipt = $Job.test_receipt
   $candidate = Get-NeewaRepoIdentity -Repo $repo
-  $transcriptPath = [string]$boundReceipt.transcript
-  $prefix = [System.IO.Path]::GetFullPath($repo).TrimEnd('\') + '\'
-  $accessible = $false
-  try {
-    $accessible = [System.IO.Path]::GetFullPath($transcriptPath).StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase) -and (Test-Path -LiteralPath $transcriptPath)
-    if ($accessible) { $accessible = (Get-FileHash -LiteralPath $transcriptPath -Algorithm SHA256).Hash.ToLowerInvariant() -eq [string]$boundReceipt.transcript_sha256 }
-  } catch { $accessible = $false }
+  $accessible = Test-NeewaReviewTranscript -Repo $repo -Receipt $boundReceipt
   if (-not $accessible -or -not $boundReceipt.passed -or -not $boundReceipt.candidate_stable -or $boundReceipt.candidate_identity_schema -ne 2) {
     $r = New-CodexResult 'FAILED' 'Review requires a hash-verified transcript inside the candidate workspace and a stable schema-2 receipt' $null $null
     $r.failure_class = 'REVIEW_EVIDENCE_INVALID'
@@ -123,7 +133,12 @@ if (Test-Path -LiteralPath $last) {
 $result = New-CodexResult 'COMPLETED' "chatgpt codex exec model=$model effort=$effort" $model $last
 if ($boundReceipt) {
   $afterReview = Get-NeewaRepoIdentity -Repo $repo
-  if ($afterReview.head -ne $boundReceipt.candidate_head -or $afterReview.worktree_sha256 -ne $boundReceipt.candidate_worktree_sha256) {
+  if (-not (Test-NeewaReviewTranscript -Repo $repo -Receipt $boundReceipt)) {
+    $result.status = 'FAILED'
+    $result.reason = 'Test transcript changed or became inaccessible during review; approval is invalid'
+    $result.failure_class = 'REVIEW_EVIDENCE_INVALID'
+    $decision = $null
+  } elseif ($afterReview.head -ne $boundReceipt.candidate_head -or $afterReview.worktree_sha256 -ne $boundReceipt.candidate_worktree_sha256) {
     $result.status = 'FAILED'
     $result.reason = 'Candidate changed during review; approval is invalid'
     $result.failure_class = 'CANDIDATE_CHANGED'
@@ -137,7 +152,7 @@ $result | Add-Member -NotePropertyName effort -NotePropertyValue $effort -Force
 $result | Add-Member -NotePropertyName requested_model -NotePropertyValue $model -Force
 $result | Add-Member -NotePropertyName authentication -NotePropertyValue 'ChatGPT' -Force
 $result | Add-Member -NotePropertyName api_key_fallback -NotePropertyValue $false -Force
-if (-not $decision) {
+if (-not $decision -and $result.status -eq 'COMPLETED') {
   $result.reason = "codex exited 0 without a structured decision; exit is not approval"
 }
 return $result

@@ -116,10 +116,9 @@ function Get-NeewaRepoIdentity {
   try {
     $head = (Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'rev-parse HEAD').Trim()
     # Preserve Git's exact bytes/newlines, and include staged plus unstaged changes.
-    $diff = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'diff --binary --no-ext-diff --no-textconv HEAD --'
+    [byte[]]$bytes = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'diff --binary --no-ext-diff --no-textconv HEAD --' -AsBytes
     $status = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'status --porcelain=v1 --untracked-files=all'
     $sha = [System.Security.Cryptography.SHA256]::Create()
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$diff)
     $diffHash = ([System.BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-', '').ToLowerInvariant()
     $untracked = Invoke-NeewaGitRead -Git $git.Source -Repo $Repo -Arguments 'ls-files -z --others --exclude-standard'
     $parts = @($diffHash, $status)
@@ -137,7 +136,7 @@ function Get-NeewaRepoIdentity {
 }
 
 function Invoke-NeewaGitRead {
-  param([string]$Git, [string]$Repo, [string]$Arguments)
+  param([string]$Git, [string]$Repo, [string]$Arguments, [switch]$AsBytes)
   $psi = New-Object System.Diagnostics.ProcessStartInfo
   $psi.FileName = $Git
   $psi.Arguments = '-C "' + $Repo.Replace('"', '\"') + '" ' + $Arguments
@@ -146,8 +145,10 @@ function Invoke-NeewaGitRead {
   $psi.RedirectStandardError = $true
   $psi.StandardOutputEncoding = [System.Text.UTF8Encoding]::new($false)
   $psi.StandardErrorEncoding = [System.Text.UTF8Encoding]::new($false)
-  $ran = Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs 20000 -MaxChars 16777216
-  if ($ran.TimedOut -or $ran.ExitCode -ne 0 -or $ran.Stdout.Length -ge 16777216) { throw 'Git identity command failed or exceeded its limit' }
+  $ran = Invoke-NeewaDrainedProcess -StartInfo $psi -TimeoutMs 20000 -MaxChars 16777216 -BinaryOutput:$AsBytes
+  $length = if ($AsBytes) { $ran.StdoutBytes.Length } else { $ran.Stdout.Length }
+  if ($ran.TimedOut -or $ran.ExitCode -ne 0 -or $length -ge 16777216) { throw 'Git identity command failed or exceeded its limit' }
+  if ($AsBytes) { return ,([byte[]]$ran.StdoutBytes) }
   return [string]$ran.Stdout
 }
 

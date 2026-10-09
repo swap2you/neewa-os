@@ -349,6 +349,7 @@ def submit(
     review_task: str | None = None,
     implementation_model: str | None = None,
     review_effort: str | None = None,
+    test_receipt: dict | None = None,
     files: list[str] | None = None,
     expected_base_sha: str | None = None,
     repository_id: str | None = None,
@@ -454,6 +455,8 @@ def submit(
         extra["cwd"] = test_cwd
     if review_task:
         extra["review_task"] = review_task
+    if test_receipt:
+        extra["test_receipt"] = test_receipt
     if implementation_model:
         extra["implementation_model"] = implementation_model
         extra["model"] = implementation_model

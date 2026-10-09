@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import shutil
 import subprocess
@@ -19,6 +20,53 @@ WORKER = ROOT / "16_WINDOWS_CLIENT" / "worker"
 
 
 class IndependentContractTests(unittest.TestCase):
+    def test_independent_negative_path_evidence_survives_review(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            job = AUTO.create_parent_job("verify invalid input", workspace=str(root), root=root, origin="conversation")
+            job.update(state="VALIDATING", workflow="sdlc", approval_level="A1",
+                       requirements_version="REQ-v1", design_version="DES-v1",
+                       active_child_id="JOB-TEST", independent_test_child_id="JOB-TEST", artifacts=["fixture"])
+            job["validation"] = {"tests": "PASS", "council": "CHECKLIST_ONLY",
+                                 "test_evidence": {"passed": True, "stdout": "1 passed"}}
+            work = AUTO.job_workdir(job, root)
+            AUTO.save_json(work / "requirements.json", {"requirements": [
+                {"id": "REQ-NEG", "kind": "reliability", "check": "negative_path", "text": "reject invalid input"}]})
+            AUTO.save_json(work / "design-v1.json", {"summary": "invalid input", "acceptance": ["REQ-NEG"]})
+            receipt = {"passed": True, "collected": 1, "exit_code": 0,
+                       "stdout_tail": "invalid input verified\n1 passed"}
+            def submit(**kwargs):
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+            first = AUTO.advance_job(job, root=root, orch_submit=submit,
+                orch_harvest=lambda *_: {"state": "COMPLETED", "independent_test": receipt})
+            self.assertEqual(first["validation"]["traceability"], "PASS")
+            # A persisted job may predate the harvest-time evidence-copy repair.
+            first["validation"]["test_evidence"] = {"passed": True, "stdout": "1 passed"}
+            second = AUTO.advance_job(first, root=root, orch_submit=submit,
+                orch_harvest=lambda *_: {"state": "COMPLETED", "review_decision": "APPROVE"})
+            self.assertEqual(second["state"], "OWNER_REVIEW", second.get("failure_reason"))
+            self.assertEqual(second["validation"]["traceability"], "PASS")
+
+    def test_traceability_failure_reports_exact_requirement_and_evidence(self):
+        job = {"state": "VALIDATING", "validation": {"traceability": "FAIL", "traceability_rows": [
+            {"requirement": "REQ-003", "check": "negative_path", "result": "FAIL", "evidence": ["negative-path not observed"]}]}}
+        failure = next(row for row in AUTO.evaluate_autonomy_done(job) if row.startswith("requirements traceability"))
+        self.assertIn("REQ-003", failure)
+        self.assertIn("negative_path", failure)
+        self.assertIn("negative-path not observed", failure)
+
+    def test_review_receipt_is_forwarded_as_structured_worker_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt = {"candidate_identity_schema": 2, "candidate_head": "abc", "transcript": "evidence.txt"}
+            job = {"job_id": "JOB-REVIEW", "parent_objective": "verify a local change", "workspace": r"C:\Users\swap2\NEEWA-Personal\cursor-sandbox\canary",
+                   "validation": {"independent_test_receipt": receipt}, "child_jobs": [], "_path": str(Path(tmp) / "JOB-REVIEW.json")}
+            seen = {}
+            def submit(**kwargs):
+                seen.update(kwargs)
+                return {"job_id": kwargs["job_id"], "state": "DISPATCHED"}
+            AUTO._submit_codex_review(job, "review", inbox_root=None, orch_submit=submit)
+            self.assertEqual(seen["test_receipt"], receipt)
+
     def test_review_prompt_keeps_receipt_tail_and_artifact_references(self):
         job = {"parent_objective": "Verify one error-handling stage", "artifacts": ["done/ui-evidence.png"],
                "repair_review_context": "Check the invalid-input objection", "validation": {
@@ -232,6 +280,142 @@ class IndependentContractTests(unittest.TestCase):
 
 
 class WindowsRunnerTests(unittest.TestCase):
+    def _shell(self):
+        if os.name != "nt":
+            self.skipTest("Native Windows worker proof")
+        shell = shutil.which("pwsh") or shutil.which("powershell")
+        if not shell:
+            self.skipTest("PowerShell is required")
+        return shell
+
+    def _git(self, repo, *args):
+        return subprocess.check_output(["git", "-C", str(repo), *args], stderr=subprocess.PIPE)
+
+    def _repo(self, folder, mutate=False):
+        repo = folder / "candidate with spaces"
+        repo.mkdir()
+        self._git(repo, "init")
+        self._git(repo, "config", "user.name", "contract fixture")
+        self._git(repo, "config", "user.email", "fixture@example.invalid")
+        self._git(repo, "config", "core.autocrlf", "false")
+        (repo / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+        (repo / "value.txt").write_text("original\n", encoding="utf-8")
+        action = "Path('value.txt').write_text('mutated')" if mutate else "self.assertEqual(42, 42)"
+        (repo / "test_candidate.py").write_text(
+            "import unittest\nfrom pathlib import Path\nclass Contract(unittest.TestCase):\n    def test_candidate(self):\n        " + action + "\n", encoding="utf-8")
+        self._git(repo, "add", ".")
+        self._git(repo, "commit", "-m", "candidate baseline")
+        return repo
+
+    def _powershell(self, folder, text):
+        script = folder / "proof.ps1"
+        script.write_text("$ErrorActionPreference = 'Stop'\n" + text, encoding="utf-8")
+        ran = subprocess.run([self._shell(), "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+                             capture_output=True, text=True, timeout=90)
+        self.assertEqual(ran.returncode, 0, ran.stdout + ran.stderr)
+        return ran.stdout
+
+    def _receipt(self, folder, repo):
+        out = folder / "bridge"
+        out.mkdir()
+        spec = folder / "job.json"
+        spec.write_text(json.dumps({"job_id": "JOB-WINDOWS-CONTRACT", "repo": str(repo),
+                                    "python": "python", "cwd": ".", "args": ["-m", "unittest"]}), encoding="utf-8")
+        runner = WORKER / "Invoke-NeewaIndependentTest.ps1"
+        self._powershell(folder, f"& '{runner}' -JobFile '{spec}' -OutDir '{out}'\n")
+        return json.loads((out / "JOB-WINDOWS-CONTRACT-independent-test.json").read_text(encoding="utf-8-sig"))
+
+    def test_git_identity_hashes_raw_staged_and_unstaged_diff(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder)
+            identity_file = folder / "identity.json"
+            source = WORKER / "Invoke-NeewaIndependentTest.ps1"
+            def identity():
+                diagnostic = self._powershell(folder, f"$VerbosePreference = 'Continue'\n. '{source}'\nGet-NeewaRepoIdentity -Repo '{repo}' | ConvertTo-Json | Set-Content -LiteralPath '{identity_file}' -Encoding utf8\n")
+                value = json.loads(identity_file.read_text(encoding="utf-8-sig"))
+                self.assertTrue(value["head"], diagnostic)
+                return value
+            clean = identity()
+            self.assertEqual(clean["diff_sha256"], hashlib.sha256(b"").hexdigest())
+            (repo / "value.txt").write_text("staged\n", encoding="utf-8")
+            self._git(repo, "add", "value.txt")
+            (repo / "test_candidate.py").write_text((repo / "test_candidate.py").read_text() + "# unstaged\n", encoding="utf-8")
+            dirty = identity()
+            raw = self._git(repo, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD", "--")
+            self.assertEqual(dirty["diff_sha256"], hashlib.sha256(raw).hexdigest())
+            (repo / "value.txt").write_bytes(b"non-UTF8 text: \x80\xff\n")
+            raw = self._git(repo, "diff", "--binary", "--no-ext-diff", "--no-textconv", "HEAD", "--")
+            self.assertEqual(identity()["diff_sha256"], hashlib.sha256(raw).hexdigest())
+            (repo / "untracked.txt").write_text("one", encoding="utf-8")
+            first = identity()
+            (repo / "untracked.txt").write_text("two", encoding="utf-8")
+            second = identity()
+            self.assertNotEqual(first["worktree_sha256"], second["worktree_sha256"])
+
+    def test_test_transcript_is_readable_inside_unchanged_candidate(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder)
+            receipt = self._receipt(folder, repo)
+            self.assertTrue(receipt["passed"], receipt)
+            self.assertEqual(receipt["collected"], 1)
+            self.assertTrue(receipt["candidate_stable"])
+            transcript = Path(receipt["transcript"])
+            self.assertTrue(transcript.resolve().is_relative_to(repo.resolve()),
+                            f"transcript={transcript}; candidate={repo}")
+            self.assertEqual(receipt["transcript_sha256"], hashlib.sha256(transcript.read_bytes()).hexdigest())
+            self.assertEqual(self._git(repo, "status", "--porcelain"), b"")
+
+    def test_passing_test_that_changes_candidate_is_rejected(self):
+        self._shell()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            repo = self._repo(folder, mutate=True)
+            receipt = self._receipt(folder, repo)
+            self.assertFalse(receipt["passed"])
+            self.assertFalse(receipt["candidate_stable"])
+            self.assertEqual(receipt["failure_class"], "CANDIDATE_CHANGED")
+            self.assertEqual(receipt["collected"], 1)
+
+    def test_review_rechecks_transcript_after_model_returns(self):
+        self._shell()
+        for mutate in (False, True):
+            with self.subTest(mutate=mutate), tempfile.TemporaryDirectory() as tmp:
+                folder = Path(tmp)
+                repo = self._repo(folder)
+                receipt = self._receipt(folder, repo)
+                scripts = folder / "worker"
+                shutil.copytree(WORKER, scripts)
+                (scripts / "NeewaPersonalWorkspace.ps1").write_text(
+                    "function Resolve-ApprovedRepo { param($Requested) return $Requested }\n", encoding="utf-8")
+                fake = folder / "mock-codex.ps1"
+                fake.write_text("if ($args[0] -eq 'login') { 'Logged in using ChatGPT'; return }\n"
+                    f"[System.IO.File]::WriteAllText('{folder / 'model-called.txt'}', 'called')\n"
+                    "$i = [Array]::IndexOf($args, '-o')\n"
+                    "[System.IO.File]::WriteAllText($args[$i + 1], 'DECISION: APPROVE')\n" +
+                    (f"[System.IO.File]::AppendAllText('{receipt['transcript']}', 'changed during review')\n" if mutate else "") +
+                    "$global:LASTEXITCODE = 0\n", encoding="utf-8")
+                spec = folder / "review.json"
+                spec.write_text(json.dumps({"job_id": "JOB-REVIEW", "repo": str(repo), "prompt": "review fixture",
+                                            "test_receipt": receipt}), encoding="utf-8")
+                result = folder / "review-result.json"
+                diagnostic = self._powershell(folder,
+                    f"$VerbosePreference = 'Continue'\nfunction Get-Command {{ [CmdletBinding()]param([string]$Name)\n"
+                    f"if ($Name -eq 'codex') {{ return [pscustomobject]@{{ Source = '{fake}' }} }}\n"
+                    "Microsoft.PowerShell.Core\\Get-Command $Name }\n" +
+                    f"$job = Get-Content -Raw '{spec}' | ConvertFrom-Json\n"
+                    f"& '{scripts / 'Invoke-NeewaCodexReview.ps1'}' -Job $job -JobsDir '{folder}' | ConvertTo-Json -Depth 10 | Set-Content '{result}' -Encoding utf8\n")
+                reviewed = json.loads(result.read_text(encoding="utf-8-sig"))
+                self.assertTrue((folder / "model-called.txt").is_file(), str(reviewed) + diagnostic)
+                self.assertEqual(reviewed["status"], "FAILED" if mutate else "COMPLETED", reviewed)
+                self.assertEqual(reviewed["review_decision"], None if mutate else "APPROVE")
+                if mutate:
+                    self.assertEqual(reviewed["failure_class"], "REVIEW_EVIDENCE_INVALID")
+                    self.assertIn("during review", reviewed["reason"])
+
     def test_installed_script_parses_and_drains_both_streams(self):
         if os.name != "nt":
             self.skipTest("Windows runner proof")

@@ -1311,7 +1311,9 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
             "created_at": utc_now(),
         }
     stack = requirements.get("stack") or "python-stdlib"
-    mentioned = PLANNING.extract_mentioned_paths(objective)
+    # Controller repair diagnostics describe the old failure, not new output paths.
+    path_objective = re.split(r"\n\nREPAIR CYCLE \d+/\d+\.", objective, maxsplit=1)[0]
+    mentioned = PLANNING.extract_mentioned_paths(path_objective)
     sandboxish = (
         stack in {"", "unknown", "python-stdlib", "python"}
         or "cursor-sandbox" in objective.lower()

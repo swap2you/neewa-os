@@ -2132,6 +2132,18 @@ class ChakraOpsContinuationTests(unittest.TestCase):
         )
         self.assertEqual(paths, [".neewa/evidence/receipt.json", "frontend/Page.tsx", "config/settings.yaml"])
 
+    def test_repair_diagnostics_do_not_become_new_expected_files(self):
+        workspace = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        objective = ("Repair backend/tests/test_orats_freshness_r222.py and inspect .neewa/evidence/receipt.json."
+            "\n\nREPAIR CYCLE 1/3. Previous job failed: missing expected files: neewa/evidence/receipt.js. "
+            "Do not reopen the failed job. Implement a genuine repair.")
+        req = self.mod.build_requirements(objective, workflow="sdlc", workspace=workspace, project_id="PRJ-CHAKRAOPS")
+        design = self.mod.initial_design(req, objective)
+        self.assertIn("backend/tests/test_orats_freshness_r222.py", design["components"])
+        self.assertIn(".neewa/evidence/receipt.json", design["components"])
+        self.assertNotIn("neewa/evidence/receipt.js", design["components"])
+        self.assertEqual(req["original_objective"], objective)
+
     def test_path_normalization_does_not_turn_escape_paths_into_relative_files(self):
         for path in ("../outside.py", "../../outside.py", "/outside.py", r"C:\outside.py", "C:outside.py", r"\\server\share\outside.py"):
             with self.subTest(path=path):

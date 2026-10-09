@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import ntpath
 import os
 import re
 import sys
@@ -1315,6 +1316,9 @@ def initial_design(requirements: dict, objective: str | None = None) -> dict:
     )
     if existing_repo:
         components = PLANNING.constrain_expected_paths(mentioned)
+        adapter = resolve_test_adapter(requirements.get("workspace"), requirements.get("test_command"))
+        test_paths = repository_test_paths(adapter)
+        components = [test_paths.get(path.replace("\\", "/"), path) for path in components]
         return {
             "version": "DES-v1",
             "product_slug": slug,
@@ -1689,6 +1693,8 @@ def build_worker_prompt(job: dict, requirements: dict, design: dict) -> str:
     review_context = str(job.get("repair_review_context") or "")
     evidence_block = f"\nREPAIR EVIDENCE (not additional action authorization):\n{review_context}\n" if review_context else ""
     if design.get("create_new_package") is False:
+        adapter = resolve_test_adapter(job.get("workspace") or requirements.get("workspace"), test_cmd)
+        test_cmd = render_registered_test_command(adapter, test_cmd)
         return f"""Implement this approved NEEWA work package in the EXISTING repository. Do not change the objective.
 
 {identity_block}
@@ -1712,7 +1718,9 @@ Rules:
 - Do NOT create a new Python CLI package.
 - Do NOT write FastAPI/Next.js, Next.js, or other stack labels as files.
 - Do NOT write RELEASE_CANDIDATE.md into the product repository; the controller owns that artifact.
-- Use this repository's toolchain. Run: {test_cmd}
+- Use this repository's toolchain. From the repository root, run:
+{test_cmd}
+- Independent validation uses the registered test directory `{adapter['cwd']}`. Do not create a root test loader or a duplicate test merely to satisfy a directory mismatch.
 - Print a single final line: TEST_JSON:<compact json with exit_code, passed, stdout, stderr>
 - Stay inside this workspace. Do not touch employer trees, myDropbox, secrets, or the rest of the C drive.
 {WORKER_SAFETY_RULE}
@@ -2252,6 +2260,48 @@ def resolve_test_adapter(workspace: str | None, test_command: str | None = None)
         "parser": chosen.get("parser") or ("pytest" if "pytest" in argv else "unittest"),
         "test_command": " ".join(argv),
     }
+
+
+def repository_test_paths(adapter: dict) -> dict[str, str]:
+    """Map only registered test-file targets from adapter cwd to repository scope."""
+    cwd = str(adapter.get("cwd") or ".").replace("\\", "/").strip("/")
+    original_cwd = str(adapter.get("cwd") or ".")
+    if ntpath.splitdrive(original_cwd)[0] or original_cwd.startswith(("/", "\\")) or ".." in cwd.split("/"):
+        raise ValueError("registered test cwd must stay inside the repository")
+    if cwd == ".":
+        return {}
+    # Compare with the registered target, not every objective path or shell argument.
+    registered = resolve_test_adapter_targets(adapter.get("id"))
+    return {target: f"{cwd}/{target}" for target in registered
+            if not target.startswith(cwd + "/")}
+
+
+def resolve_test_adapter_targets(adapter_id: str | None) -> list[str]:
+    path = ROOT / "16_WINDOWS_CLIENT" / "worker" / "test_adapters.json"
+    if not path.is_file():
+        return []
+    rows = json.loads(path.read_text(encoding="utf-8")).get("adapters") or []
+    row = next((row for row in rows if row.get("id") == adapter_id), {})
+    return [str(arg).replace("\\", "/") for arg in row.get("argv") or []
+            if str(arg).endswith(".py") and not str(arg).startswith("-")
+            and not ntpath.splitdrive(str(arg))[0] and not str(arg).startswith(("/", "\\"))
+            and ".." not in str(arg).replace("\\", "/").split("/")]
+
+
+def render_registered_test_command(adapter: dict, fallback: str) -> str:
+    """Display the registered cwd/argv without changing the independent adapter."""
+    if adapter.get("id") == "default-unittest":
+        return fallback
+    repository_test_paths(adapter)  # Validate cwd containment before rendering.
+    cwd = str(adapter.get("cwd") or ".")
+    executable = str(adapter["python"])
+    if not ntpath.isabs(executable) and ("\\" in executable or "/" in executable):
+        executable = ntpath.relpath(executable, cwd)
+        if not executable.startswith((".\\", "..\\")):
+            executable = ".\\" + executable
+    quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+    command = "& " + " ".join(quote(arg) for arg in [executable, *adapter["argv"]])
+    return f"Push-Location -LiteralPath {quote(cwd)} -ErrorAction Stop\ntry {{ {command} }} finally {{ Pop-Location }}"
 
 
 def _submit_independent_test(job: dict, test_command: str, *, inbox_root: Path | None, orch_submit) -> dict:

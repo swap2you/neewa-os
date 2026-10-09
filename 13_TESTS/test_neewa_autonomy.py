@@ -2141,13 +2141,14 @@ class ChakraOpsContinuationTests(unittest.TestCase):
 
     def test_stage_command_reaches_persisted_requirements_and_design(self):
         with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "jobs"
             job = self.mod.create_parent_job("Implement no signal evidence with tests",
                 workspace=r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps",
-                project_id="PRJ-CHAKRAOPS", root=Path(tmp) / "jobs")
+                project_id="PRJ-CHAKRAOPS", root=root)
             job.update(state="REQUIREMENTS", workflow="sdlc", mission_stage_id="no_signal_evidence")
             self.mod.save_job(job)
-            job = self.mod.advance_job(job)
-            req = self.mod.load_json(self.mod.job_workdir(job, None) / "requirements.json")
+            job = self.mod.advance_job(job, root=root)
+            req = self.mod.load_json(self.mod.job_workdir(job, root) / "requirements.json")
             design = self.mod.initial_design(req, job["parent_objective"])
             adapter = self.mod.resolve_test_adapter(job["workspace"], design["test_command"])
             self.assertEqual(adapter["argv"][2], "tests")

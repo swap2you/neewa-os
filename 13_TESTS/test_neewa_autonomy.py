@@ -2104,6 +2104,57 @@ class ChakraOpsContinuationTests(unittest.TestCase):
             self.assertEqual(job["review_effort"], "high")
             self.assertEqual(job["timeout_sec"], 600)
 
+    def test_registered_charter_stages_independently_test_backend_suite(self):
+        workspace = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
+        stages = self.mod.load_json(self.mod.PLANNING.STACKS)["projects"]["PRJ-CHAKRAOPS"]["stage_test_commands"]
+        self.assertEqual(len(stages), 14)
+        for stage in stages:
+            with self.subTest(stage=stage):
+                req = self.mod.build_requirements("Implement existing application stage with tests", workflow="sdlc",
+                    workspace=workspace, project_id="PRJ-CHAKRAOPS", mission_stage_id=stage)
+                adapter = self.mod.resolve_test_adapter(workspace, req["test_command"])
+                self.assertEqual(adapter["cwd"], "backend")
+                self.assertEqual(adapter["argv"], ["-m", "pytest", "tests", "-q", "--tb=line"])
+                quality = [r["text"] for r in req["requirements"] if r["kind"] == "quality"]
+                self.assertTrue(any("pytest tests -q" in text for text in quality))
+        for stage in (None, "orats_reconciliation", "not-registered"):
+            req = self.mod.build_requirements("Repair ORATS with tests", workspace=workspace,
+                project_id="PRJ-CHAKRAOPS", mission_stage_id=stage)
+            self.assertIn("tests/test_orats_freshness_r222.py", req["test_command"])
+        req = self.mod.build_requirements("Implement application with tests", workflow="sdlc",
+            workspace=workspace + "-other", project_id="PRJ-CHAKRAOPS", mission_stage_id="no_signal_evidence")
+        self.assertNotIn("pytest tests -q", req["test_command"] or "")
+
+    def test_mentioned_paths_preserve_full_extensions_and_hidden_directories(self):
+        paths = self.mod.PLANNING.extract_mentioned_paths(
+            "Read .neewa/evidence/receipt.json and ./frontend/Page.tsx and config/settings.yaml. "
+            "Do not invent partial names for logs.jsonl or script.pyc."
+        )
+        self.assertEqual(paths, [".neewa/evidence/receipt.json", "frontend/Page.tsx", "config/settings.yaml"])
+
+    def test_path_normalization_does_not_turn_escape_paths_into_relative_files(self):
+        for path in ("../outside.py", "../../outside.py", "/outside.py", r"C:\outside.py", "C:outside.py", r"\\server\share\outside.py"):
+            with self.subTest(path=path):
+                self.assertFalse(self.mod.PLANNING.is_repo_relative_file(path))
+                self.assertEqual(self.mod.PLANNING.constrain_expected_paths([path]), [])
+                self.assertEqual(self.mod.PLANNING.extract_mentioned_paths("Read " + path), [])
+
+    def test_stage_command_reaches_persisted_requirements_and_design(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            job = self.mod.create_parent_job("Implement no signal evidence with tests",
+                workspace=r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps",
+                project_id="PRJ-CHAKRAOPS", root=Path(tmp) / "jobs")
+            job.update(state="REQUIREMENTS", workflow="sdlc", mission_stage_id="no_signal_evidence")
+            self.mod.save_job(job)
+            job = self.mod.advance_job(job)
+            req = self.mod.load_json(self.mod.job_workdir(job, None) / "requirements.json")
+            design = self.mod.initial_design(req, job["parent_objective"])
+            adapter = self.mod.resolve_test_adapter(job["workspace"], design["test_command"])
+            self.assertEqual(adapter["argv"][2], "tests")
+            command = self.mod.render_registered_test_command(adapter, design["test_command"])
+            self.assertIn("Push-Location -LiteralPath 'backend' -ErrorAction Stop", command)
+            self.assertIn("'pytest' 'tests'", command)
+
     def test_canonical_chakraops_uses_verified_executor(self):
         canonical = r"C:\Users\swap2\NEEWA-Personal\projects\ChakraOps"
         with tempfile.TemporaryDirectory() as tmp:

@@ -30,6 +30,22 @@
     "PRJ-CHAKRAOPS": {
       "workspace_path": "C:\\Users\\swap2\\NEEWA-Personal\\projects\\ChakraOps",
       "implementation_model": "claude-opus-5-5-high",
+      "stage_test_commands": {
+        "no_signal_evidence": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "strategy_explanation": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "position_math": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "calendar": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "profiles": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "read_only_broker": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "eligibility": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "ui_parity": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "universe_indicators": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "replay_snapshots": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "competitor_research": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "owner_alerts": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "position_monitoring": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line",
+        "traceability": "backend\\.venv\\Scripts\\python.exe -m pytest tests -q --tb=line"
+      },
       "stack": "mixed",
       "stack_label": "FastAPI/React/Vite",
       "test_command": "backend\\.venv\\Scripts\\python.exe -m pytest tests/test_orats_freshness_r222.py -q --tb=line",
